@@ -5,7 +5,7 @@ info:
     Multi-tenant inventory platform — Master Data service.
 
     Manages SKU, Location, and Partner master records shared across all four sub-systems.
-    MVP scope: SKU create + get. Location and Partner are future iterations.
+    Current scope: SKU + Location + Partner (create + get).
 
     Bridge multi-tenancy: each tenant has its own schema; Master Data is per-tenant.
     Errors follow RFC 7807; `errorCode` is the i18n key.
@@ -20,6 +20,10 @@ servers:
 tags:
   - name: skus
     description: SKU master records
+  - name: locations
+    description: Location master records (warehouse / store / factory / DC)
+  - name: partners
+    description: Partner master records (customer / supplier / carrier)
 
 security:
   - bearerJwt: []
@@ -79,6 +83,114 @@ paths:
         '404':
           $ref: '#/components/responses/SkuNotFound'
 
+  /v1/locations:
+    post:
+      tags: [locations]
+      operationId: createLocation
+      summary: Register a new Location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLocationRequest'
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Location code already exists in this tenant
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/locations/{locationId}:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      tags: [locations]
+      operationId: getLocation
+      summary: Get Location by id
+      responses:
+        '200':
+          description: Location found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/LocationNotFound'
+
+  /v1/partners:
+    post:
+      tags: [partners]
+      operationId: createPartner
+      summary: Register a new Partner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePartnerRequest'
+      responses:
+        '201':
+          description: Partner created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Partner code already exists in this tenant
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/partners/{partnerId}:
+    parameters:
+      - name: partnerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      tags: [partners]
+      operationId: getPartner
+      summary: Get Partner by id
+      responses:
+        '200':
+          description: Partner found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PartnerNotFound'
+
 components:
   schemas:
     CreateSkuRequest:
@@ -122,6 +234,90 @@ components:
           type: integer
           format: int64
 
+    CreateLocationRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          pattern: '^[A-Z0-9][A-Z0-9-]{2,63}$'
+          description: Location code (uppercase + digits + hyphen, 3-64 chars). Unique per tenant.
+          example: LOC-TOKYO-A
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: 東京A倉庫
+        addressLine:
+          type: string
+          maxLength: 500
+        locationType:
+          type: string
+          maxLength: 32
+          description: 'Free-form classification (e.g., WAREHOUSE / STORE / FACTORY / DC).'
+          example: WAREHOUSE
+
+    LocationResponse:
+      type: object
+      required: [id, code, name, version]
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        addressLine:
+          type: string
+        locationType:
+          type: string
+        version:
+          type: integer
+          format: int64
+
+    CreatePartnerRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          pattern: '^[A-Z0-9][A-Z0-9-]{2,63}$'
+          description: Partner code (uppercase + digits + hyphen, 3-64 chars). Unique per tenant.
+          example: PT-ACME-CORP
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Acme 株式会社
+        partnerType:
+          type: string
+          maxLength: 32
+          description: 'Free-form classification (e.g., CUSTOMER / SUPPLIER / CARRIER).'
+          example: CUSTOMER
+        contactEmail:
+          type: string
+          maxLength: 200
+
+    PartnerResponse:
+      type: object
+      required: [id, code, name, version]
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        partnerType:
+          type: string
+        contactEmail:
+          type: string
+        version:
+          type: integer
+          format: int64
+
     ProblemDetail:
       type: object
       required: [type, title, status]
@@ -150,6 +346,20 @@ components:
 
     SkuNotFound:
       description: SKU does not exist in this tenant
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    LocationNotFound:
+      description: Location does not exist in this tenant
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    PartnerNotFound:
+      description: Partner does not exist in this tenant
       content:
         application/problem+json:
           schema:

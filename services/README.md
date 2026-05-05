@@ -10,7 +10,7 @@
 | [inventory-read-model](./inventory-read-model/) | Kafka 購読 → Redis 投影 → 高速参照 | DBなし / 読取専用 / CQRS Read 側 |
 | [identity-broker](./identity-broker/) | JWT 発行 + テナント解決(ADR-0007) | DBあり / Pool / JWT 発行側 |
 | [audit-service](./audit-service/) | audit.log.v1 全消費 + ハッシュチェーン構築(ADR-0008) | DBあり / Pool / Kafka 消費専用 |
-| [master-data](./master-data/) | SKU / 拠点 / 取引先マスタ(MVP は SKU のみ) | DBあり / 書込権威 / Outbox / Bridge |
+| [master-data](./master-data/) | SKU / Location / Partner マスタ | DBあり / 書込権威 / Outbox / Bridge |
 
 ## サービス間連携 E2E
 
