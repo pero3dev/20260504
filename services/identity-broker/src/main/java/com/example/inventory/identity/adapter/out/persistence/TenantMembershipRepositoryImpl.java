@@ -1,0 +1,62 @@
+package com.example.inventory.identity.adapter.out.persistence;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.stereotype.Repository;
+
+import com.example.inventory.commons.tenant.TenantId;
+import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
+import com.example.inventory.identity.domain.model.RoleName;
+import com.example.inventory.identity.domain.model.TenantMembership;
+import com.example.inventory.identity.domain.model.UserId;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+/** TenantMembership 参照のための MyBatis 実装。JSONB カラムの解釈は Jackson で行う。 */
+@Repository
+public class TenantMembershipRepositoryImpl implements TenantMembershipRepository {
+
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
+
+    private final TenantMembershipMapper mapper;
+    private final ObjectMapper objectMapper;
+
+    public TenantMembershipRepositoryImpl(
+            TenantMembershipMapper mapper, ObjectMapper objectMapper) {
+        this.mapper = mapper;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public List<TenantMembership> findByUserId(UserId userId) {
+        return mapper.findByUserId(userId.value()).stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    public Optional<TenantMembership> findByUserAndTenant(UserId userId, TenantId tenantId) {
+        TenantMembershipRow row = mapper.findByUserAndTenant(userId.value(), tenantId.value());
+        return row == null ? Optional.empty() : Optional.of(toDomain(row));
+    }
+
+    private TenantMembership toDomain(TenantMembershipRow row) {
+        return new TenantMembership(
+                new UserId(row.userId()),
+                new TenantId(row.tenantId()),
+                row.tenantDisplayName(),
+                parseStringList(row.rolesJson()).stream().map(RoleName::new).toList(),
+                parseStringList(row.locationScopesJson()),
+                parseStringList(row.partnerScopesJson()));
+    }
+
+    private List<String> parseStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, STRING_LIST);
+        } catch (Exception e) {
+            throw new IllegalStateException("JSONB の文字列リスト解釈に失敗: " + json, e);
+        }
+    }
+}

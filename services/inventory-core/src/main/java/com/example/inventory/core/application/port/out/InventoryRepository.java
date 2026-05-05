@@ -1,0 +1,20 @@
+package com.example.inventory.core.application.port.out;
+
+import java.util.Optional;
+
+import com.example.inventory.commons.persistence.AggregateRepository;
+import com.example.inventory.core.domain.model.Inventory;
+import com.example.inventory.core.domain.model.InventoryId;
+
+/** Inventory 集約用の出力ポート。実装は {@code adapter.out.persistence} で MyBatis ベースに行う(ADR-0009)。 */
+public interface InventoryRepository extends AggregateRepository<Inventory, InventoryId> {
+
+    @Override
+    Optional<Inventory> findById(InventoryId id);
+
+    @Override
+    Inventory save(Inventory aggregate);
+
+    @Override
+    void delete(Inventory aggregate);
+}

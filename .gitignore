@@ -33,7 +33,9 @@ application-local.properties
 
 # Build outputs
 build/
-out/
+# IntelliJ build output dir。Hexagonal の `port/out/` を巻き込まないよう、
+# トップレベル直下のみ無視する(先頭 `/` が必要)。
+/out/
 bin/
 
 # Spring Boot
