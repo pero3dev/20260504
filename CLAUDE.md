@@ -107,6 +107,8 @@ Day-1 scaffolding is in place: aggregator parent POM at the repo root, `inventor
 
 Use `mvn -pl '!e2e-tests' verify` for the inner dev loop. CI (`ubuntu-latest` runner with native Docker socket) handles the full reactor including E2E.
 
+For local Kafka path coverage without spinning up the cross-service IT, `services/inventory-core` ships a single-context lite E2E (`KafkaIntegrationE2ETest`) that boots only `inventory-core` with Postgres + Kafka. It covers (a) Reserve → Outbox → Kafka publish, (b) `master.product.v1` → SkuMasterListener → `sku_registry` projection, (c) Reserve with unregistered SKU → 422. Auto-skips when Docker is unavailable.
+
 The vertical spike (`services/inventory-core`) is the canonical reference for the package layout, MyBatis + outbox + optimistic-lock conventions, and `@Auditable` placement. Use it as the template when scaffolding the other 12 services.
 
 ## CI

@@ -78,7 +78,10 @@
       "Bash(\"/c/Program Files/Java/jdk-25/bin/javap.exe\" -p -c /tmp/tc-extract/org/testcontainers/shaded/com/github/dockerjava/core/DefaultDockerClientConfig.class)",
       "Bash(\"/c/Program Files/Java/jdk-25/bin/javap.exe\" -v /tmp/tc-extract/org/testcontainers/shaded/com/github/dockerjava/core/DefaultDockerClientConfig.class)",
       "Bash(unzip -l \"/c/Users/81906/.m2/repository/com/example/inventory/inventory-core/0.0.1-SNAPSHOT/inventory-core-0.0.1-SNAPSHOT.jar\")",
-      "Bash(mvn -B -ntp -q clean -DskipTests=true -Dspotless.check.skip=true)"
+      "Bash(mvn -B -ntp -q clean -DskipTests=true -Dspotless.check.skip=true)",
+      "Bash(mvn -B -ntp -pl services/inventory-core -am -DskipTests=true -Dspotless.check.skip=true test-compile)",
+      "Bash(mvn -B -ntp -pl services/inventory-core -DskipTests=true -Dspotless.check.skip=true test-compile)",
+      "Bash(mvn -B -ntp -q spotless:apply)"
     ]
   }
 }
