@@ -5,7 +5,9 @@ import java.util.Collections;
 import java.util.List;
 
 import com.example.inventory.commons.event.DomainEvent;
+import com.example.inventory.core.domain.event.InventoryReceivedEvent;
 import com.example.inventory.core.domain.event.InventoryReservedEvent;
+import com.example.inventory.core.domain.event.InventoryShippedEvent;
 
 /**
  * Inventory 集約ルート。本プラットフォームにおける 「テナント内の (SKU, Location) に対する利用可能数量・引当数量」の権威 (ADR-0002、ADR-0004)。
@@ -82,6 +84,54 @@ public final class Inventory {
                         this.version + 1,
                         java.time.Instant.now()));
         return reservationId;
+    }
+
+    /**
+     * 入荷により利用可能在庫を増やす。{@code available += quantity}。引当済(reserved)には影響しない。 成功時に {@link
+     * InventoryReceivedEvent} を発行する。
+     */
+    public void receive(Quantity quantity) {
+        if (quantity.value() == 0) {
+            throw new IllegalArgumentException("受入数量は 1 以上である必要があります");
+        }
+        this.available = available.plus(quantity);
+        this.pendingEvents.add(
+                new InventoryReceivedEvent(
+                        id.value(),
+                        skuId.value(),
+                        locationId.value(),
+                        quantity.value(),
+                        this.available.value(),
+                        this.reserved.value(),
+                        this.version + 1,
+                        java.time.Instant.now()));
+    }
+
+    /**
+     * 引当済み在庫を出荷で消化する。{@code reserved -= quantity}。{@code available} は変わらない (reserve 時に既に available
+     * から差し引かれているため)。
+     *
+     * <p>{@code reserved} が要求量未満の場合は {@link InsufficientReservedException} を投げる。 成功時に {@link
+     * InventoryShippedEvent} を発行する。
+     */
+    public void ship(Quantity quantity) {
+        if (quantity.value() == 0) {
+            throw new IllegalArgumentException("出荷数量は 1 以上である必要があります");
+        }
+        if (!reserved.isAtLeast(quantity)) {
+            throw new InsufficientReservedException(id, reserved, quantity);
+        }
+        this.reserved = reserved.minus(quantity);
+        this.pendingEvents.add(
+                new InventoryShippedEvent(
+                        id.value(),
+                        skuId.value(),
+                        locationId.value(),
+                        quantity.value(),
+                        this.available.value(),
+                        this.reserved.value(),
+                        this.version + 1,
+                        java.time.Instant.now()));
     }
 
     public InventoryId id() {

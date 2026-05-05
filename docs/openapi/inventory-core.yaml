@@ -31,6 +31,10 @@ tags:
     description: Inventory queries and lifecycle management
   - name: reservations
     description: Reserve and release inventory quantities
+  - name: receipts
+    description: Increase available stock via receipt (inbound)
+  - name: shipments
+    description: Consume reserved stock via shipment (outbound)
 
 security:
   - bearerJwt: []
@@ -126,6 +130,78 @@ paths:
                 errorCode: ERR_UNKNOWN_SKU
                 traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 
+  /v1/inventories/{inventoryId}/receipts:
+    parameters:
+      - $ref: '#/components/parameters/InventoryIdPath'
+    post:
+      tags: [receipts]
+      operationId: receiveInventory
+      summary: Receive inventory (inbound)
+      description: |
+        Increases `available` by the given quantity. Reserved is unchanged.
+        Audited (J-SOX). Emits `inventory.movement.v1` with movement-specific fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MovementRequest'
+      responses:
+        '202':
+          description: Receipt accepted
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/InventoryNotFound'
+        '422':
+          description: SKU not yet registered (see reservation endpoint).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/inventories/{inventoryId}/shipments:
+    parameters:
+      - $ref: '#/components/parameters/InventoryIdPath'
+    post:
+      tags: [shipments]
+      operationId: shipInventory
+      summary: Ship inventory (outbound consume)
+      description: |
+        Consumes `reserved` by the given quantity. `available` is unchanged
+        (the quantity was already removed from available at reservation time).
+        Throws `ERR_INVENTORY_RESERVED_INSUFFICIENT` (409) if the requested
+        quantity exceeds the currently reserved amount.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MovementRequest'
+      responses:
+        '202':
+          description: Shipment accepted
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/InventoryNotFound'
+        '409':
+          description: Reserved quantity is insufficient.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: SKU not yet registered.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   parameters:
     InventoryIdPath:
@@ -193,6 +269,19 @@ components:
           type: integer
           format: int64
           description: Snowflake-format reservation id
+
+    MovementRequest:
+      type: object
+      description: |
+        Receipt (inbound) or Shipment (outbound) request body. Both increase or
+        decrease the corresponding bucket on the `Inventory` aggregate by `quantity`.
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000000
 
     ProblemDetail:
       type: object
