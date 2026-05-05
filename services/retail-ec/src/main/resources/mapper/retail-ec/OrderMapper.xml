@@ -23,6 +23,7 @@
             <idArg column="order_id" javaType="_long"/>
             <idArg column="line_no" javaType="_int"/>
             <arg column="sku_code" javaType="java.lang.String"/>
+            <arg column="location_id" javaType="java.lang.String"/>
             <arg column="quantity" javaType="_int"/>
             <arg column="unit_price" javaType="java.math.BigDecimal"/>
         </constructor>
@@ -60,15 +61,16 @@
     </delete>
 
     <select id="findItemsByOrderId" resultMap="orderItemRow">
-        SELECT order_id, line_no, sku_code, quantity, unit_price
+        SELECT order_id, line_no, sku_code, location_id, quantity, unit_price
         FROM retail_order_item
         WHERE order_id = #{orderId}
         ORDER BY line_no
     </select>
 
     <insert id="insertItem">
-        INSERT INTO retail_order_item (order_id, line_no, sku_code, quantity, unit_price)
-        VALUES (#{row.orderId}, #{row.lineNo}, #{row.skuCode}, #{row.quantity}, #{row.unitPrice})
+        INSERT INTO retail_order_item (order_id, line_no, sku_code, location_id, quantity, unit_price)
+        VALUES (#{row.orderId}, #{row.lineNo}, #{row.skuCode}, #{row.locationId},
+                #{row.quantity}, #{row.unitPrice})
     </insert>
 
     <delete id="deleteItemsByOrderId">

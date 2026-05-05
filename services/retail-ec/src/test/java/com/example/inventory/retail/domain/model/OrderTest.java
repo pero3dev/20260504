@@ -16,7 +16,7 @@ class OrderTest {
     private static final OrderCode CODE = new OrderCode("ORD-2026-0001");
 
     private static OrderItem line(int no, String sku, int qty, String price) {
-        return new OrderItem(no, sku, qty, new BigDecimal(price));
+        return new OrderItem(no, sku, "LOC-1", qty, new BigDecimal(price));
     }
 
     @Test

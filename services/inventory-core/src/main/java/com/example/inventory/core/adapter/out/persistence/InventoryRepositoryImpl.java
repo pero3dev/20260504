@@ -37,17 +37,23 @@ public class InventoryRepositoryImpl implements InventoryRepository {
     @Override
     public Optional<Inventory> findById(InventoryId id) {
         InventoryRow row = inventoryMapper.findById(id.value());
-        if (row == null) {
-            return Optional.empty();
-        }
-        return Optional.of(
-                Inventory.restore(
-                        new InventoryId(row.id()),
-                        new SkuId(row.skuId()),
-                        new LocationId(row.locationId()),
-                        new Quantity(row.available()),
-                        new Quantity(row.reserved()),
-                        row.version()));
+        return Optional.ofNullable(row).map(InventoryRepositoryImpl::toAggregate);
+    }
+
+    @Override
+    public Optional<Inventory> findBySkuAndLocation(SkuId skuId, LocationId locationId) {
+        InventoryRow row = inventoryMapper.findBySkuAndLocation(skuId.value(), locationId.value());
+        return Optional.ofNullable(row).map(InventoryRepositoryImpl::toAggregate);
+    }
+
+    private static Inventory toAggregate(InventoryRow row) {
+        return Inventory.restore(
+                new InventoryId(row.id()),
+                new SkuId(row.skuId()),
+                new LocationId(row.locationId()),
+                new Quantity(row.available()),
+                new Quantity(row.reserved()),
+                row.version());
     }
 
     @Override

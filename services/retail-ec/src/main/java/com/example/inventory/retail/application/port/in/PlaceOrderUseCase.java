@@ -21,10 +21,12 @@ public interface PlaceOrderUseCase {
                 throw new IllegalArgumentException("items は 1 行以上必要");
         }
 
-        public record Line(String skuCode, int quantity, BigDecimal unitPrice) {
+        public record Line(String skuCode, String locationId, int quantity, BigDecimal unitPrice) {
             public Line {
                 if (skuCode == null || skuCode.isBlank())
                     throw new IllegalArgumentException("skuCode は必須");
+                if (locationId == null || locationId.isBlank())
+                    throw new IllegalArgumentException("locationId は必須");
                 if (quantity <= 0) throw new IllegalArgumentException("quantity は正の値");
                 if (unitPrice == null || unitPrice.signum() < 0)
                     throw new IllegalArgumentException("unitPrice は非負必須");

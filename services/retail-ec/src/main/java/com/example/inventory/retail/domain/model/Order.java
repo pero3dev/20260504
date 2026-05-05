@@ -82,6 +82,7 @@ public final class Order {
                                                 new OrderPlacedEvent.Line(
                                                         i.lineNo(),
                                                         i.skuCode(),
+                                                        i.locationId(),
                                                         i.quantity(),
                                                         i.unitPrice()))
                                 .collect(Collectors.toList()),

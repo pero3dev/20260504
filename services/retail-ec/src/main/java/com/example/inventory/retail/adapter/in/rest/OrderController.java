@@ -35,6 +35,7 @@ public class OrderController implements OrdersApi {
                                 l ->
                                         new PlaceOrderUseCase.Command.Line(
                                                 l.getSkuCode(),
+                                                l.getLocationId(),
                                                 l.getQuantity(),
                                                 BigDecimal.valueOf(l.getUnitPrice())))
                         .collect(Collectors.toList());
@@ -67,6 +68,7 @@ public class OrderController implements OrdersApi {
                                 it -> {
                                     OrderLine line = new OrderLine();
                                     line.setSkuCode(it.skuCode());
+                                    line.setLocationId(it.locationId());
                                     line.setQuantity(it.quantity());
                                     line.setUnitPrice(it.unitPrice().doubleValue());
                                     return line;

@@ -40,7 +40,9 @@ public class PlaceOrderService implements PlaceOrderUseCase {
         List<OrderItem> items = new ArrayList<>();
         int lineNo = 1;
         for (Command.Line l : command.items()) {
-            items.add(new OrderItem(lineNo++, l.skuCode(), l.quantity(), l.unitPrice()));
+            items.add(
+                    new OrderItem(
+                            lineNo++, l.skuCode(), l.locationId(), l.quantity(), l.unitPrice()));
         }
         Order order = Order.place(id, code, command.customerEmail(), command.currency(), items);
         return repository.save(order);

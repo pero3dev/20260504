@@ -28,7 +28,8 @@ public record OrderPlacedEvent(
     public static final String SCHEMA_VERSION = "1.0";
 
     /** 明細(イベント payload 用フラット化)。 */
-    public record Line(int lineNo, String skuCode, int quantity, BigDecimal unitPrice) {}
+    public record Line(
+            int lineNo, String skuCode, String locationId, int quantity, BigDecimal unitPrice) {}
 
     @Override
     public String topic() {

@@ -22,6 +22,13 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findBySkuAndLocation" resultMap="inventoryRow">
+        SELECT id, sku_id, location_id, available, reserved, version
+        FROM inventory
+        WHERE sku_id = #{skuId} AND location_id = #{locationId}
+        LIMIT 1
+    </select>
+
     <insert id="insert">
         INSERT INTO inventory (id, sku_id, location_id, available, reserved, version)
         VALUES (#{row.id}, #{row.skuId}, #{row.locationId},

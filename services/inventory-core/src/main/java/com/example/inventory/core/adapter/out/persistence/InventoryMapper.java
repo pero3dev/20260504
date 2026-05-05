@@ -14,6 +14,9 @@ public interface InventoryMapper {
 
     InventoryRow findById(@Param("id") long id);
 
+    InventoryRow findBySkuAndLocation(
+            @Param("skuId") String skuId, @Param("locationId") String locationId);
+
     int insert(@Param("row") InventoryRow row);
 
     /**

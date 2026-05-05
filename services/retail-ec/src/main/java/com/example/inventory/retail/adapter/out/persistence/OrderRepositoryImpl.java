@@ -38,6 +38,7 @@ public class OrderRepositoryImpl implements OrderRepository {
                                         new OrderItem(
                                                 ir.lineNo(),
                                                 ir.skuCode(),
+                                                ir.locationId(),
                                                 ir.quantity(),
                                                 ir.unitPrice()))
                         .collect(Collectors.toList());
@@ -80,6 +81,7 @@ public class OrderRepositoryImpl implements OrderRepository {
                                 aggregate.id().value(),
                                 it.lineNo(),
                                 it.skuCode(),
+                                it.locationId(),
                                 it.quantity(),
                                 it.unitPrice()));
             }

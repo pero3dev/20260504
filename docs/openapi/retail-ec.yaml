@@ -109,12 +109,19 @@ components:
 
     OrderLine:
       type: object
-      required: [skuCode, quantity, unitPrice]
+      required: [skuCode, locationId, quantity, unitPrice]
       properties:
         skuCode:
           type: string
           maxLength: 64
           example: SKU-COCA-COLA-500ML
+        locationId:
+          type: string
+          maxLength: 64
+          description: |
+            Source location for this line. Inventory Core resolves the inventory
+            record by (skuCode, locationId) when consuming `retail.order.placed.v1`.
+          example: LOC-TOKYO-A
         quantity:
           type: integer
           format: int32
