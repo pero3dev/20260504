@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.inventory</groupId>
+        <artifactId>inventory-platform-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>notification</artifactId>
+    <name>notification</name>
+    <description>Notification Service — 業務イベント(初期は inventory.movement.v1)を購読し、
+        テンプレートでメッセージを組み立ててメール等に送る。Pool 方式マルチテナンシ。
+        MVP の送信器は LoggingEmailSender(stdout)。本番は SES / SendGrid 等に差し替え可能。</description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.example.inventory</groupId>
+                <artifactId>commons-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Platform commons -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-persistence</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-error</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-resilience</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-observability</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- テスト -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

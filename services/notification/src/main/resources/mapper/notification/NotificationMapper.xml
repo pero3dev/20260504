@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.notification.adapter.out.persistence.NotificationMapper">
+
+    <select id="existsByTriggeredEventId" resultType="int">
+        SELECT count(*) FROM notification_record
+         WHERE triggered_event_id = #{eventId}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO notification_record
+            (id, tenant_id, channel, recipient, subject, body,
+             status, error_message, triggered_by, triggered_event_id, occurred_at)
+        VALUES
+            (#{row.id}, #{row.tenantId}, #{row.channel}, #{row.recipient},
+             #{row.subject}, #{row.body},
+             #{row.status}, #{row.errorMessage},
+             #{row.triggeredBy}, #{row.triggeredEventId}, #{row.occurredAt})
+    </insert>
+
+</mapper>

@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: notification
+  config:
+    import: classpath:application-resilience-defaults.yml
+  datasource:
+    url: ${NOTIFICATION_DB_URL:jdbc:postgresql://localhost:5432/notification}
+    username: ${NOTIFICATION_DB_USER:notification_app}
+    password: ${NOTIFICATION_DB_PASSWORD:dev}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 3
+  flyway:
+    enabled: false
+    locations: classpath:db/migration/notification
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: notification
+      auto-offset-reset: latest
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual_immediate
+      concurrency: 3
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${IDENTITY_BROKER_ISSUER:https://idp.example.com/}
+
+mybatis:
+  mapper-locations: classpath*:mapper/notification/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8084}
+
+# 在庫低下通知の閾値。available <= threshold で送信対象とする(MVP)。
+notification:
+  inventory:
+    low-stock-threshold: ${LOW_STOCK_THRESHOLD:5}
+
+application:
+  env: ${APP_ENV:local}
+
+logging:
+  config: classpath:logback-spring.xml

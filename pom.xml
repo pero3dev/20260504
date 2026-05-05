@@ -18,6 +18,7 @@
         <module>services/identity-broker</module>
         <module>services/audit-service</module>
         <module>services/master-data</module>
+        <module>services/notification</module>
         <module>e2e-tests</module>
     </modules>
 
