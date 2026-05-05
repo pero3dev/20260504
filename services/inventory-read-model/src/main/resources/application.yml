@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: inventory-read-model
+  config:
+    import: classpath:application-resilience-defaults.yml
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: inventory-read-model
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        # Glue Schema Registry 統合後はここで Schema Registry URL を指定する。
+        schema.registry.url: ${SCHEMA_REGISTRY_URL:}
+    listener:
+      # 投影更新が成功したオフセットだけ commit する(at-least-once)。
+      ack-mode: manual_immediate
+      concurrency: 3
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${IDENTITY_BROKER_ISSUER:https://idp.example.com/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+application:
+  env: ${APP_ENV:local}
+
+logging:
+  config: classpath:logback-spring.xml

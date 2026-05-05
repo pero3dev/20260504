@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.inventory</groupId>
+        <artifactId>inventory-platform-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>inventory-core</artifactId>
+    <name>inventory-core</name>
+    <description>Inventory Core service — write authority for inventory state. Vertical spike for the platform.</description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.example.inventory</groupId>
+                <artifactId>commons-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Spring Boot starters -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- MyBatis (ADR-0009) -->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- DB driver + migrations -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Platform commons -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-persistence</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-event</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-audit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-error</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-resilience</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-observability</artifactId>
+        </dependency>
+
+        <!-- Lombok / MapStruct -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
+
+        <!-- OpenAPI 生成コードに必要なランタイム依存(@Operation, @Schema 等) -->
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <version>2.2.27</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+              OpenAPI スキーマファースト(ADR-0006)。
+              docs/openapi/inventory-core.yaml を真として、Spring サーバインタフェース + DTO を生成する。
+              生成物は target/generated-sources/openapi に出力され、コントローラはこのインタフェースを implement する。
+              スキーマと実装の乖離はコンパイル失敗で検出する。
+            -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-server-stubs</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/../../docs/openapi/inventory-core.yaml</inputSpec>
+                            <generatorName>spring</generatorName>
+                            <library>spring-boot</library>
+                            <output>${project.build.directory}/generated-sources/openapi</output>
+                            <apiPackage>com.example.inventory.core.adapter.in.rest.api</apiPackage>
+                            <modelPackage>com.example.inventory.core.adapter.in.rest.api.model</modelPackage>
+                            <invokerPackage>com.example.inventory.core.adapter.in.rest.api</invokerPackage>
+                            <generateApiTests>false</generateApiTests>
+                            <generateApiDocumentation>false</generateApiDocumentation>
+                            <generateModelTests>false</generateModelTests>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <skipDefaultInterface>true</skipDefaultInterface>
+                                <useSpringBoot3>true</useSpringBoot3>
+                                <useJakartaEe>true</useJakartaEe>
+                                <useTags>true</useTags>
+                                <openApiNullable>false</openApiNullable>
+                                <useOptional>false</useOptional>
+                                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                                <useResponseEntity>true</useResponseEntity>
+                                <serializationLibrary>jackson</serializationLibrary>
+                                <documentationProvider>none</documentationProvider>
+                                <annotationLibrary>swagger2</annotationLibrary>
+                                <dateLibrary>java8</dateLibrary>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+              生成 Spring インタフェースに含まれる Bean Validation アノテーションが
+              生成物には Lombok 等の processor は不要。生成物の重複コンパイルを避けるため、
+              maven-compiler-plugin に追加の sources/excludes は設定不要(generate-sources フェーズで
+              build-helper 相当の自動追加が openapi-generator により行われる)。
+            -->
+        </plugins>
+    </build>
+</project>

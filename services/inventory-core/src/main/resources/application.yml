@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: inventory-core
+  config:
+    import: classpath:application-resilience-defaults.yml
+  datasource:
+    url: ${INVENTORY_CORE_DB_URL:jdbc:postgresql://localhost:5432/inventory_core}
+    username: ${INVENTORY_CORE_DB_USER:inventory_core_app}
+    password: ${INVENTORY_CORE_DB_PASSWORD:dev}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+  flyway:
+    # スキーマ移行は専用の Kubernetes Job で実行する(ADR-0013)。
+    # 設定ミスのPodが本番に対して移行を当ててしまわないよう、アプリ起動時実行は無効化。
+    enabled: false
+    # サービスごとに classpath を分けて、e2e で複数サービスが同じ classpath にいても V1 の衝突を避ける
+    locations: classpath:db/migration/inventory-core
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      # SKU 投影更新が成功したオフセットだけ commit する(at-least-once)。
+      ack-mode: manual_immediate
+      concurrency: 1
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${IDENTITY_BROKER_ISSUER:https://idp.example.com/}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+platform:
+  snowflake:
+    worker-id: ${POD_ORDINAL:0}
+  outbox:
+    enabled: true
+    poll-interval: PT1S
+    batch-size: 200
+    # ローカル/dev のテナント一覧。本番では Identity & Tenant 連携実装に Bean を差し替える。
+    tenants:
+      - dev
+
+application:
+  env: ${APP_ENV:local}
+
+logging:
+  config: classpath:logback-spring.xml

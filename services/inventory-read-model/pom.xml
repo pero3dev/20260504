@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.inventory</groupId>
+        <artifactId>inventory-platform-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>inventory-read-model</artifactId>
+    <name>inventory-read-model</name>
+    <description>Inventory Read Model — Kafkaから inventory.movement.v1 を購読し、Redis に投影する。getInventory API 提供。</description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.example.inventory</groupId>
+                <artifactId>commons-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Spring Boot starters -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- Platform commons -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-tenant</artifactId>
+        </dependency>
+        <!--
+          commons-audit を含めると、commons-event の DirectKafkaDomainEventPublisher が
+          自動配線され(OutboxRepository が無いため)、@Auditable 経由で audit.log.v1 へ
+          直接 Kafka 発行される(at-most-once)。
+        -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-audit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-event</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-persistence</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-error</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-resilience</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-observability</artifactId>
+        </dependency>
+
+        <!-- OpenAPI 生成コードに必要 -->
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <version>2.2.27</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+
+        <!-- Lombok / MapStruct -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- テスト -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- OpenAPI スキーマファースト(ADR-0006)。inventory-core と同じ仕様を共有。 -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-server-stubs</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/../../docs/openapi/inventory-core.yaml</inputSpec>
+                            <generatorName>spring</generatorName>
+                            <library>spring-boot</library>
+                            <output>${project.build.directory}/generated-sources/openapi</output>
+                            <apiPackage>com.example.inventory.readmodel.adapter.in.rest.api</apiPackage>
+                            <modelPackage>com.example.inventory.readmodel.adapter.in.rest.api.model</modelPackage>
+                            <invokerPackage>com.example.inventory.readmodel.adapter.in.rest.api</invokerPackage>
+                            <generateApiTests>false</generateApiTests>
+                            <generateApiDocumentation>false</generateApiDocumentation>
+                            <generateModelTests>false</generateModelTests>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <skipDefaultInterface>true</skipDefaultInterface>
+                                <useSpringBoot3>true</useSpringBoot3>
+                                <useJakartaEe>true</useJakartaEe>
+                                <useTags>true</useTags>
+                                <openApiNullable>false</openApiNullable>
+                                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                                <useResponseEntity>true</useResponseEntity>
+                                <serializationLibrary>jackson</serializationLibrary>
+                                <documentationProvider>none</documentationProvider>
+                                <annotationLibrary>swagger2</annotationLibrary>
+                                <dateLibrary>java8</dateLibrary>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

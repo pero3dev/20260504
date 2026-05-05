@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.core.adapter.out.persistence.SkuRegistryMapper">
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM sku_registry WHERE code = #{code}
+    </select>
+
+    <!--
+      version 比較で再配信時の巻き戻しを抑止する。
+      DO NOTHING ではなく WHERE excluded.version > sku_registry.version で
+      古いイベントを切り捨てる(ON CONFLICT DO UPDATE 構文)。
+    -->
+    <insert id="upsert">
+        INSERT INTO sku_registry (code, aggregate_id, name, unit_of_measure, version, updated_at)
+        VALUES (#{row.code}, #{row.aggregateId}, #{row.name},
+                #{row.unitOfMeasure}, #{row.version}, now())
+        ON CONFLICT (code) DO UPDATE SET
+            aggregate_id    = excluded.aggregate_id,
+            name            = excluded.name,
+            unit_of_measure = excluded.unit_of_measure,
+            version         = excluded.version,
+            updated_at      = now()
+        WHERE excluded.version &gt; sku_registry.version
+    </insert>
+
+</mapper>

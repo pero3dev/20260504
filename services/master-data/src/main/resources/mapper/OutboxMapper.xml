@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.master.adapter.out.persistence.OutboxMapper">
+
+    <resultMap id="outboxRow"
+               type="com.example.inventory.commons.event.OutboxRecord">
+        <constructor>
+            <idArg column="event_id" javaType="long"/>
+            <arg column="tenant_id" javaType="java.lang.String"/>
+            <arg column="topic" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.String"/>
+            <arg column="aggregate_id" javaType="long"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="published" javaType="boolean"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO outbox
+            (event_id, tenant_id, topic, schema_version, aggregate_id,
+             payload, trace_id, occurred_at, created_at, published)
+        VALUES
+            (#{rec.eventId}, #{rec.tenantId}, #{rec.topic}, #{rec.schemaVersion}, #{rec.aggregateId},
+             #{rec.payloadJson}::jsonb, #{rec.traceId}, #{rec.occurredAt}, #{rec.createdAt}, #{rec.published})
+    </insert>
+
+    <select id="pickUnpublished" resultMap="outboxRow">
+        SELECT event_id, tenant_id, topic, schema_version, aggregate_id,
+               payload::text AS payload, trace_id, occurred_at, created_at, published
+        FROM outbox
+        WHERE published = FALSE
+        ORDER BY created_at
+        LIMIT #{batchSize}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="markPublished">
+        UPDATE outbox SET published = TRUE WHERE event_id = #{eventId}
+    </update>
+
+</mapper>

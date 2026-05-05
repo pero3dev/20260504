@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Pool 方式のため search_path 切替なし。public スキーマの users テーブルを直接参照。 -->
+<mapper namespace="com.example.inventory.identity.adapter.out.persistence.UserMapper">
+
+    <resultMap id="userRow"
+               type="com.example.inventory.identity.adapter.out.persistence.UserRow">
+        <constructor>
+            <idArg column="id" javaType="long"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="version" javaType="long"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findByEmail" resultMap="userRow">
+        SELECT id, email, password_hash, display_name, version
+        FROM users
+        WHERE email = #{email}
+    </select>
+
+    <select id="findById" resultMap="userRow">
+        SELECT id, email, password_hash, display_name, version
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+</mapper>

@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: master-data
+  config:
+    import: classpath:application-resilience-defaults.yml
+  datasource:
+    url: ${MASTER_DATA_DB_URL:jdbc:postgresql://localhost:5432/master_data}
+    username: ${MASTER_DATA_DB_USER:master_data_app}
+    password: ${MASTER_DATA_DB_PASSWORD:dev}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+  flyway:
+    enabled: false
+    locations: classpath:db/migration/master-data
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:https://idp.example.com/.well-known/jwks.json}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8083}
+
+platform:
+  snowflake:
+    worker-id: ${POD_ORDINAL:0}
+  outbox:
+    enabled: true
+    publisher-enabled: true
+    poll-interval: PT1S
+    batch-size: 200
+    tenants:
+      - dev
+
+application:
+  env: ${APP_ENV:local}
+
+logging:
+  config: classpath:logback-spring.xml

@@ -1,0 +1,85 @@
+# メインCIワークフロー(ADR-0012 Trunk-Based Development の自動チェック)。
+#
+# トリガ:
+#   - PR (main向け): merge前にPR上のチェック緑化が必要
+#   - main直push: マージ後の継続検証
+#
+# 実行内容:
+#   1. build-and-test ... mvn verify(コンパイル・ユニット・統合・ArchUnit)
+#   2. lint-format   ... Spotless check(google-java-format AOSP)
+#
+# ⚠️ 初回CI失敗の典型: Spotless が既存コードのフォーマットに合わない場合は
+#    `mvn spotless:apply` を実行 → 差分をコミットしてPR再push。
+#
+# 将来追加予定:
+#   - Checkstyle / SpotBugs / PMD のルール明文化と必須化
+#   - Trivy/ECR scan によるイメージ脆弱性チェック(ECR導入後)
+#   - Image build/push と ArgoCD への signal(GitOps Bridgeとなる別job)
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+# 同一PRに複数pushされたら古いCIをキャンセルしてリソースを節約。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & Test (Java 21)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Testcontainers が Docker を使う(統合テスト)。GitHub-hosted runner は Docker 同梱済み。
+      - name: Verify Docker
+        run: docker version
+
+      - name: Maven verify (compile + unit + integration + ArchUnit)
+        run: mvn -B -ntp --fail-at-end verify
+
+      - name: Upload Surefire/Failsafe reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          retention-days: 14
+
+  lint-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Spotless チェックのみ(差分があれば失敗)。
+      # 開発者は手元で `mvn spotless:apply` を実行してから commit する運用。
+      - name: Spotless check (google-java-format AOSP)
+        run: mvn -B -ntp spotless:check

@@ -1,0 +1,290 @@
+openapi: 3.0.3
+info:
+  title: Inventory Core API
+  description: |
+    Multi-tenant inventory management SaaS — Inventory Core service.
+
+    Inventory Core is the sole write authority for inventory state across all four
+    sub-systems (Retail/EC, Manufacturing, 3PL, Wholesale). All quantity changes go
+    through this service.
+
+    Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807). Stable
+    `errorCode` values are returned for i18n on the client. Authentication uses
+    short-lived JWTs issued by the platform Identity Broker.
+  version: 1.0.0
+  license:
+    name: Proprietary
+  contact:
+    name: Platform Team
+    email: platform@example.com
+
+servers:
+  - url: https://api.example.com/inventory
+    description: Production
+  - url: https://api.staging.example.com/inventory
+    description: Staging
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: inventory
+    description: Inventory queries and lifecycle management
+  - name: reservations
+    description: Reserve and release inventory quantities
+
+security:
+  - bearerJwt: []
+
+paths:
+  /v1/inventories/{inventoryId}:
+    parameters:
+      - $ref: '#/components/parameters/InventoryIdPath'
+    get:
+      tags: [inventory]
+      operationId: getInventory
+      summary: Get current inventory state
+      description: |
+        Returns the current available and reserved quantity for a given inventory line.
+        Reads from the Inventory Read Model (Redis-backed projection); reflects writes
+        within ~1s under normal load.
+      responses:
+        '200':
+          description: Inventory found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inventory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/InventoryNotFound'
+
+  /v1/inventories/{inventoryId}/reservations:
+    parameters:
+      - $ref: '#/components/parameters/InventoryIdPath'
+    post:
+      tags: [reservations]
+      operationId: reserveInventory
+      summary: Reserve a quantity from inventory
+      description: |
+        Atomically moves quantity from `available` to `reserved`. Throws
+        `ERR_INVENTORY_INSUFFICIENT` (409) if the requested quantity exceeds
+        the current available amount.
+
+        This is an audited operation. A record is written to `audit.log.v1` whether
+        the call succeeds or fails (J-SOX requirement).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationRequest'
+      responses:
+        '201':
+          description: Reservation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/InventoryNotFound'
+        '409':
+          description: Reservation rejected — insufficient stock
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: https://errors.example.com/ERR_INVENTORY_INSUFFICIENT
+                title: Conflict
+                status: 409
+                detail: 'Insufficient stock: inventory=123 available=2 requested=5'
+                errorCode: ERR_INVENTORY_INSUFFICIENT
+                traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        '422':
+          description: |
+            SKU referenced by this inventory has not yet been registered in Master Data
+            (or the projection of `master.product.v1` to inventory-core has not caught up
+            yet). Retryable: caller should retry after a short delay.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: https://errors.example.com/ERR_UNKNOWN_SKU
+                title: Unprocessable Entity
+                status: 422
+                detail: 'SKU not yet registered: SKU-COCA-COLA-500ML'
+                errorCode: ERR_UNKNOWN_SKU
+                traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+
+components:
+  parameters:
+    InventoryIdPath:
+      name: inventoryId
+      in: path
+      required: true
+      description: Snowflake-format inventory aggregate id
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+
+  schemas:
+    Inventory:
+      type: object
+      description: Inventory line — current quantity per (SKU, Location) inside one tenant
+      required: [id, skuId, locationId, available, reserved, version]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 100000000001
+        skuId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          example: SKU-001
+        locationId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          example: LOC-TOKYO-A
+        available:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Quantity available for new reservations
+        reserved:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Quantity already reserved but not yet shipped
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Optimistic-lock version
+
+    ReservationRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000000
+          description: Number of units to reserve
+
+    ReservationResponse:
+      type: object
+      required: [reservationId]
+      properties:
+        reservationId:
+          type: integer
+          format: int64
+          description: Snowflake-format reservation id
+
+    ProblemDetail:
+      type: object
+      description: |
+        RFC 7807 Problem Details. Platform-standard extensions: `errorCode` (stable
+        i18n key) and `traceId` (OpenTelemetry trace id for support correlation).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI identifying the problem type
+          example: https://errors.example.com/ERR_INVENTORY_INSUFFICIENT
+        title:
+          type: string
+          example: Conflict
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          description: Human-readable explanation
+        instance:
+          type: string
+          format: uri
+        errorCode:
+          type: string
+          pattern: '^ERR_[A-Z0-9_]+$'
+          description: Stable, machine-readable error code for i18n on the client
+          example: ERR_INVENTORY_INSUFFICIENT
+        traceId:
+          type: string
+          description: OpenTelemetry trace id
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
+        validationErrors:
+          type: array
+          description: Per-field validation failures (only for ERR_VALIDATION)
+          items:
+            $ref: '#/components/schemas/FieldValidationError'
+
+    FieldValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+        rejected:
+          type: string
+        message:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Not authenticated, or JWT invalid/expired
+      headers:
+        WWW-Authenticate:
+          description: Indicates the auth scheme; for step-up, contains `MFA-Required`
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    Forbidden:
+      description: Authenticated but lacks the required role/scope
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    InventoryNotFound:
+      description: Inventory line does not exist in this tenant
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    ValidationError:
+      description: Request failed Bean Validation or schema validation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by the platform Identity Broker. Required claims: `sub`,
+        `tenant_id`, `roles[]`, `scopes.locations[]`, `scopes.partners[]`,
+        `mfa_strength`. Lifetime 15 minutes; use the refresh token to renew.

@@ -1,0 +1,21 @@
+# コード所有権定義(レビュアー自動アサイン用)。
+# F5 ルール: 各 PR に最低2名のレビュアー、うち1名はコアチームメンバー。
+#
+# プレースホルダ。チーム名は GitHub 側でチームを作成後に更新する。
+# 形式: パスパターン  チーム/ユーザー (空白区切りで複数)
+
+# 既定: プラットフォームチームが見る
+*                                @example-org/platform-team
+
+# ADR / アーキ文書
+/docs/adr/                       @example-org/platform-team @example-org/architecture-leads
+/CLAUDE.md                       @example-org/architecture-leads
+
+# 共通ライブラリは横断責務(プラットフォームチーム所有)
+/inventory-commons/              @example-org/platform-team
+
+# 業務サービス(将来サービスごとにチームを分ける)
+/services/inventory-core/        @example-org/inventory-team @example-org/platform-team
+
+# CI/CD
+/.github/                        @example-org/platform-team

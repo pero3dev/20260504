@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.master.adapter.out.persistence.SkuMapper">
+
+    <resultMap id="skuRow"
+               type="com.example.inventory.master.adapter.out.persistence.SkuRow">
+        <constructor>
+            <idArg column="id" javaType="long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="unit_of_measure" javaType="java.lang.String"/>
+            <arg column="version" javaType="long"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="skuRow">
+        SELECT id, code, name, description, unit_of_measure, version
+        FROM sku
+        WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM sku WHERE code = #{code}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO sku (id, code, name, description, unit_of_measure, version)
+        VALUES (#{row.id}, #{row.code}, #{row.name}, #{row.description},
+                #{row.unitOfMeasure}, #{row.version})
+    </insert>
+
+    <update id="update">
+        UPDATE sku
+        SET code = #{row.code}, name = #{row.name},
+            description = #{row.description}, unit_of_measure = #{row.unitOfMeasure},
+            version = #{row.version}, updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM sku WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+</mapper>

@@ -1,0 +1,56 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local env / secrets
+.env
+.env.local
+*.local
+application-local.yml
+application-local.properties
+
+# Build outputs
+build/
+out/
+bin/
+
+# Spring Boot
+spring-boot-*.txt
+
+# Test
+*.exec
+.surefire-*
+
+# Frontend (placeholder for future Nx/Turborepo)
+node_modules/
+dist/
+.next/
+.turbo/
+
+# Local k8s / terraform state (should never be committed)
+*.tfstate
+*.tfstate.*
+.terraform/
+kubeconfig*

@@ -1,0 +1,221 @@
+openapi: 3.0.3
+info:
+  title: Identity Broker API
+  description: |
+    Multi-tenant inventory platform — Identity Broker.
+
+    Issues short-lived tenant-scoped JWTs and exposes a JWKS endpoint for downstream
+    services to verify them. MVP scope:
+
+    - `POST /v1/auth/sessions` — username/password login → session token + accessible tenants
+    - `POST /v1/auth/tenant-sessions` — pick a tenant → tenant-scoped access token
+    - `GET /.well-known/jwks.json` — public keys for JWT verification
+
+    Future iterations: Cognito SAML federation, refresh tokens, step-up MFA.
+  version: 1.0.0
+  contact:
+    name: Platform Team
+    email: platform@example.com
+
+servers:
+  - url: https://idp.example.com
+    description: Production
+  - url: http://localhost:8081
+    description: Local dev
+
+tags:
+  - name: sessions
+    description: Authentication and tenant selection
+  - name: jwks
+    description: JSON Web Key Set for token verification
+
+paths:
+  /v1/auth/sessions:
+    post:
+      tags: [sessions]
+      operationId: createSession
+      summary: Authenticate with credentials
+      description: |
+        Verifies username + password and returns a short-lived "session token" carrying
+        the user's identity and the list of tenants they can access. The session token
+        cannot access business APIs — it must be exchanged for a tenant-scoped access
+        token via `POST /v1/auth/tenant-sessions`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '200':
+          description: Authentication succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+
+  /v1/auth/tenant-sessions:
+    post:
+      tags: [sessions]
+      operationId: selectTenant
+      summary: Exchange session token for a tenant-scoped access token
+      description: |
+        Validates the session token, confirms the user has access to the requested
+        tenant, and issues a 15-minute access token containing the resolved roles
+        and data scopes for that tenant.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectTenantRequest'
+      responses:
+        '200':
+          description: Tenant-scoped access token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectTenantResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Session token is valid but the user is not a member of the requested tenant
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /.well-known/jwks.json:
+    get:
+      tags: [jwks]
+      operationId: getJwks
+      summary: JSON Web Key Set
+      description: |
+        Public keys downstream services use to verify tokens issued by this broker.
+        Cached aggressively by clients; rotation is published here.
+      security: []
+      responses:
+        '200':
+          description: JWKS document
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+components:
+  schemas:
+    CreateSessionRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+
+    CreateSessionResponse:
+      type: object
+      required: [sessionToken, expiresInSeconds, accessibleTenants]
+      properties:
+        sessionToken:
+          type: string
+          description: JWT carrying the user identity and a list of accessible tenants. No tenant scope.
+        expiresInSeconds:
+          type: integer
+          format: int32
+          example: 300
+        accessibleTenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessibleTenant'
+
+    AccessibleTenant:
+      type: object
+      required: [tenantId, displayName]
+      properties:
+        tenantId:
+          type: string
+          example: acme
+        displayName:
+          type: string
+          example: Acme Corporation
+
+    SelectTenantRequest:
+      type: object
+      required: [sessionToken, tenantId]
+      properties:
+        sessionToken:
+          type: string
+        tenantId:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[a-z0-9][a-z0-9-]{2,31}$'
+
+    SelectTenantResponse:
+      type: object
+      required: [accessToken, tokenType, expiresInSeconds]
+      properties:
+        accessToken:
+          type: string
+          description: "15-minute access token. Use as `Authorization: Bearer ...`"
+        tokenType:
+          type: string
+          example: Bearer
+        expiresInSeconds:
+          type: integer
+          format: int32
+          example: 900
+
+    ProblemDetail:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        errorCode:
+          type: string
+        traceId:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    AuthenticationFailed:
+      description: Bad credentials or invalid session token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

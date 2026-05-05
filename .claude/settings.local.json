@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn -pl services/inventory-core -am -q -DskipTests=true -Dspotless.check.skip=true compile)",
+      "Bash(mvn -pl services/inventory-core -am -q -DskipTests=true -Dspotless.check.skip=true -pl '!services/identity-broker' compile)",
+      "Bash(java -version)",
+      "Bash(mvn -pl inventory-commons/commons-event -am -q -DskipTests=true -Dspotless.check.skip=true dependency:tree -Dincludes=org.springframework:spring-core)",
+      "Bash(mvn -pl inventory-commons/commons-event -am -DskipTests=true -Dspotless.check.skip=true dependency:tree -Dincludes=org.springframework:spring-core)",
+      "Bash(jar tf *)",
+      "PowerShell($jar = \"C:\\\\Users\\\\81906\\\\.m2\\\\repository\\\\org\\\\springframework\\\\spring-core\\\\6.2.1\\\\spring-core-6.2.1.jar\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $z = [System.IO.Compression.ZipFile]::OpenRead\\($jar\\); $z.Entries | Where-Object { $_.FullName -match \"backoff\" } | Select-Object -ExpandProperty FullName)",
+      "PowerShell($jar = \"C:\\\\Users\\\\81906\\\\.m2\\\\repository\\\\org\\\\springframework\\\\kafka\\\\spring-kafka\\\\3.3.1\\\\spring-kafka-3.3.1.jar\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $z = [System.IO.Compression.ZipFile]::OpenRead\\($jar\\); $z.Entries | Where-Object { $_.FullName -match \"Exponential\" } | Select-Object -ExpandProperty FullName)",
+      "Bash(mvn -q -DskipTests=true -Dspotless.check.skip=true compile)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(mvn -pl services/identity-broker -DskipTests=true -Dspotless.check.skip=true compile)",
+      "Bash(mvn -pl services/identity-broker -am -DskipTests=true -Dspotless.check.skip=true compile)",
+      "Bash(Get-ChildItem -Recurse -Filter \"pom.xml\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(mvn -B -ntp -q -DskipTests=true -Dspotless.check.skip=true compile)",
+      "Bash(mvn -B -ntp -Dspotless.check.skip=true -pl '!e2e-tests' verify)",
+      "Bash(mvn -pl inventory-commons/commons-event -am -DskipTests=true -Dspotless.check.skip=true dependency:tree -Dincludes=net.bytebuddy)",
+      "Bash(mvn -B -ntp -Dspotless.check.skip=true verify)",
+      "Bash(mvn -B -ntp -DskipTests spotless:check)",
+      "Bash(mvn -B -ntp -DskipTests=true verify)",
+      "Bash(mvn -B -ntp -DskipTests=true spotless:check)",
+      "Bash(mvn -B -ntp -DskipTests=true spotless:apply)",
+      "Bash(mvn -B -ntp verify)"
+    ]
+  }
+}

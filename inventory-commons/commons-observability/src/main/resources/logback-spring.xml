@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  プラットフォーム標準の logback 設定。
+  サービス側は次のいずれかで利用する:
+    1) サービスの logback 設定で <include resource="logback-spring.xml"/>
+    2) サービスの logback 設定を作らず、本ファイルをそのまま使用
+
+  出力は構造化JSON。tenant_id / trace_id / span_id / service / env のタグを含み、
+  Datadog エージェントが自動でフィールドとして取り込む。
+-->
+<configuration>
+    <springProperty scope="context" name="serviceName" source="spring.application.name" defaultValue="unknown"/>
+    <springProperty scope="context" name="env" source="application.env" defaultValue="local"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdc>true</includeMdc>
+            <customFields>{"service":"${serviceName}","env":"${env}"}</customFields>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <message>message</message>
+                <thread>thread</thread>
+                <level>level</level>
+                <logger>logger</logger>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="com.example.inventory" level="DEBUG"/>
+</configuration>

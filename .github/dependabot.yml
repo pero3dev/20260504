@@ -1,0 +1,36 @@
+# Dependabot による依存自動アップデート(ADR-0012/D5-1)。
+# ライブラリの脆弱性・古さを継続監視し、PR を自動作成する。
+
+version: 2
+updates:
+  # Maven の直接依存
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - maven
+    # major アップデートはレビュー負荷が大きいため、segregated PR にしておく
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions のバージョン更新
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions

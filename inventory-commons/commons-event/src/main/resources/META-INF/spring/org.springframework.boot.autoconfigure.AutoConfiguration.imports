@@ -1,0 +1,2 @@
+com.example.inventory.commons.event.OutboxAutoConfiguration
+com.example.inventory.commons.event.KafkaErrorHandlerAutoConfiguration

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Inventory 集約用 MyBatis マッパー。スキーマは search_path で切替えるため、SQL内では明示しない。 -->
+<mapper namespace="com.example.inventory.core.adapter.out.persistence.InventoryMapper">
+
+    <resultMap id="inventoryRow"
+               type="com.example.inventory.core.adapter.out.persistence.InventoryRow">
+        <constructor>
+            <idArg column="id" javaType="long"/>
+            <arg column="sku_id" javaType="java.lang.String"/>
+            <arg column="location_id" javaType="java.lang.String"/>
+            <arg column="available" javaType="int"/>
+            <arg column="reserved" javaType="int"/>
+            <arg column="version" javaType="long"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="inventoryRow">
+        SELECT id, sku_id, location_id, available, reserved, version
+        FROM inventory
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO inventory (id, sku_id, location_id, available, reserved, version)
+        VALUES (#{row.id}, #{row.skuId}, #{row.locationId},
+                #{row.available}, #{row.reserved}, #{row.version})
+    </insert>
+
+    <!-- バージョン付き UPDATE。0行影響で OptimisticLockException(リポジトリ実装側で変換)。 -->
+    <update id="update">
+        UPDATE inventory
+        SET sku_id = #{row.skuId},
+            location_id = #{row.locationId},
+            available = #{row.available},
+            reserved = #{row.reserved},
+            version = #{row.version}
+        WHERE id = #{row.id}
+          AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM inventory
+        WHERE id = #{id}
+          AND version = #{expectedVersion}
+    </delete>
+
+</mapper>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.identity.adapter.out.persistence.TenantMembershipMapper">
+
+    <resultMap id="membershipRow"
+               type="com.example.inventory.identity.adapter.out.persistence.TenantMembershipRow">
+        <constructor>
+            <idArg column="user_id" javaType="long"/>
+            <arg column="tenant_id" javaType="java.lang.String"/>
+            <arg column="tenant_display_name" javaType="java.lang.String"/>
+            <arg column="roles_json" javaType="java.lang.String"/>
+            <arg column="location_scopes_json" javaType="java.lang.String"/>
+            <arg column="partner_scopes_json" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findByUserId" resultMap="membershipRow">
+        SELECT user_id, tenant_id, tenant_display_name,
+               roles_json::text         AS roles_json,
+               location_scopes_json::text AS location_scopes_json,
+               partner_scopes_json::text  AS partner_scopes_json
+        FROM tenant_memberships
+        WHERE user_id = #{userId}
+        ORDER BY tenant_id
+    </select>
+
+    <select id="findByUserAndTenant" resultMap="membershipRow">
+        SELECT user_id, tenant_id, tenant_display_name,
+               roles_json::text         AS roles_json,
+               location_scopes_json::text AS location_scopes_json,
+               partner_scopes_json::text  AS partner_scopes_json
+        FROM tenant_memberships
+        WHERE user_id = #{userId}
+          AND tenant_id = #{tenantId}
+    </select>
+
+</mapper>
