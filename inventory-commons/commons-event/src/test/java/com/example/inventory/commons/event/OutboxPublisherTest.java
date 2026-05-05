@@ -15,6 +15,8 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.example.inventory.commons.tenant.TenantId;
 
@@ -32,7 +34,11 @@ class OutboxPublisherTest {
         outboxRepository = Mockito.mock(OutboxRepository.class);
         sender = Mockito.mock(OutboxKafkaSender.class);
         OutboxProperties props = new OutboxProperties(Duration.ofSeconds(1), 100, List.of("acme"));
-        publisher = new OutboxPublisher(tenantDirectory, outboxRepository, sender, props);
+        // テストでは TX を実体無しで擬似する: getTransaction → status を返し、commit/rollback は no-op。
+        PlatformTransactionManager txManager = Mockito.mock(PlatformTransactionManager.class);
+        when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        publisher =
+                new OutboxPublisher(tenantDirectory, outboxRepository, sender, props, txManager);
     }
 
     @Test

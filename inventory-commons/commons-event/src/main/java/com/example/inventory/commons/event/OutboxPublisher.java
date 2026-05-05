@@ -9,8 +9,8 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.example.inventory.commons.tenant.TenantContext;
 import com.example.inventory.commons.tenant.TenantId;
@@ -40,16 +40,23 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final OutboxKafkaSender sender;
     private final OutboxProperties properties;
+    private final TransactionTemplate transactionTemplate;
 
     public OutboxPublisher(
             TenantDirectory tenantDirectory,
             OutboxRepository outboxRepository,
             OutboxKafkaSender sender,
-            OutboxProperties properties) {
+            OutboxProperties properties,
+            PlatformTransactionManager transactionManager) {
         this.tenantDirectory = tenantDirectory;
         this.outboxRepository = outboxRepository;
         this.sender = sender;
         this.properties = properties;
+        // 同一 Bean 内で呼ぶと @Transactional の self-invocation 問題で TX が始まらず、
+        // commons-tenant の SET LOCAL search_path が無効になる。TransactionTemplate を直接使う。
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.transactionTemplate.setPropagationBehavior(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
@@ -71,27 +78,35 @@ public class OutboxPublisher {
     /**
      * 1テナント1周期分を1トランザクションで処理する。{@link OutboxRepository#pickUnpublished(int)} の {@code FOR UPDATE
      * SKIP LOCKED} と同一トランザクションでなければ行ロックの効果が無い点に注意。
+     *
+     * <p>{@link TransactionTemplate} を直接使うのは、{@link Scheduled} の {@code drain()} から このメソッドを呼ぶと
+     * self-invocation で {@code @Transactional} が効かないため。 TX が始まらないと commons-tenant の {@code SET
+     * LOCAL search_path} も無効化され、 default schema(public)で {@code outbox} を探して relation not found
+     * になる。
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void drainTenant(TenantId tenant) {
         TenantContext.set(tenant);
         try {
-            List<OutboxRecord> batch = outboxRepository.pickUnpublished(properties.batchSize());
-            if (batch.isEmpty()) {
-                return;
-            }
-            int published = 0;
-            for (OutboxRecord rec : batch) {
-                if (publishOne(rec)) {
-                    outboxRepository.markPublished(rec.eventId());
-                    published++;
-                }
-            }
-            if (published > 0) {
-                LOG.debug("テナント {} で {} 件の outbox イベントを発行", tenant.value(), published);
-            }
+            transactionTemplate.executeWithoutResult(status -> drainBatch(tenant));
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    private void drainBatch(TenantId tenant) {
+        List<OutboxRecord> batch = outboxRepository.pickUnpublished(properties.batchSize());
+        if (batch.isEmpty()) {
+            return;
+        }
+        int published = 0;
+        for (OutboxRecord rec : batch) {
+            if (publishOne(rec)) {
+                outboxRepository.markPublished(rec.eventId());
+                published++;
+            }
+        }
+        if (published > 0) {
+            LOG.debug("テナント {} で {} 件の outbox イベントを発行", tenant.value(), published);
         }
     }
 

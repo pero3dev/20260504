@@ -67,8 +67,10 @@ public class OutboxAutoConfiguration {
             TenantDirectory tenantDirectory,
             OutboxRepository outboxRepository,
             OutboxKafkaSender sender,
-            OutboxProperties properties) {
-        return new OutboxPublisher(tenantDirectory, outboxRepository, sender, properties);
+            OutboxProperties properties,
+            org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        return new OutboxPublisher(
+                tenantDirectory, outboxRepository, sender, properties, transactionManager);
     }
 
     /**
