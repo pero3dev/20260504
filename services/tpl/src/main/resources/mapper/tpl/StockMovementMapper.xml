@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.tpl.adapter.out.persistence.StockMovementMapper">
+
+    <resultMap id="stockMovementRow"
+               type="com.example.inventory.tpl.adapter.out.persistence.StockMovementRow">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="partner_code" javaType="java.lang.String"/>
+            <arg column="sku_code" javaType="java.lang.String"/>
+            <arg column="location_id" javaType="java.lang.String"/>
+            <arg column="movement_type" javaType="java.lang.String"/>
+            <arg column="quantity" javaType="_int"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="reference_code" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="planned_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="stockMovementRow">
+        SELECT id, code, partner_code, sku_code, location_id, movement_type,
+               quantity, status, reference_code, version, planned_at
+        FROM stock_movement
+        WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM stock_movement WHERE code = #{code}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO stock_movement
+            (id, code, partner_code, sku_code, location_id, movement_type,
+             quantity, status, reference_code, version, planned_at)
+        VALUES
+            (#{row.id}, #{row.code}, #{row.partnerCode}, #{row.skuCode}, #{row.locationId},
+             #{row.movementType}, #{row.quantity}, #{row.status}, #{row.referenceCode},
+             #{row.version}, #{row.plannedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE stock_movement
+        SET code = #{row.code}, partner_code = #{row.partnerCode},
+            sku_code = #{row.skuCode}, location_id = #{row.locationId},
+            movement_type = #{row.movementType}, quantity = #{row.quantity},
+            status = #{row.status}, reference_code = #{row.referenceCode},
+            version = #{row.version}, updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM stock_movement WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+</mapper>
