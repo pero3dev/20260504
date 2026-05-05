@@ -51,9 +51,9 @@ jobs:
       - name: Verify Docker
         run: docker version
 
-      # 多重 Spring Context を 1 JVM に同居させる e2e-tests/* IT は現状 fragile(JDBC/Kafka リソース
-       競合)で CI でも skip する。Kafka 連携の実証は inventory-core の単一 context Kafka IT
-       (KafkaIntegrationE2ETest)が surefire 経路で担う。多重 context IT の hardening は将来課題。
+      # 多重 Spring Context を 1 JVM に同居させる e2e-tests/* IT は現状 fragile(JDBC/Kafka
+      # リソース競合)で CI でも skip する。Kafka 連携の実証は inventory-core の単一 context
+      # Kafka IT(KafkaIntegrationE2ETest)が surefire 経路で担う。多重 IT の hardening は将来課題。
       - name: Maven verify (compile + unit + ArchUnit + Spotless + 単一 context IT)
         run: mvn -B -ntp --fail-at-end verify
 
