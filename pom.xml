@@ -42,7 +42,8 @@
              Java 25 をサポートする byte-buddy に上書き。 -->
         <byte-buddy.version>1.17.7</byte-buddy.version>
         <archunit.version>1.3.0</archunit.version>
-        <testcontainers.version>1.20.4</testcontainers.version>
+        <!-- 1.20.4 は Docker 29.x の API 1.54 と互換性問題があり /info が 400 を返す。1.21+ で修正。 -->
+        <testcontainers.version>1.21.3</testcontainers.version>
         <opentelemetry.version>1.45.0</opentelemetry.version>
         <pact.version>4.6.14</pact.version>
         <logstash.encoder.version>8.0</logstash.encoder.version>

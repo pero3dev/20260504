@@ -94,6 +94,19 @@ Day-1 scaffolding is in place: aggregator parent POM at the repo root, `inventor
 - Run inventory-core locally: `mvn -pl services/inventory-core spring-boot:run` (requires local Postgres + Kafka — see service `application.yml` for env vars)
 - ArchUnit rules: `commons-test` exposes `HexagonalLayerRules`; each service has its own `architecture/ArchitectureTest.java` that imports them.
 
+### Local vs CI test boundaries
+
+`mvn verify` works locally and on CI, but tests that need Docker have a split:
+
+- **Unit / ArchUnit / Spotless / per-module @SpringBootTest** — run anywhere. No Docker dependency.
+- **Cross-service E2E (`e2e-tests/`, `services/inventory-core/.../ReservationE2EIntegrationTest`)** — boots multiple Spring contexts in one JVM with Postgres + Kafka + Redis Testcontainers. Annotated `@Testcontainers(disabledWithoutDocker = true)`, so they auto-skip when Docker is absent.
+
+**The cross-service E2E is treated as CI-only by convention.** On Windows + Docker Desktop 4.71+ they are unreliable for two reasons:
+1. **Docker Desktop hardened the engine pipe** so direct HTTP from non-CLI clients (Java/Go/Python SDKs) returns 400. Workaround: enable *Settings → General → Expose daemon on `tcp://localhost:2375` without TLS* and run with `DOCKER_HOST=tcp://localhost:2375 DOCKER_API_VERSION=1.43`.
+2. **Multi-Spring-context HikariPool starvation** — booting 4 services (identity-broker / inventory-core / inventory-read-model / audit-service) in one JVM puts pressure on Postgres connections; audit emission `REQUIRES_NEW` sub-transactions can fail. CI runners (Linux + abundant FDs) are more forgiving; Windows hosts often deadlock.
+
+Use `mvn -pl '!e2e-tests' verify` for the inner dev loop. CI (`ubuntu-latest` runner with native Docker socket) handles the full reactor including E2E.
+
 The vertical spike (`services/inventory-core`) is the canonical reference for the package layout, MyBatis + outbox + optimistic-lock conventions, and `@Auditable` placement. Use it as the template when scaffolding the other 12 services.
 
 ## CI

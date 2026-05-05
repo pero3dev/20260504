@@ -26,7 +26,7 @@ spring:
           jwk-set-uri: ${IDENTITY_JWKS_URI:https://idp.example.com/.well-known/jwks.json}
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath*:mapper/master-data/*.xml
   configuration:
     map-underscore-to-camel-case: true
 

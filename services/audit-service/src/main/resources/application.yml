@@ -26,7 +26,7 @@ spring:
       concurrency: 3
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath*:mapper/audit-service/*.xml
   configuration:
     map-underscore-to-camel-case: true
 

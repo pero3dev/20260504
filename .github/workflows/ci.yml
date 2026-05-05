@@ -51,8 +51,9 @@ jobs:
       - name: Verify Docker
         run: docker version
 
-      - name: Maven verify (compile + unit + integration + ArchUnit)
-        run: mvn -B -ntp --fail-at-end verify
+      # E2E(e2e-tests モジュール)は POM 既定で skip。CI の Linux runner では明示的に有効化する。
+      - name: Maven verify (compile + unit + integration + ArchUnit + E2E)
+        run: mvn -B -ntp --fail-at-end -DskipITs=false verify
 
       - name: Upload Surefire/Failsafe reports on failure
         if: failure()

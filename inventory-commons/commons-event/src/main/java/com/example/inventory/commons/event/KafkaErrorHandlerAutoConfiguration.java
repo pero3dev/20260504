@@ -78,6 +78,7 @@ public class KafkaErrorHandlerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(DeadLetterPublishingRecoverer.class)
     public DefaultErrorHandler kafkaErrorHandler(
             DeadLetterPublishingRecoverer recoverer, KafkaDlqProperties props) {
         ExponentialBackOffWithMaxRetries backoff =

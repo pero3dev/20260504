@@ -23,7 +23,7 @@ spring:
         enable.idempotence: true
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath*:mapper/identity-broker/*.xml
   configuration:
     map-underscore-to-camel-case: true
 

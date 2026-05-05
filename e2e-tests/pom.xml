@@ -18,6 +18,15 @@
         <!-- 重い E2E テストなので mvn test では実行しない設定にする(verify でのみ走らせる)。 -->
         <skip.unit.tests>true</skip.unit.tests>
         <awaitility.version>4.2.2</awaitility.version>
+
+        <!--
+          E2E は CI(Linux + native Docker socket)専用で運用する(CLAUDE.md 参照)。
+          Windows + Docker Desktop 4.71+ では(a) named pipe 直接 HTTP の拒否、
+          (b)多重 Spring Context の HikariPool 競合 で再現性が低い。
+          CI の workflow で `-DskipITs=false` を渡して有効化する。
+          ローカルで強制実行したいときも `-DskipITs=false` を渡す。
+        -->
+        <skipITs>true</skipITs>
     </properties>
 
     <dependencyManagement>
@@ -144,6 +153,21 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <!--
+                      Docker SDK 互換性のため Maven 起動 env をテスト JVM に継承する:
+                        - DOCKER_HOST: Linux CI では未設定で /var/run/docker.sock を自動採用。
+                          Windows では `tcp://localhost:2375` を明示する必要がある(Docker Desktop 4.71+
+                          が named pipe への直接 HTTP を 400 で拒否するため。CLAUDE.md 参照)。
+                        - API_VERSION / api.version: docker-java 既定の API 1.32 が新 Docker(API 1.40+)で
+                          rejected されるため明示的に上書き。
+                    -->
+                    <environmentVariables>
+                        <DOCKER_HOST>${env.DOCKER_HOST}</DOCKER_HOST>
+                        <API_VERSION>1.43</API_VERSION>
+                    </environmentVariables>
+                    <systemPropertyVariables>
+                        <api.version>1.43</api.version>
+                    </systemPropertyVariables>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*IT.java</include>

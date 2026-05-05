@@ -42,7 +42,7 @@ spring:
           issuer-uri: ${IDENTITY_BROKER_ISSUER:https://idp.example.com/}
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath*:mapper/inventory-core/*.xml
   configuration:
     map-underscore-to-camel-case: true
     default-fetch-size: 100

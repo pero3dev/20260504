@@ -1,6 +1,5 @@
 package com.example.inventory.commons.event;
 
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -42,22 +41,23 @@ public class OutboxAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public OutboxKafkaSender outboxKafkaSender(KafkaTemplate<String, String> kafkaTemplate) {
-        // Kafka プロデューサ側の冪等性は外部設定で有効化する想定:
+        // Kafka プロデューサ側の冪等性は外部設定で有効化する想定(application.yml 側で必須):
         //   spring.kafka.producer.properties[enable.idempotence]=true
         //   spring.kafka.producer.acks=all
-        kafkaTemplate
-                .getProducerFactory()
-                .getConfigurationProperties()
-                .computeIfAbsent(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, k -> true);
+        // Spring Kafka 3.3+ の getConfigurationProperties() は unmodifiable map を返すため
+        // ここで補完しようとすると UnsupportedOperationException になる。設定漏れは別途 ArchUnit/CI で検出。
         return new OutboxKafkaSender(kafkaTemplate);
     }
 
     /**
      * スケジュール起動の Kafka ドレイナ。 テストや一時停止時のため {@code platform.outbox.publisher-enabled=false}
      * で個別に無効化可能。{@link DomainEventPublisher}(outbox 書込)は常に動かしたまま、 Kafka 発行ループだけ止められる。
+     *
+     * <p>OutboxRepository が無い stateless サービスでは Bean 生成をスキップする。
      */
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(OutboxRepository.class)
     @ConditionalOnProperty(
             prefix = "platform.outbox",
             name = "publisher-enabled",
@@ -71,35 +71,30 @@ public class OutboxAutoConfiguration {
         return new OutboxPublisher(tenantDirectory, outboxRepository, sender, properties);
     }
 
-    /** 集約の保存と同一トランザクションでイベントを Outbox に追記する標準実装。 DBを持つサービス向け(OutboxRepository Bean が利用可能なとき)。 */
-    @Bean
-    @ConditionalOnMissingBean(DomainEventPublisher.class)
-    @ConditionalOnBean({OutboxRepository.class, SnowflakeIdGenerator.class, ObjectMapper.class})
-    public DomainEventPublisher domainEventPublisher(
-            OutboxRepository outboxRepository,
-            SnowflakeIdGenerator idGenerator,
-            ObjectMapper objectMapper) {
-        return new DefaultDomainEventPublisher(outboxRepository, idGenerator, objectMapper);
-    }
-
     /**
-     * DBを持たないサービス(Read Model、Notification 等)向けの直接 Kafka 発行版。
+     * DomainEventPublisher を 1 本に統合し、OutboxRepository の有無を ObjectProvider で実行時判定する。
      *
-     * <p>適用条件:
+     * <p>{@code @ConditionalOnBean(OutboxRepository.class)} は auto-config 評価時点で
+     * ユーザーの @ComponentScan が完了している保証が無く、サービスが OutboxRepository を持っていても 「Bean
+     * 不在」と判定されるケースが発生する。実行時注入であれば確実に解決される。
      *
      * <ul>
-     *   <li>{@link OutboxRepository} Bean が存在しない({@code @ConditionalOnMissingBean} で除外)
-     *   <li>{@link OutboxKafkaSender} と {@link SnowflakeIdGenerator} が利用可能
+     *   <li>OutboxRepository Bean あり → {@link DefaultDomainEventPublisher}(集約保存と同一 TX で outbox 追記)
+     *   <li>無し → {@link DirectKafkaDomainEventPublisher}(Kafka 直送、stateless サービス向け)
      * </ul>
-     *
-     * <p>Outbox 版({@link DefaultDomainEventPublisher})と相互排他になるよう {@code @ConditionalOnMissingBean}
-     * で {@code OutboxRepository.class} も指定している。
      */
     @Bean
-    @ConditionalOnMissingBean(value = {DomainEventPublisher.class, OutboxRepository.class})
-    @ConditionalOnBean({OutboxKafkaSender.class, SnowflakeIdGenerator.class, ObjectMapper.class})
-    public DomainEventPublisher directKafkaDomainEventPublisher(
-            OutboxKafkaSender sender, SnowflakeIdGenerator idGenerator, ObjectMapper objectMapper) {
-        return new DirectKafkaDomainEventPublisher(sender, idGenerator, objectMapper);
+    @ConditionalOnMissingBean(DomainEventPublisher.class)
+    public DomainEventPublisher domainEventPublisher(
+            org.springframework.beans.factory.ObjectProvider<OutboxRepository>
+                    outboxRepositoryProvider,
+            SnowflakeIdGenerator idGenerator,
+            ObjectMapper objectMapper,
+            OutboxKafkaSender outboxKafkaSender) {
+        OutboxRepository outboxRepository = outboxRepositoryProvider.getIfAvailable();
+        if (outboxRepository != null) {
+            return new DefaultDomainEventPublisher(outboxRepository, idGenerator, objectMapper);
+        }
+        return new DirectKafkaDomainEventPublisher(outboxKafkaSender, idGenerator, objectMapper);
     }
 }
