@@ -11,9 +11,14 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import com.example.inventory.commons.error.BusinessException;
 import com.example.inventory.commons.tenant.TenantContext;
 import com.example.inventory.commons.tenant.TenantId;
+import com.example.inventory.core.application.port.in.EmitOrderReservationFailedUseCase;
+import com.example.inventory.core.application.port.in.InventoryNotFoundForOrderException;
 import com.example.inventory.core.application.port.in.ReserveOrderUseCase;
+import com.example.inventory.core.application.port.in.UnknownSkuException;
+import com.example.inventory.core.domain.model.InsufficientStockException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -21,10 +26,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * <p>Retail/EC 等の業態系から飛んできた注文確定イベントを受けて、 注文明細を {@link ReserveOrderUseCase} に渡し各 Inventory を引当てる。
  *
- * <p>at-least-once。冪等性は Inventory 集約の楽観ロック + 後段の compensation で担保する想定 (Phase 2)。
+ * <p>失敗時の挙動(Saga Phase 2):
  *
- * <p>例外時は手動 ack せず、Spring Kafka 既定 retry → DLQ に流す。Phase 2 で reserved 失敗時に compensating event
- * を発行する経路を追加する。
+ * <ul>
+ *   <li>{@link InsufficientStockException}(在庫不足、業務ルール違反): 補償イベントを別 TX で発行 → ack(再配信しない)
+ *   <li>{@link UnknownSkuException} / {@link InventoryNotFoundForOrderException} (投影遅延の可能性):
+ *       同様に補償イベントを発行 → ack。ハードリトライは投影が来ないと無意味のため、 早期に補償して Order を CANCELLED にする
+ *   <li>その他想定外の例外: ack せず Spring Kafka 既定 retry → DLQ
+ * </ul>
  */
 @Component
 public class OrderPlacedListener {
@@ -33,11 +42,16 @@ public class OrderPlacedListener {
     private static final String HEADER_TENANT_ID = "tenant_id";
     private static final String HEADER_EVENT_ID = "event_id";
 
-    private final ReserveOrderUseCase useCase;
+    private final ReserveOrderUseCase reserveUseCase;
+    private final EmitOrderReservationFailedUseCase failureEmitter;
     private final ObjectMapper objectMapper;
 
-    public OrderPlacedListener(ReserveOrderUseCase useCase, ObjectMapper objectMapper) {
-        this.useCase = useCase;
+    public OrderPlacedListener(
+            ReserveOrderUseCase reserveUseCase,
+            EmitOrderReservationFailedUseCase failureEmitter,
+            ObjectMapper objectMapper) {
+        this.reserveUseCase = reserveUseCase;
+        this.failureEmitter = failureEmitter;
         this.objectMapper = objectMapper;
     }
 
@@ -57,12 +71,11 @@ public class OrderPlacedListener {
         }
         long eventId = parseEventId(record);
 
+        OrderPlacedMessage msg = objectMapper.readValue(record.value(), OrderPlacedMessage.class);
+
         try {
             TenantContext.set(new TenantId(tenantIdValue));
-            OrderPlacedMessage msg =
-                    objectMapper.readValue(record.value(), OrderPlacedMessage.class);
-
-            useCase.reserveForOrder(
+            reserveUseCase.reserveForOrder(
                     new ReserveOrderUseCase.Command(
                             eventId,
                             msg.aggregateId(),
@@ -82,9 +95,35 @@ public class OrderPlacedListener {
                     msg.code(),
                     msg.items().size(),
                     tenantIdValue);
+        } catch (BusinessException e) {
+            // 業務ルール違反 + 投影遅延系: 補償発行で Order を CANCELLED にする
+            String failedSku = firstSkuOrEmpty(msg);
+            String failedLoc = firstLocationOrEmpty(msg);
+            LOG.warn(
+                    "Order {} の引当が業務理由で失敗、補償発行: errorCode={} reason={}",
+                    msg.code(),
+                    e.errorCode(),
+                    e.getMessage());
+            failureEmitter.emit(
+                    new EmitOrderReservationFailedUseCase.Command(
+                            msg.aggregateId(),
+                            msg.code(),
+                            e.errorCode(),
+                            e.getMessage(),
+                            failedSku,
+                            failedLoc));
+            ack.acknowledge();
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private static String firstSkuOrEmpty(OrderPlacedMessage msg) {
+        return msg.items().isEmpty() ? "" : msg.items().get(0).skuCode();
+    }
+
+    private static String firstLocationOrEmpty(OrderPlacedMessage msg) {
+        return msg.items().isEmpty() ? "" : msg.items().get(0).locationId();
     }
 
     private static long parseEventId(ConsumerRecord<?, ?> record) {
