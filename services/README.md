@@ -12,6 +12,7 @@
 | [audit-service](./audit-service/) | audit.log.v1 全消費 + ハッシュチェーン構築(ADR-0008) | DBあり / Pool / Kafka 消費専用 |
 | [master-data](./master-data/) | SKU / Location / Partner マスタ | DBあり / 書込権威 / Outbox / Bridge |
 | [notification](./notification/) | 業務イベント駆動の通知配信(MVP は inventory.movement.v1 → 在庫低下メール) | DBあり / Pool / Kafka 消費 / 送信器 port 抽象化 |
+| [retail-ec](./retail-ec/) | Day-2 業態系 1 個目: 注文受付 + retail.order.placed.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 
 ## サービス間連携 E2E
 
@@ -29,4 +30,4 @@
 ## 予定サービス(計画 13)
 
 - 共通基盤: Identity Broker ✅ / Master Data ✅ / Inventory Core ✅ / Inventory Read Model ✅ / Audit ✅ / Notification ✅ / Workflow / Integration Hub(7アダプタ) / Analytics
-- 業態別: Retail/EC / Manufacturing / 3PL / Wholesale
+- 業態別: Retail/EC ✅ / Manufacturing / 3PL / Wholesale

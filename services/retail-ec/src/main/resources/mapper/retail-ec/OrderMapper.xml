@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.retail.adapter.out.persistence.OrderMapper">
+
+    <resultMap id="orderRow"
+               type="com.example.inventory.retail.adapter.out.persistence.OrderRow">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="customer_email" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="total_amount" javaType="java.math.BigDecimal"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="placed_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="orderItemRow"
+               type="com.example.inventory.retail.adapter.out.persistence.OrderItemRow">
+        <constructor>
+            <idArg column="order_id" javaType="_long"/>
+            <idArg column="line_no" javaType="_int"/>
+            <arg column="sku_code" javaType="java.lang.String"/>
+            <arg column="quantity" javaType="_int"/>
+            <arg column="unit_price" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="orderRow">
+        SELECT id, code, customer_email, status, total_amount, currency, version, placed_at
+        FROM retail_order
+        WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM retail_order WHERE code = #{code}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO retail_order
+            (id, code, customer_email, status, total_amount, currency, version, placed_at)
+        VALUES
+            (#{row.id}, #{row.code}, #{row.customerEmail}, #{row.status},
+             #{row.totalAmount}, #{row.currency}, #{row.version}, #{row.placedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE retail_order
+        SET code = #{row.code}, customer_email = #{row.customerEmail},
+            status = #{row.status}, total_amount = #{row.totalAmount},
+            currency = #{row.currency}, version = #{row.version},
+            updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM retail_order WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+    <select id="findItemsByOrderId" resultMap="orderItemRow">
+        SELECT order_id, line_no, sku_code, quantity, unit_price
+        FROM retail_order_item
+        WHERE order_id = #{orderId}
+        ORDER BY line_no
+    </select>
+
+    <insert id="insertItem">
+        INSERT INTO retail_order_item (order_id, line_no, sku_code, quantity, unit_price)
+        VALUES (#{row.orderId}, #{row.lineNo}, #{row.skuCode}, #{row.quantity}, #{row.unitPrice})
+    </insert>
+
+    <delete id="deleteItemsByOrderId">
+        DELETE FROM retail_order_item WHERE order_id = #{orderId}
+    </delete>
+
+</mapper>

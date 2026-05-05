@@ -19,6 +19,7 @@
         <module>services/audit-service</module>
         <module>services/master-data</module>
         <module>services/notification</module>
+        <module>services/retail-ec</module>
         <module>e2e-tests</module>
     </modules>
 
