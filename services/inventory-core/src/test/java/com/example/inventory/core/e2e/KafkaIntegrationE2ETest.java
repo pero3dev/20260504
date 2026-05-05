@@ -31,10 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,7 +49,7 @@ import com.example.inventory.core.InventoryCoreApplication;
  * <p>e2e-tests モジュールの多重 Spring Context IT(CI 専用)とは別ライン。 ローカル開発でも Docker さえあれば動かせる軽量な IT として位置付ける。
  */
 @SpringBootTest(
-        classes = InventoryCoreApplication.class,
+        classes = {InventoryCoreApplication.class, TestJwtDecoderConfig.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "platform.outbox.publisher-enabled=true",
@@ -100,16 +97,6 @@ class KafkaIntegrationE2ETest {
                 .locations("classpath:db/migration/inventory-core")
                 .load()
                 .migrate();
-    }
-
-    @TestConfiguration
-    static class TestSecurityConfig {
-        @Bean
-        JwtDecoder jwtDecoder() {
-            return token -> {
-                throw new UnsupportedOperationException("テストでは jwt() ポストプロセッサを使うこと");
-            };
-        }
     }
 
     @Autowired MockMvc mockMvc;

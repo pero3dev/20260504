@@ -21,10 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -51,7 +48,7 @@ import com.example.inventory.core.InventoryCoreApplication;
  * OutboxPublisherTest で別途カバー)。
  */
 @SpringBootTest(
-        classes = InventoryCoreApplication.class,
+        classes = {InventoryCoreApplication.class, TestJwtDecoderConfig.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "platform.outbox.publisher-enabled=false",
@@ -98,20 +95,6 @@ class ReservationE2EIntegrationTest {
                 .locations("classpath:db/migration/inventory-core")
                 .load()
                 .migrate();
-    }
-
-    /**
-     * jwt() ポストプロセッサが Authentication を直接 SecurityContext に格納するため、 実際の JwtDecoder は呼ばれない。autoconfig
-     * がエラーにならないようダミー Bean を注入する。
-     */
-    @TestConfiguration
-    static class TestSecurityConfig {
-        @Bean
-        JwtDecoder jwtDecoder() {
-            return token -> {
-                throw new UnsupportedOperationException("テストでは jwt() ポストプロセッサを使うこと");
-            };
-        }
     }
 
     @Autowired MockMvc mockMvc;
