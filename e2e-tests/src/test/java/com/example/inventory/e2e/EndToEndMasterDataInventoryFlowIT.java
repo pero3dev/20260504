@@ -253,9 +253,12 @@ class EndToEndMasterDataInventoryFlowIT {
     }
 
     private static Map<String, Object> commonProps() {
+        // 多重 Spring Context での HikariPool 競合を避けるため pool size を絞る。
         Map<String, Object> p = new HashMap<>();
         p.put("spring.datasource.username", POSTGRES.getUsername());
         p.put("spring.datasource.password", POSTGRES.getPassword());
+        p.put("spring.datasource.hikari.maximum-pool-size", "5");
+        p.put("spring.datasource.hikari.minimum-idle", "1");
         p.put("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
         p.put("spring.kafka.consumer.auto-offset-reset", "earliest");
         p.put("spring.security.oauth2.resourceserver.jwt.issuer-uri", "");

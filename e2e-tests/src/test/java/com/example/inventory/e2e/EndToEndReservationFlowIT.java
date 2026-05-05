@@ -89,10 +89,13 @@ class EndToEndReservationFlowIT {
     static void setUp() throws Exception {
         prepareTenantSchema();
 
+        // 多重 Spring Context 同居のため HikariPool size を絞る(既定 30 → 5)。
         Map<String, Object> sharedProps =
                 Map.of(
                         "spring.security.oauth2.resourceserver.jwt.issuer-uri", "",
                         "spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers(),
+                        "spring.datasource.hikari.maximum-pool-size", "5",
+                        "spring.datasource.hikari.minimum-idle", "1",
                         "logging.level.org.apache.kafka", "WARN",
                         "logging.level.org.springframework.kafka", "WARN");
 

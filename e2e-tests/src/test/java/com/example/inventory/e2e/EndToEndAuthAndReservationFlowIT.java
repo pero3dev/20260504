@@ -633,14 +633,20 @@ class EndToEndAuthAndReservationFlowIT {
     // -----------------------------------------------------------------------------------
 
     private static Map<String, Object> commonProps() {
-        return Map.of(
-                "spring.datasource.url", POSTGRES.getJdbcUrl(),
-                "spring.datasource.username", POSTGRES.getUsername(),
-                "spring.datasource.password", POSTGRES.getPassword(),
-                "spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers(),
-                "logging.level.org.apache.kafka", "WARN",
-                "logging.level.org.springframework.kafka", "WARN",
-                "logging.level.org.flywaydb", "WARN");
+        // 4 サービスを 1 JVM に同居させるため、各 service の HikariPool を絞る。
+        // 各 service の application.yml 既定値 maximum-pool-size=30 だと 4×30=120 接続要求になり、
+        // Postgres 既定 max_connections=100 を超えて outbox publisher の TX 取得が失敗する。
+        Map<String, Object> p = new java.util.HashMap<>();
+        p.put("spring.datasource.url", POSTGRES.getJdbcUrl());
+        p.put("spring.datasource.username", POSTGRES.getUsername());
+        p.put("spring.datasource.password", POSTGRES.getPassword());
+        p.put("spring.datasource.hikari.maximum-pool-size", "5");
+        p.put("spring.datasource.hikari.minimum-idle", "1");
+        p.put("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
+        p.put("logging.level.org.apache.kafka", "WARN");
+        p.put("logging.level.org.springframework.kafka", "WARN");
+        p.put("logging.level.org.flywaydb", "WARN");
+        return p;
     }
 
     private static void prepareIdentitySchema() {
