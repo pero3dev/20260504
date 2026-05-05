@@ -7,8 +7,8 @@
                type="com.example.inventory.audit.adapter.out.persistence.AuditRecordRow">
         <constructor>
             <idArg column="tenant_id" javaType="java.lang.String"/>
-            <arg column="sequence" javaType="long"/>
-            <arg column="event_id" javaType="long"/>
+            <arg column="sequence" javaType="_long"/>
+            <arg column="event_id" javaType="_long"/>
             <arg column="action" javaType="java.lang.String"/>
             <arg column="target_type" javaType="java.lang.String"/>
             <arg column="target_id" javaType="java.lang.String"/>
@@ -16,7 +16,7 @@
             <arg column="operator_tenant_id" javaType="java.lang.String"/>
             <arg column="outcome" javaType="java.lang.String"/>
             <arg column="error_code" javaType="java.lang.String"/>
-            <arg column="read_only" javaType="boolean"/>
+            <arg column="read_only" javaType="_boolean"/>
             <arg column="payload_json" javaType="java.lang.String"/>
             <arg column="occurred_at" javaType="java.time.Instant"/>
             <arg column="prev_hash" javaType="java.lang.String"/>

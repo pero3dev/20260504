@@ -7,12 +7,12 @@
     <resultMap id="inventoryRow"
                type="com.example.inventory.core.adapter.out.persistence.InventoryRow">
         <constructor>
-            <idArg column="id" javaType="long"/>
+            <idArg column="id" javaType="_long"/>
             <arg column="sku_id" javaType="java.lang.String"/>
             <arg column="location_id" javaType="java.lang.String"/>
-            <arg column="available" javaType="int"/>
-            <arg column="reserved" javaType="int"/>
-            <arg column="version" javaType="long"/>
+            <arg column="available" javaType="_int"/>
+            <arg column="reserved" javaType="_int"/>
+            <arg column="version" javaType="_long"/>
         </constructor>
     </resultMap>
 

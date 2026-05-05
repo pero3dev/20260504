@@ -7,11 +7,11 @@
     <resultMap id="userRow"
                type="com.example.inventory.identity.adapter.out.persistence.UserRow">
         <constructor>
-            <idArg column="id" javaType="long"/>
+            <idArg column="id" javaType="_long"/>
             <arg column="email" javaType="java.lang.String"/>
             <arg column="password_hash" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
-            <arg column="version" javaType="long"/>
+            <arg column="version" javaType="_long"/>
         </constructor>
     </resultMap>
 

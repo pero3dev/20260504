@@ -6,7 +6,7 @@
     <resultMap id="membershipRow"
                type="com.example.inventory.identity.adapter.out.persistence.TenantMembershipRow">
         <constructor>
-            <idArg column="user_id" javaType="long"/>
+            <idArg column="user_id" javaType="_long"/>
             <arg column="tenant_id" javaType="java.lang.String"/>
             <arg column="tenant_display_name" javaType="java.lang.String"/>
             <arg column="roles_json" javaType="java.lang.String"/>

@@ -6,16 +6,16 @@
     <resultMap id="outboxRow"
                type="com.example.inventory.commons.event.OutboxRecord">
         <constructor>
-            <idArg column="event_id" javaType="long"/>
+            <idArg column="event_id" javaType="_long"/>
             <arg column="tenant_id" javaType="java.lang.String"/>
             <arg column="topic" javaType="java.lang.String"/>
             <arg column="schema_version" javaType="java.lang.String"/>
-            <arg column="aggregate_id" javaType="long"/>
+            <arg column="aggregate_id" javaType="_long"/>
             <arg column="payload" javaType="java.lang.String"/>
             <arg column="trace_id" javaType="java.lang.String"/>
             <arg column="occurred_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
-            <arg column="published" javaType="boolean"/>
+            <arg column="published" javaType="_boolean"/>
         </constructor>
     </resultMap>
 

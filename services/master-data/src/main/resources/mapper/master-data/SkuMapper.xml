@@ -6,12 +6,12 @@
     <resultMap id="skuRow"
                type="com.example.inventory.master.adapter.out.persistence.SkuRow">
         <constructor>
-            <idArg column="id" javaType="long"/>
+            <idArg column="id" javaType="_long"/>
             <arg column="code" javaType="java.lang.String"/>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="unit_of_measure" javaType="java.lang.String"/>
-            <arg column="version" javaType="long"/>
+            <arg column="version" javaType="_long"/>
         </constructor>
     </resultMap>
 
