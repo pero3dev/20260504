@@ -17,6 +17,7 @@
 | [wholesale](./wholesale/) | Day-2 業態系 3 個目: 法人向け大口受注(取引先別契約価格) + wholesale.order.placed.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 | [manufacturing](./manufacturing/) | Day-2 業態系 4 個目: BOM(部品構成) + WorkOrder(製造指図) + manufacturing.work_order.released.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 | [analytics](./analytics/) | 業態系イベント全消費 → テナント × 業態 × 日付の注文集計(daily_order_summary) | DBあり / Pool / Kafka 消費 / 読取 API |
+| [workflow](./workflow/) | Saga オーケストレータ MVP(ADR-0015): 静的定義 + WorkflowInstance + ステップ進行 REST + 完了イベント発行 | DBあり / Pool / Outbox / 読書 REST |
 
 ## サービス間連携 E2E
 
@@ -45,5 +46,5 @@
 
 ## 予定サービス(計画 13)
 
-- 共通基盤: Identity Broker ✅ / Master Data ✅ / Inventory Core ✅ / Inventory Read Model ✅ / Audit ✅ / Notification ✅ / Analytics ✅ / Workflow / Integration Hub(7アダプタ)
+- 共通基盤: Identity Broker ✅ / Master Data ✅ / Inventory Core ✅ / Inventory Read Model ✅ / Audit ✅ / Notification ✅ / Analytics ✅ / Workflow ✅ / Integration Hub(7アダプタ)
 - 業態別: Retail/EC ✅ / Manufacturing ✅ / 3PL ✅ / Wholesale ✅

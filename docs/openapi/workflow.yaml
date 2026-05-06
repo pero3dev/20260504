@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: Workflow API
+  description: |
+    Multi-tenant inventory platform — Workflow service. Saga orchestrator
+    for flows that don't fit choreography (ADR-0015).
+
+    MVP: static definitions in code (e.g. APPROVAL_FLOW), instance lifecycle
+    via REST (start / completeStep / failStep / cancel / get).
+
+    Pool multi-tenancy: single shared DB with tenant_id column.
+    Errors follow RFC 7807; errorCode is the i18n key.
+  version: 1.0.0
+
+servers:
+  - url: https://api.example.com/workflow
+    description: Production
+  - url: http://localhost:8090
+    description: Local dev
+
+tags:
+  - name: workflows
+    description: Workflow instance lifecycle
+
+security:
+  - bearerJwt: []
+
+paths:
+  /v1/workflows:
+    post:
+      tags: [workflows]
+      operationId: startWorkflow
+      summary: Start a new workflow instance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartWorkflowRequest'
+      responses:
+        '201':
+          description: Workflow started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Definition key not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/workflows/{workflowId}:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      tags: [workflows]
+      operationId: getWorkflow
+      summary: Get workflow instance
+      responses:
+        '200':
+          description: Workflow found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/WorkflowNotFound'
+
+  /v1/workflows/{workflowId}/complete-step:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [workflows]
+      operationId: completeWorkflowStep
+      summary: Mark current step as COMPLETED, advancing to the next step
+      responses:
+        '200':
+          description: Step completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/WorkflowNotFound'
+        '409':
+          description: Workflow is not in a state that allows step completion
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/workflows/{workflowId}/fail-step:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [workflows]
+      operationId: failWorkflowStep
+      summary: Mark current step as FAILED (workflow ends in FAILED)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepFailureRequest'
+      responses:
+        '200':
+          description: Step failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/WorkflowNotFound'
+        '409':
+          description: Workflow is not in a state that allows step failure
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/workflows/{workflowId}/cancel:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [workflows]
+      operationId: cancelWorkflow
+      summary: Cancel an in-flight workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepFailureRequest'
+      responses:
+        '200':
+          description: Workflow cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/WorkflowNotFound'
+        '409':
+          description: Workflow is not in a state that allows cancellation
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    StartWorkflowRequest:
+      type: object
+      required: [definitionKey]
+      properties:
+        definitionKey:
+          type: string
+          enum: [APPROVAL_FLOW]
+        businessKey:
+          type: string
+          maxLength: 128
+          description: Optional business reference (e.g. order code)
+        payload:
+          type: object
+          description: Free-form payload available to step handlers
+          additionalProperties: true
+
+    StepFailureRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+
+    WorkflowResponse:
+      type: object
+      required:
+        - id
+        - definitionKey
+        - status
+        - currentStep
+        - totalSteps
+        - steps
+        - version
+      properties:
+        id:
+          type: integer
+          format: int64
+        definitionKey:
+          type: string
+        businessKey:
+          type: string
+        status:
+          type: string
+          enum: [STARTED, COMPLETED, FAILED, CANCELLED]
+        currentStep:
+          type: integer
+          format: int32
+        totalSteps:
+          type: integer
+          format: int32
+        error:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowStepResponse'
+        version:
+          type: integer
+          format: int64
+
+    WorkflowStepResponse:
+      type: object
+      required: [stepNo, name, status]
+      properties:
+        stepNo:
+          type: integer
+          format: int32
+        name:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, SKIPPED]
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+
+    ProblemDetail:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, format: int32 }
+        detail: { type: string }
+        errorCode: { type: string }
+        traceId: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Not authenticated, JWT invalid/expired
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    WorkflowNotFound:
+      description: Workflow instance not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

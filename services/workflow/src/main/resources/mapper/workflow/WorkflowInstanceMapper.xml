@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.workflow.adapter.out.persistence.WorkflowInstanceMapper">
+
+    <resultMap id="instanceRow"
+               type="com.example.inventory.workflow.adapter.out.persistence.WorkflowInstanceRow">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="tenant_id" javaType="java.lang.String"/>
+            <arg column="definition_key" javaType="java.lang.String"/>
+            <arg column="business_key" javaType="java.lang.String"/>
+            <arg column="payload_json" javaType="java.lang.String"/>
+            <arg column="current_step" javaType="_int"/>
+            <arg column="total_steps" javaType="_int"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="error" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="completed_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="stepRow"
+               type="com.example.inventory.workflow.adapter.out.persistence.WorkflowStepRow">
+        <constructor>
+            <idArg column="instance_id" javaType="_long"/>
+            <idArg column="step_no" javaType="_int"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="completed_at" javaType="java.time.Instant"/>
+            <arg column="error" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="instanceRow">
+        SELECT id, tenant_id, definition_key, business_key,
+               payload_json::text AS payload_json,
+               current_step, total_steps, status, error, version,
+               started_at, completed_at
+        FROM workflow_instance
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO workflow_instance
+            (id, tenant_id, definition_key, business_key, payload_json,
+             current_step, total_steps, status, error, version,
+             started_at, completed_at)
+        VALUES
+            (#{row.id}, #{row.tenantId}, #{row.definitionKey}, #{row.businessKey},
+             #{row.payloadJson}::jsonb,
+             #{row.currentStep}, #{row.totalSteps}, #{row.status}, #{row.error},
+             #{row.version}, #{row.startedAt}, #{row.completedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE workflow_instance
+        SET current_step = #{row.currentStep},
+            status = #{row.status},
+            error = #{row.error},
+            version = #{row.version},
+            completed_at = #{row.completedAt},
+            updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM workflow_instance WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+    <select id="findStepsByInstanceId" resultMap="stepRow">
+        SELECT instance_id, step_no, name, status, started_at, completed_at, error
+        FROM workflow_step
+        WHERE instance_id = #{instanceId}
+        ORDER BY step_no
+    </select>
+
+    <insert id="insertStep">
+        INSERT INTO workflow_step
+            (instance_id, step_no, name, status, started_at, completed_at, error)
+        VALUES
+            (#{row.instanceId}, #{row.stepNo}, #{row.name}, #{row.status},
+             #{row.startedAt}, #{row.completedAt}, #{row.error})
+    </insert>
+
+    <!-- ステップ状態は append-update 半々(同 PK で UPSERT)。 -->
+    <insert id="upsertStep">
+        INSERT INTO workflow_step
+            (instance_id, step_no, name, status, started_at, completed_at, error)
+        VALUES
+            (#{row.instanceId}, #{row.stepNo}, #{row.name}, #{row.status},
+             #{row.startedAt}, #{row.completedAt}, #{row.error})
+        ON CONFLICT (instance_id, step_no) DO UPDATE SET
+            status = EXCLUDED.status,
+            started_at = EXCLUDED.started_at,
+            completed_at = EXCLUDED.completed_at,
+            error = EXCLUDED.error
+    </insert>
+
+    <delete id="deleteStepsByInstanceId">
+        DELETE FROM workflow_step WHERE instance_id = #{instanceId}
+    </delete>
+
+</mapper>

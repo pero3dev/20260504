@@ -1,0 +1,69 @@
+spring:
+  application:
+    name: workflow
+  config:
+    import: classpath:application-resilience-defaults.yml
+  datasource:
+    url: ${WORKFLOW_DB_URL:jdbc:postgresql://localhost:5432/workflow}
+    username: ${WORKFLOW_DB_USER:workflow_app}
+    password: ${WORKFLOW_DB_PASSWORD:dev}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 3
+  flyway:
+    enabled: false
+    locations: classpath:db/migration/workflow
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual_immediate
+      concurrency: 1
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${IDENTITY_BROKER_ISSUER:https://idp.example.com/}
+
+mybatis:
+  mapper-locations: classpath*:mapper/workflow/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8090}
+
+platform:
+  snowflake:
+    worker-id: ${POD_ORDINAL:0}
+  outbox:
+    enabled: true
+    publisher-enabled: true
+    poll-interval: PT1S
+    batch-size: 200
+    tenants:
+      - dev
+
+application:
+  env: ${APP_ENV:local}
+
+logging:
+  config: classpath:logback-spring.xml

@@ -24,6 +24,7 @@
         <module>services/wholesale</module>
         <module>services/manufacturing</module>
         <module>services/analytics</module>
+        <module>services/workflow</module>
         <module>e2e-tests</module>
     </modules>
 
