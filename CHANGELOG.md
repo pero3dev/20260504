@@ -1,0 +1,108 @@
+# Changelog
+
+このリポジトリの主要な変更履歴。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠し、本プロジェクトは [Semantic Versioning](https://semver.org/lang/ja/) を採用予定(現在は `0.0.1-SNAPSHOT` 単一バージョン)。
+
+詳細な設計判断は `docs/adr/` の各 ADR を、各機能の意図はコミットメッセージを参照。
+
+---
+
+## [Unreleased]
+
+### Highlights
+
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路、業態 OUTBOUND/Cancel フローの完成、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト MVP までを完了。13/13 サービス + 18 ADR + 8 E2E テストケース。
+
+### Added
+
+#### 共通基盤サービス(9/9)
+
+- **identity-broker**: JWT 発行 + テナント解決(ADR-0007)。Cognito フェデレーションは将来。
+- **master-data**: SKU / Location / Partner マスタ。Bridge 方式 + Outbox。コミット [`bcd58c2`](https://github.com/pero3dev/20260504/commit/bcd58c2)
+- **inventory-core**: 在庫状態の唯一の書込権威(ADR-0002, ADR-0004)。Reserve / Ship / Receive / Release を備える。
+- **inventory-read-model**: Kafka 購読 → Redis 投影、CQRS Read 側(ADR-0004)。
+- **audit-service**: AOP 取込 + SHA-256 ハッシュチェーン + 日次 Merkle anchor + DB WORM(ADR-0008、commit [`280e174`](https://github.com/pero3dev/20260504/commit/280e174))。
+- **notification**: Kafka 駆動の通知配信(送信器 port 抽象)。コミット [`59876ab`](https://github.com/pero3dev/20260504/commit/59876ab)
+- **analytics**: 業態系イベント集計 → daily_order_summary(Pool 方式)。コミット [`4095175`](https://github.com/pero3dev/20260504/commit/4095175)
+- **workflow**: Saga オーケストレータ MVP(ADR-0015 の判定基準で導入条件付き)。コミット [`4e26a5d`](https://github.com/pero3dev/20260504/commit/4e26a5d)
+- **integration-hub**: 外部連携(EDI / S3 / SFTP / EC)の足場。MVP は CSV 1 アダプタ。コミット [`3e46a64`](https://github.com/pero3dev/20260504/commit/3e46a64)
+
+#### 業態サービス(4/4)
+
+- **retail-ec**: B2C 注文受付 + `retail.order.placed.v1` 発行(コミット [`5d2668d`](https://github.com/pero3dev/20260504/commit/5d2668d))。L2 で出荷確定フロー追加(コミット [`70236a6`](https://github.com/pero3dev/20260504/commit/70236a6))。
+- **tpl**: 3PL 入出庫管理 + `tpl.stock.movement.v1`。コミット [`12942f3`](https://github.com/pero3dev/20260504/commit/12942f3)
+- **wholesale**: B2B 取引先別契約価格 + 受注 + 出荷フロー。コミット [`52d0551`](https://github.com/pero3dev/20260504/commit/52d0551) / [`853a168`](https://github.com/pero3dev/20260504/commit/853a168)
+- **manufacturing**: BOM + WorkOrder。L3 で完成品 INBOUND まで閉じる。コミット [`8fe1f9d`](https://github.com/pero3dev/20260504/commit/8fe1f9d) / [`d226973`](https://github.com/pero3dev/20260504/commit/d226973)
+
+#### 業態 → Inventory Core の Saga 配線(全 4 経路)
+
+| 業態 | 経路 | コミット |
+|---|---|---|
+| Retail/EC | Phase 1+2(reserve + 補償) | [`65e9c60`](https://github.com/pero3dev/20260504/commit/65e9c60) [`41c5467`](https://github.com/pero3dev/20260504/commit/41c5467) |
+| 3PL | D6(stock movement → reserve+ship/receive) | [`ea282e2`](https://github.com/pero3dev/20260504/commit/ea282e2) |
+| Wholesale | D9(reserve + 補償) | [`3d243d3`](https://github.com/pero3dev/20260504/commit/3d243d3) |
+| Manufacturing | D10(部品 reserve+ship + 補償) | [`a0c93ca`](https://github.com/pero3dev/20260504/commit/a0c93ca) |
+
+#### 業態 OUTBOUND/Cancel フロー(L1/L2/L3 + 取消強化)
+
+- **L1 Wholesale**: 出荷確定 → `wholesale.order.shipped.v1` → ship。コミット [`853a168`](https://github.com/pero3dev/20260504/commit/853a168)
+- **L2 Retail/EC**: 出荷確定 → `retail.order.shipped.v1` → ship。コミット [`70236a6`](https://github.com/pero3dev/20260504/commit/70236a6)
+- **L3 Manufacturing**: WorkOrder.complete → `manufacturing.work_order.completed.v1` → 完成品 receive。コミット [`d226973`](https://github.com/pero3dev/20260504/commit/d226973)
+- **業務取消 → reserved 解放**: `<業態>.order.cancelled.v1` → `Inventory.release(qty)`。`Order.cancel()` と `Order.cancelAfterReservationFailure()` を分離(ADR-0018)。コミット [`e1b2ca2`](https://github.com/pero3dev/20260504/commit/e1b2ca2)
+
+#### 監査ハードニング(D3、ADR-0008)
+
+- **AOP @Auditable** で全状態変化をキャプチャ(commons-audit)
+- **SHA-256 ハッシュチェーン** + チェーン整合性検証 REST(`AuditChainVerifier`)
+- **日次 Merkle anchor** + 検証 REST(`Sha256MerkleTreeCalculator` + `ComputeDailyMerkleAnchorService`)
+- **DB レベル WORM トリガ** で `audit_record` / `audit_merkle_anchor` の UPDATE/DELETE 拒否
+
+#### ADR(18 本)
+
+| # | タイトル | 状態 |
+|---|---|---|
+| 0001-0013 | プロジェクト基本方針 | Accepted(本セッション以前) |
+| [0014](docs/adr/0014-cross-service-e2e-deferred-to-local-only.md) | Cross-service E2E deferred to local-only | Accepted |
+| [0015](docs/adr/0015-saga-choreography-as-default-orchestration-on-demand.md) | Saga choreography as default | Accepted |
+| [0016](docs/adr/0016-per-business-context-compensation-topics.md) | Per-business-context compensation topics | Accepted |
+| [0017](docs/adr/0017-reserve-vs-reserve-ship-selection.md) | Reserve vs Reserve+Ship 使い分け | Accepted |
+| [0018](docs/adr/0018-cancel-vs-cancel-after-reservation-failure.md) | cancel メソッド使い分け | Accepted |
+
+#### CI / Test 強化
+
+- **KafkaIntegrationE2ETest** 8 ケース — 業態 4/4 全成功パス + Master 投影 + 認証 + 直接 reserve(コミット [`953cd98`](https://github.com/pero3dev/20260504/commit/953cd98) / [`c6dd5c0`](https://github.com/pero3dev/20260504/commit/c6dd5c0) / [`524a28b`](https://github.com/pero3dev/20260504/commit/524a28b) / [`a497f62`](https://github.com/pero3dev/20260504/commit/a497f62))
+- **mvn -T 1C 並列化** — verify 時間 ~50% 短縮(2:16 → 1:10)。コミット [`56341c1`](https://github.com/pero3dev/20260504/commit/56341c1)
+- **Pact consumer-driven 契約テスト MVP** — `wholesale.order.placed.v1` の Consumer 期待形式を Pact ファイル出力。コミット [`025803f`](https://github.com/pero3dev/20260504/commit/025803f)
+
+### Changed
+
+- **`inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名**(L4、ADR-0016 follow-up)。Phase 2 で命名規則が固まる前に作った共通名前空間を、業態別命名に揃える。コミット [`3cc68f3`](https://github.com/pero3dev/20260504/commit/3cc68f3)
+- **`HandleReservationFailureService` を `cancelAfterReservationFailure()` 呼出に切替**(ADR-0018)。Reserve 失敗の補償経由で release イベントが発行されると Inventory Core が `InsufficientReserved` で失敗する事故を回避。
+- **CI workflow `mvn verify` を `mvn -T 1C verify` に変更**(コミット [`56341c1`](https://github.com/pero3dev/20260504/commit/56341c1))。
+
+### Fixed
+
+- **OutboxPublisher の self-invocation で `@Transactional` が効かなかった問題**を修正。`search_path` が tenant スキーマに切り替わらず、Bridge 方式マルチテナンシーが破綻していた。コミット [`5089e58`](https://github.com/pero3dev/20260504/commit/5089e58)
+- **e2e-tests の HikariPool 競合**(多重 Spring Context 同居)を解消(コミット [`7a3b39e`](https://github.com/pero3dev/20260504/commit/7a3b39e))。 後に ADR-0014 で「e2e-tests は CI 外しに、KafkaIntegrationE2ETest を canonical に」と方針確定(コミット [`cc73e82`](https://github.com/pero3dev/20260504/commit/cc73e82))。
+- **MyBatis `<constructor>` の javaType エイリアスを primitive に修正**(コミット [`696d225`](https://github.com/pero3dev/20260504/commit/696d225))。
+- **Maven core プラグインを明示ピン**(コミット [`acea224`](https://github.com/pero3dev/20260504/commit/acea224))。Maven バージョン差異で未リリース版を参照する事故を回避。
+- **`@SpringBootTest(classes=...)` 明示時にネスト `@TestConfiguration` が自動検出されない問題**を修正(コミット [`baaad32`](https://github.com/pero3dev/20260504/commit/baaad32))。
+- **CI `ci.yml` の YAML parse 失敗**を修正(コミット [`00c50c5`](https://github.com/pero3dev/20260504/commit/00c50c5))。
+
+### Repository Statistics
+
+- **Modules**: 26(commons 10 + services 13 + 親 + e2e + commons-bom)
+- **業態 / 共通基盤**: 4/4 + 9/9 = 13/13 services
+- **Saga 配線**: 4/4 業態
+- **ADR**: 18 本
+- **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
+- **Contract Test**: 1 件(Pact MVP、Wholesale → Inventory Core)
+
+### Future Work
+
+- Pact Provider verify テスト + Pact Broker 連携
+- Manufacturing 補償(完成品 INBOUND 失敗時)
+- audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
+- Workflow 自動 step handler / SLA タイムアウト
+- Integration Hub 実 adapter 拡充(S3 / SFTP / AS2-EDI / 外部 EC)
+- 業態取消の業務 REST API(現状は集約メソッドのみ、API は未実装)
+- 多重 Spring Context IT(`e2e-tests/`)の CI 復帰(技術スタック進化次第)
