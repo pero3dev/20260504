@@ -23,6 +23,7 @@
         <module>services/tpl</module>
         <module>services/wholesale</module>
         <module>services/manufacturing</module>
+        <module>services/analytics</module>
         <module>e2e-tests</module>
     </modules>
 

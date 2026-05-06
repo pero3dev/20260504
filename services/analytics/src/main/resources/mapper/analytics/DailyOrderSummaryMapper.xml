@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.analytics.adapter.out.persistence.DailyOrderSummaryMapper">
+
+    <resultMap id="summaryRow"
+               type="com.example.inventory.analytics.adapter.out.persistence.DailyOrderSummaryRow">
+        <constructor>
+            <idArg column="tenant_id" javaType="java.lang.String"/>
+            <idArg column="business_context" javaType="java.lang.String"/>
+            <idArg column="summary_date" javaType="java.time.LocalDate"/>
+            <idArg column="currency" javaType="java.lang.String"/>
+            <arg column="order_count" javaType="_long"/>
+            <arg column="total_amount" javaType="java.math.BigDecimal"/>
+            <arg column="last_event_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findByTenantAndDateRange" resultMap="summaryRow">
+        SELECT tenant_id, business_context, summary_date, currency,
+               order_count, total_amount, last_event_at
+        FROM daily_order_summary
+        WHERE tenant_id = #{tenantId}
+          AND summary_date &gt;= #{fromDate}
+          AND summary_date &lt;= #{toDate}
+        <if test="businessContext != null">
+            AND business_context = #{businessContext}
+        </if>
+        ORDER BY summary_date, business_context, currency
+    </select>
+
+    <!-- 同 bucket への並行 UPSERT は Postgres の ON CONFLICT で直列化される。
+         last_event_at は GREATEST で「より新しいイベント時刻」を採用する。 -->
+    <insert id="upsertIncrement">
+        INSERT INTO daily_order_summary
+            (tenant_id, business_context, summary_date, currency,
+             order_count, total_amount, last_event_at, updated_at)
+        VALUES
+            (#{tenantId}, #{businessContext}, #{summaryDate}, #{currency},
+             1, #{amount}, #{lastEventAt}, now())
+        ON CONFLICT (tenant_id, business_context, summary_date, currency)
+        DO UPDATE SET
+            order_count = daily_order_summary.order_count + 1,
+            total_amount = daily_order_summary.total_amount + EXCLUDED.total_amount,
+            last_event_at = GREATEST(daily_order_summary.last_event_at, EXCLUDED.last_event_at),
+            updated_at = now()
+    </insert>
+
+</mapper>

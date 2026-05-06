@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: Analytics API
+  description: |
+    Multi-tenant inventory platform — Analytics service. Aggregates business
+    events into rollup tables and exposes read APIs.
+
+    MVP scope: daily order summary by (tenant, business_context, date, currency)
+    sourced from `retail.order.placed.v1` and `wholesale.order.placed.v1`.
+
+    Pool multi-tenancy: single shared DB with `tenant_id` column.
+    Errors follow RFC 7807; `errorCode` is the i18n key.
+  version: 1.0.0
+
+servers:
+  - url: https://api.example.com/analytics
+    description: Production
+  - url: http://localhost:8089
+    description: Local dev
+
+tags:
+  - name: daily-orders
+    description: Daily order summaries
+
+security:
+  - bearerJwt: []
+
+paths:
+  /v1/analytics/daily-orders:
+    get:
+      tags: [daily-orders]
+      operationId: getDailyOrderSummaries
+      summary: Get daily order summaries for a tenant in a date range
+      parameters:
+        - name: tenant
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 32
+        - name: from
+          in: query
+          required: true
+          description: Inclusive start date (UTC)
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: Inclusive end date (UTC)
+          schema:
+            type: string
+            format: date
+        - name: businessContext
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [RETAIL, WHOLESALE]
+      responses:
+        '200':
+          description: Summaries returned (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyOrderSummaryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  schemas:
+    DailyOrderSummaryResponse:
+      type: object
+      required:
+        - tenantId
+        - businessContext
+        - summaryDate
+        - currency
+        - orderCount
+        - totalAmount
+        - lastEventAt
+      properties:
+        tenantId:
+          type: string
+        businessContext:
+          type: string
+          enum: [RETAIL, WHOLESALE]
+        summaryDate:
+          type: string
+          format: date
+        currency:
+          type: string
+        orderCount:
+          type: integer
+          format: int64
+        totalAmount:
+          type: number
+          format: double
+        lastEventAt:
+          type: string
+          format: date-time
+
+    ProblemDetail:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, format: int32 }
+        detail: { type: string }
+        errorCode: { type: string }
+        traceId: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Not authenticated, JWT invalid/expired
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
