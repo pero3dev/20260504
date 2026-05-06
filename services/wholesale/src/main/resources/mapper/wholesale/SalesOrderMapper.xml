@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.wholesale.adapter.out.persistence.SalesOrderMapper">
+
+    <resultMap id="salesOrderRow"
+               type="com.example.inventory.wholesale.adapter.out.persistence.SalesOrderRow">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="partner_code" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="total_amount" javaType="java.math.BigDecimal"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="requested_delivery_date" javaType="java.time.LocalDate"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="placed_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="salesOrderItemRow"
+               type="com.example.inventory.wholesale.adapter.out.persistence.SalesOrderItemRow">
+        <constructor>
+            <idArg column="order_id" javaType="_long"/>
+            <idArg column="line_no" javaType="_int"/>
+            <arg column="sku_code" javaType="java.lang.String"/>
+            <arg column="location_id" javaType="java.lang.String"/>
+            <arg column="quantity" javaType="_int"/>
+            <arg column="unit_price" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="salesOrderRow">
+        SELECT id, code, partner_code, status, total_amount, currency,
+               requested_delivery_date, version, placed_at
+        FROM sales_order
+        WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM sales_order WHERE code = #{code}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO sales_order
+            (id, code, partner_code, status, total_amount, currency,
+             requested_delivery_date, version, placed_at)
+        VALUES
+            (#{row.id}, #{row.code}, #{row.partnerCode}, #{row.status},
+             #{row.totalAmount}, #{row.currency}, #{row.requestedDeliveryDate},
+             #{row.version}, #{row.placedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE sales_order
+        SET code = #{row.code}, partner_code = #{row.partnerCode},
+            status = #{row.status}, total_amount = #{row.totalAmount},
+            currency = #{row.currency},
+            requested_delivery_date = #{row.requestedDeliveryDate},
+            version = #{row.version},
+            updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM sales_order WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+    <select id="findItemsByOrderId" resultMap="salesOrderItemRow">
+        SELECT order_id, line_no, sku_code, location_id, quantity, unit_price
+        FROM sales_order_item
+        WHERE order_id = #{orderId}
+        ORDER BY line_no
+    </select>
+
+    <insert id="insertItem">
+        INSERT INTO sales_order_item (order_id, line_no, sku_code, location_id, quantity, unit_price)
+        VALUES (#{row.orderId}, #{row.lineNo}, #{row.skuCode}, #{row.locationId},
+                #{row.quantity}, #{row.unitPrice})
+    </insert>
+
+    <delete id="deleteItemsByOrderId">
+        DELETE FROM sales_order_item WHERE order_id = #{orderId}
+    </delete>
+
+</mapper>

@@ -21,6 +21,7 @@
         <module>services/notification</module>
         <module>services/retail-ec</module>
         <module>services/tpl</module>
+        <module>services/wholesale</module>
         <module>e2e-tests</module>
     </modules>
 
