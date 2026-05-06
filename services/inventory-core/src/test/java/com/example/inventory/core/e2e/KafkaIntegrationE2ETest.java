@@ -228,6 +228,100 @@ class KafkaIntegrationE2ETest {
     }
 
     @Test
+    void wholesaleOrderPlacedThenCancelled_drivesReserveThenRelease() throws Exception {
+        // Seed inventory(SKU-1, LOC-1, available=10, reserved=0)。
+        // Wholesale 取消フロー: Place → Reserve → Cancel → Release で reserved が戻ること。
+        //   1. wholesale.order.placed.v1 (qty=3) → reserve、reserved=3, available=7
+        //   2. wholesale.order.cancelled.v1 (qty=3) → release、reserved=0, available=10
+        long aggregateId = 5101L;
+        String orderCode = "SO-IT-101";
+        String placedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","partnerCode":"PARTNER-X","currency":"JPY",\
+                "totalAmount":3000,\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":3,"unitPrice":1000}],\
+                "occurredAt":"2026-05-06T10:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+        String cancelledPayload =
+                """
+                {"aggregateId":%d,"code":"%s","partnerCode":"PARTNER-X",\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":3}],\
+                "cancelledAt":"2026-05-06T12:00:00Z","occurredAt":"2026-05-06T12:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> placed =
+                    new ProducerRecord<>(
+                            "wholesale.order.placed.v1", "dev:" + aggregateId, placedPayload);
+            placed.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            placed.headers().add(new RecordHeader("event_id", "200".getBytes()));
+            producer.send(placed).get();
+        }
+
+        waitForInventory(1L, 7, 3);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> cancelled =
+                    new ProducerRecord<>(
+                            "wholesale.order.cancelled.v1", "dev:" + aggregateId, cancelledPayload);
+            cancelled.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            cancelled.headers().add(new RecordHeader("event_id", "201".getBytes()));
+            producer.send(cancelled).get();
+        }
+
+        // Release が反映されるまで polling: reserved=0, available=10(完全に元に戻る)
+        waitForInventory(1L, 10, 0);
+    }
+
+    @Test
+    void retailOrderPlacedThenCancelled_drivesReserveThenRelease() throws Exception {
+        // Retail/EC 取消フロー: Place → Reserve → Cancel → Release で reserved が戻ること。
+        //   1. retail.order.placed.v1 (qty=4) → reserve、reserved=4, available=6
+        //   2. retail.order.cancelled.v1 (qty=4) → release、reserved=0, available=10
+        long aggregateId = 6201L;
+        String orderCode = "ORD-IT-201";
+        String placedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","customerEmail":"alice@example.com","currency":"JPY",\
+                "totalAmount":4000,\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":4,"unitPrice":1000}],\
+                "occurredAt":"2026-05-06T10:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+        String cancelledPayload =
+                """
+                {"aggregateId":%d,"code":"%s","customerEmail":"alice@example.com",\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":4}],\
+                "cancelledAt":"2026-05-06T12:00:00Z","occurredAt":"2026-05-06T12:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> placed =
+                    new ProducerRecord<>(
+                            "retail.order.placed.v1", "dev:" + aggregateId, placedPayload);
+            placed.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            placed.headers().add(new RecordHeader("event_id", "300".getBytes()));
+            producer.send(placed).get();
+        }
+
+        waitForInventory(1L, 6, 4);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> cancelled =
+                    new ProducerRecord<>(
+                            "retail.order.cancelled.v1", "dev:" + aggregateId, cancelledPayload);
+            cancelled.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            cancelled.headers().add(new RecordHeader("event_id", "301".getBytes()));
+            producer.send(cancelled).get();
+        }
+
+        waitForInventory(1L, 10, 0);
+    }
+
+    @Test
     void masterProductV1_isProjectedToSkuRegistry() throws Exception {
         // Kafka に master.product.v1 をテスト producer で送り、SkuMasterListener が
         // tenant_dev.sku_registry に upsert することを確認する。
