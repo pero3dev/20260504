@@ -111,11 +111,17 @@ class KafkaIntegrationE2ETest {
             s.execute("TRUNCATE outbox");
             s.execute("TRUNCATE sku_registry");
             // SKU-1 は登録済み(在庫あり)、SKU-2 は登録なし(422 シナリオ用)。
+            // SKU-A / SKU-B / SKU-WIDGET-X は Manufacturing E2E 専用シード:
+            //   - SKU-A / SKU-B: 部品 inventory(LOC-FACTORY-A)
+            //   - SKU-WIDGET-X: 完成品 inventory(LOC-FACTORY-A、初期 0、receive で増える)
             s.execute(
                     """
                     INSERT INTO inventory (id, sku_id, location_id, available, reserved, version)
                     VALUES (1, 'SKU-1', 'LOC-1', 10, 0, 1),
-                           (2, 'SKU-2', 'LOC-1', 10, 0, 1)
+                           (2, 'SKU-2', 'LOC-1', 10, 0, 1),
+                           (100, 'SKU-A', 'LOC-FACTORY-A', 80, 0, 1),
+                           (101, 'SKU-B', 'LOC-FACTORY-A', 50, 0, 1),
+                           (102, 'SKU-WIDGET-X', 'LOC-FACTORY-A', 0, 0, 1)
                     """);
             s.execute(
                     """
@@ -367,6 +373,71 @@ class KafkaIntegrationE2ETest {
         }
 
         waitForInventory(1L, 10, 0);
+    }
+
+    @Test
+    void manufacturingWorkOrderReleaseThenComplete_drivesConsumeThenFinishedGoodsInbound()
+            throws Exception {
+        // Manufacturing 完成品 INBOUND フロー(L3 で実装):
+        //   1. manufacturing.work_order.released.v1
+        //      → ConsumeWorkOrderComponentsService が部品を reserve+ship
+        //      → SKU-A.available 80→60, SKU-B.available 50→40
+        //   2. manufacturing.work_order.completed.v1
+        //      → ReceiveFinishedGoodsService が完成品 SKU を receive
+        //      → SKU-WIDGET-X.available 0→10
+        long aggregateId = 7001L;
+        String workOrderCode = "WO-IT-001";
+        // plannedQuantity=10、components の requiredQuantity は manufacturing 側で
+        // quantityPerUnit * plannedQuantity を計算済(SKU-A: 2*10=20、SKU-B: 1*10=10)。
+        String releasedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","productSkuCode":"SKU-WIDGET-X",\
+                "locationId":"LOC-FACTORY-A","plannedQuantity":10,\
+                "components":[\
+                {"componentSkuCode":"SKU-A","requiredQuantity":20},\
+                {"componentSkuCode":"SKU-B","requiredQuantity":10}\
+                ],\
+                "plannedStartDate":"2026-05-06","occurredAt":"2026-05-06T10:00:00Z"}
+                """
+                        .formatted(aggregateId, workOrderCode);
+        String completedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","productSkuCode":"SKU-WIDGET-X",\
+                "locationId":"LOC-FACTORY-A","completedQuantity":10,\
+                "completedAt":"2026-05-06T13:00:00Z","occurredAt":"2026-05-06T13:00:00Z"}
+                """
+                        .formatted(aggregateId, workOrderCode);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> released =
+                    new ProducerRecord<>(
+                            "manufacturing.work_order.released.v1",
+                            "dev:" + aggregateId,
+                            releasedPayload);
+            released.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            released.headers().add(new RecordHeader("event_id", "500".getBytes()));
+            producer.send(released).get();
+        }
+
+        // 部品消費の反映を待つ:
+        //   - SKU-A inventory(id=100): available 80→60、reserved=0(reserve+ship なので戻る)
+        //   - SKU-B inventory(id=101): available 50→40、reserved=0
+        waitForInventory(100L, 60, 0);
+        waitForInventory(101L, 40, 0);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> completed =
+                    new ProducerRecord<>(
+                            "manufacturing.work_order.completed.v1",
+                            "dev:" + aggregateId,
+                            completedPayload);
+            completed.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            completed.headers().add(new RecordHeader("event_id", "501".getBytes()));
+            producer.send(completed).get();
+        }
+
+        // 完成品 INBOUND の反映を待つ: SKU-WIDGET-X(id=102) の available 0→10
+        waitForInventory(102L, 10, 0);
     }
 
     @Test
