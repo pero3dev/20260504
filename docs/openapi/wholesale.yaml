@@ -118,6 +118,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /v1/sales-orders/{orderId}/cancel:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [sales-orders]
+      operationId: cancelSalesOrder
+      summary: Cancel a placed sales order, emitting wholesale.order.cancelled.v1
+      description: |
+        業務側起因のキャンセル。 Inventory Core が listener で受け、 reserved を release する。
+        既に CANCELLED の場合は冪等で 200 を返す(イベント発行なし)。 SHIPPED からの cancel は 409。
+      responses:
+        '200':
+          description: Sales order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SalesOrderNotFound'
+        '409':
+          description: Sales order is not in a state that allows cancellation
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   schemas:
     PlaceSalesOrderRequest:

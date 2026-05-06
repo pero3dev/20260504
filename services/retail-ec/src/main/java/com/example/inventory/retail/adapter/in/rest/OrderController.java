@@ -11,6 +11,7 @@ import com.example.inventory.retail.adapter.in.rest.api.OrdersApi;
 import com.example.inventory.retail.adapter.in.rest.api.model.OrderLine;
 import com.example.inventory.retail.adapter.in.rest.api.model.OrderResponse;
 import com.example.inventory.retail.adapter.in.rest.api.model.PlaceOrderRequest;
+import com.example.inventory.retail.application.port.in.CancelOrderUseCase;
 import com.example.inventory.retail.application.port.in.GetOrderUseCase;
 import com.example.inventory.retail.application.port.in.PlaceOrderUseCase;
 import com.example.inventory.retail.application.port.in.ShipOrderUseCase;
@@ -22,12 +23,17 @@ public class OrderController implements OrdersApi {
 
     private final PlaceOrderUseCase placeOrder;
     private final ShipOrderUseCase shipOrder;
+    private final CancelOrderUseCase cancelOrder;
     private final GetOrderUseCase getOrder;
 
     public OrderController(
-            PlaceOrderUseCase placeOrder, ShipOrderUseCase shipOrder, GetOrderUseCase getOrder) {
+            PlaceOrderUseCase placeOrder,
+            ShipOrderUseCase shipOrder,
+            CancelOrderUseCase cancelOrder,
+            GetOrderUseCase getOrder) {
         this.placeOrder = placeOrder;
         this.shipOrder = shipOrder;
+        this.cancelOrder = cancelOrder;
         this.getOrder = getOrder;
     }
 
@@ -61,6 +67,11 @@ public class OrderController implements OrdersApi {
     @Override
     public ResponseEntity<OrderResponse> shipOrder(Long orderId) {
         return ResponseEntity.ok(toResponse(shipOrder.ship(orderId)));
+    }
+
+    @Override
+    public ResponseEntity<OrderResponse> cancelOrder(Long orderId) {
+        return ResponseEntity.ok(toResponse(cancelOrder.cancel(orderId)));
     }
 
     private static OrderResponse toResponse(Order order) {

@@ -10,6 +10,7 @@ import com.example.inventory.wholesale.adapter.in.rest.api.SalesOrdersApi;
 import com.example.inventory.wholesale.adapter.in.rest.api.model.PlaceSalesOrderRequest;
 import com.example.inventory.wholesale.adapter.in.rest.api.model.SalesOrderLineResponse;
 import com.example.inventory.wholesale.adapter.in.rest.api.model.SalesOrderResponse;
+import com.example.inventory.wholesale.application.port.in.CancelSalesOrderUseCase;
 import com.example.inventory.wholesale.application.port.in.GetSalesOrderUseCase;
 import com.example.inventory.wholesale.application.port.in.PlaceSalesOrderUseCase;
 import com.example.inventory.wholesale.application.port.in.ShipSalesOrderUseCase;
@@ -21,14 +22,17 @@ public class SalesOrderController implements SalesOrdersApi {
 
     private final PlaceSalesOrderUseCase placeOrder;
     private final ShipSalesOrderUseCase shipOrder;
+    private final CancelSalesOrderUseCase cancelOrder;
     private final GetSalesOrderUseCase getOrder;
 
     public SalesOrderController(
             PlaceSalesOrderUseCase placeOrder,
             ShipSalesOrderUseCase shipOrder,
+            CancelSalesOrderUseCase cancelOrder,
             GetSalesOrderUseCase getOrder) {
         this.placeOrder = placeOrder;
         this.shipOrder = shipOrder;
+        this.cancelOrder = cancelOrder;
         this.getOrder = getOrder;
     }
 
@@ -60,6 +64,11 @@ public class SalesOrderController implements SalesOrdersApi {
     @Override
     public ResponseEntity<SalesOrderResponse> shipSalesOrder(Long orderId) {
         return ResponseEntity.ok(toResponse(shipOrder.ship(orderId)));
+    }
+
+    @Override
+    public ResponseEntity<SalesOrderResponse> cancelSalesOrder(Long orderId) {
+        return ResponseEntity.ok(toResponse(cancelOrder.cancel(orderId)));
     }
 
     private static SalesOrderResponse toResponse(Order order) {

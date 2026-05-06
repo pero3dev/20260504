@@ -1,0 +1,89 @@
+package com.example.inventory.retail.application.usecase;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import com.example.inventory.retail.application.port.in.OrderNotFoundException;
+import com.example.inventory.retail.application.port.in.OrderStateConflictException;
+import com.example.inventory.retail.application.port.out.OrderRepository;
+import com.example.inventory.retail.domain.model.Order;
+import com.example.inventory.retail.domain.model.OrderCode;
+import com.example.inventory.retail.domain.model.OrderId;
+import com.example.inventory.retail.domain.model.OrderItem;
+import com.example.inventory.retail.domain.model.OrderStatus;
+
+class CancelOrderServiceTest {
+
+    private OrderRepository repository;
+    private CancelOrderService service;
+
+    @BeforeEach
+    void setUp() {
+        repository = Mockito.mock(OrderRepository.class);
+        when(repository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        service = new CancelOrderService(repository);
+    }
+
+    @Test
+    void 既存_PLACED_注文は_CANCELLED_に遷移して_save_される() {
+        Order placed = newPlaced();
+        when(repository.findById(new OrderId(1L))).thenReturn(Optional.of(placed));
+
+        Order result = service.cancel(1L);
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELLED);
+        verify(repository).save(placed);
+    }
+
+    @Test
+    void 注文が見つからなければ_OrderNotFoundException() {
+        when(repository.findById(new OrderId(1L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.cancel(1L)).isInstanceOf(OrderNotFoundException.class);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void SHIPPED_注文に対する_cancel_は_OrderStateConflictException() {
+        Order o = newPlaced();
+        o.ship();
+        when(repository.findById(new OrderId(1L))).thenReturn(Optional.of(o));
+
+        assertThatThrownBy(() -> service.cancel(1L))
+                .isInstanceOf(OrderStateConflictException.class);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void CANCELLED_注文に対する_cancel_は_冪等で_save_は呼ばれる_が_状態は_CANCELLED() {
+        Order o = newPlaced();
+        o.cancel();
+        when(repository.findById(new OrderId(1L))).thenReturn(Optional.of(o));
+
+        Order result = service.cancel(1L);
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELLED);
+        verify(repository).save(o);
+    }
+
+    private static Order newPlaced() {
+        return Order.place(
+                new OrderId(1L),
+                new OrderCode("ORD-2026-0001"),
+                "alice@example.com",
+                "JPY",
+                List.of(new OrderItem(1, "SKU-A", "LOC-1", 2, new BigDecimal("1000"))));
+    }
+}
