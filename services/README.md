@@ -15,6 +15,7 @@
 | [retail-ec](./retail-ec/) | Day-2 業態系 1 個目: 注文受付 + retail.order.placed.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 | [tpl](./tpl/) | Day-2 業態系 2 個目: 3PL 入出庫管理 + tpl.stock.movement.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 | [wholesale](./wholesale/) | Day-2 業態系 3 個目: 法人向け大口受注(取引先別契約価格) + wholesale.order.placed.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
+| [manufacturing](./manufacturing/) | Day-2 業態系 4 個目: BOM(部品構成) + WorkOrder(製造指図) + manufacturing.work_order.released.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
 
 ## サービス間連携 E2E
 
@@ -32,4 +33,4 @@
 ## 予定サービス(計画 13)
 
 - 共通基盤: Identity Broker ✅ / Master Data ✅ / Inventory Core ✅ / Inventory Read Model ✅ / Audit ✅ / Notification ✅ / Workflow / Integration Hub(7アダプタ) / Analytics
-- 業態別: Retail/EC ✅ / Manufacturing / 3PL ✅ / Wholesale ✅
+- 業態別: Retail/EC ✅ / Manufacturing ✅ / 3PL ✅ / Wholesale ✅

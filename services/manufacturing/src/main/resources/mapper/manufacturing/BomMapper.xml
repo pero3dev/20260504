@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.manufacturing.adapter.out.persistence.BomMapper">
+
+    <resultMap id="bomComponentRow"
+               type="com.example.inventory.manufacturing.adapter.out.persistence.BomComponentRow">
+        <constructor>
+            <idArg column="product_sku_code" javaType="java.lang.String"/>
+            <idArg column="component_sku_code" javaType="java.lang.String"/>
+            <arg column="quantity_per_unit" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findComponents" resultMap="bomComponentRow">
+        SELECT product_sku_code, component_sku_code, quantity_per_unit
+        FROM bom_component
+        WHERE product_sku_code = #{productSkuCode}
+        ORDER BY component_sku_code
+    </select>
+
+</mapper>

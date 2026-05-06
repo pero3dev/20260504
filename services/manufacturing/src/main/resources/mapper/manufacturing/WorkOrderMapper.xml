@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.manufacturing.adapter.out.persistence.WorkOrderMapper">
+
+    <resultMap id="workOrderRow"
+               type="com.example.inventory.manufacturing.adapter.out.persistence.WorkOrderRow">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="product_sku_code" javaType="java.lang.String"/>
+            <arg column="location_id" javaType="java.lang.String"/>
+            <arg column="planned_quantity" javaType="_int"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="planned_start_date" javaType="java.time.LocalDate"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="placed_at" javaType="java.time.Instant"/>
+            <arg column="released_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="workOrderComponentRow"
+               type="com.example.inventory.manufacturing.adapter.out.persistence.WorkOrderComponentRow">
+        <constructor>
+            <idArg column="work_order_id" javaType="_long"/>
+            <idArg column="line_no" javaType="_int"/>
+            <arg column="component_sku_code" javaType="java.lang.String"/>
+            <arg column="quantity_per_unit" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="workOrderRow">
+        SELECT id, code, product_sku_code, location_id, planned_quantity,
+               status, planned_start_date, version, placed_at, released_at
+        FROM work_order
+        WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="int">
+        SELECT count(*) FROM work_order WHERE code = #{code}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO work_order
+            (id, code, product_sku_code, location_id, planned_quantity,
+             status, planned_start_date, version, placed_at, released_at)
+        VALUES
+            (#{row.id}, #{row.code}, #{row.productSkuCode}, #{row.locationId},
+             #{row.plannedQuantity}, #{row.status}, #{row.plannedStartDate},
+             #{row.version}, #{row.placedAt}, #{row.releasedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE work_order
+        SET code = #{row.code},
+            product_sku_code = #{row.productSkuCode},
+            location_id = #{row.locationId},
+            planned_quantity = #{row.plannedQuantity},
+            status = #{row.status},
+            planned_start_date = #{row.plannedStartDate},
+            version = #{row.version},
+            released_at = #{row.releasedAt},
+            updated_at = now()
+        WHERE id = #{row.id} AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM work_order WHERE id = #{id} AND version = #{expectedVersion}
+    </delete>
+
+    <select id="findComponentsByWorkOrderId" resultMap="workOrderComponentRow">
+        SELECT work_order_id, line_no, component_sku_code, quantity_per_unit
+        FROM work_order_component
+        WHERE work_order_id = #{workOrderId}
+        ORDER BY line_no
+    </select>
+
+    <insert id="insertComponent">
+        INSERT INTO work_order_component
+            (work_order_id, line_no, component_sku_code, quantity_per_unit)
+        VALUES
+            (#{row.workOrderId}, #{row.lineNo}, #{row.componentSkuCode}, #{row.quantityPerUnit})
+    </insert>
+
+    <delete id="deleteComponentsByWorkOrderId">
+        DELETE FROM work_order_component WHERE work_order_id = #{workOrderId}
+    </delete>
+
+</mapper>
