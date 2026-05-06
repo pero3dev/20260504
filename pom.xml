@@ -25,6 +25,7 @@
         <module>services/manufacturing</module>
         <module>services/analytics</module>
         <module>services/workflow</module>
+        <module>services/integration-hub</module>
         <module>e2e-tests</module>
     </modules>
 
