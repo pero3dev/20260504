@@ -41,8 +41,32 @@ Postgres logs every statement. Rejected for the same reason as CDC, plus it ties
 ### Option 3: Amazon QLDB as primary store
 Native ledger semantics. Rejected because QLDB is being de-emphasized in AWS's roadmap and S3 Object Lock + app-side hash chain is the standard pattern for new builds.
 
+## Implementation status (2026-05-06, D3 task)
+
+実装済み(audit-service Java + SQL):
+
+- ✅ AOP 取込: `@Auditable` aspect(`commons-audit`)
+- ✅ Kafka 経由でレコード受信: `AuditEventListener`
+- ✅ Per-record SHA-256 + prev_hash チェーン: `Sha256HashCalculator` + `ProcessAuditEventService`
+- ✅ チェーン整合性検証 UseCase + REST API: `AuditChainVerifier` + `GET /admin/audit-chain/verify`
+- ✅ **DB レベル WORM 強制**: V2 マイグレーションで `audit_record` / `audit_merkle_anchor` に対する UPDATE/DELETE をトリガで拒否
+- ✅ **日次 Merkle anchor 計算**: `Sha256MerkleTreeCalculator` + `ComputeDailyMerkleAnchorService` + `DailyMerkleAnchorScheduler`(`platform.audit.anchor.enabled=true` で起動)
+- ✅ **anchor 整合性検証**: `VerifyMerkleAnchorService` + `GET /admin/audit-chain/anchor/verify`
+- ✅ **anchor 手動計算 API**: `POST /admin/audit-chain/anchor`
+
+未実装(本 ADR 対象だがインフラ寄り、別タスク):
+
+- ⏳ S3 Object Lock (Compliance mode) への Parquet 投入(現状は audit_record に DB 保管のみ)
+- ⏳ Merkle root の S3 への二重保管(現状は audit_merkle_anchor テーブルのみ)
+- ⏳ Athena 経由のクエリ
+- ⏳ 1 年保持期限による自動失効
+
 ## References
 
 - `memory/business_requirements.md` — audit requirements (Q6)
 - `memory/architecture.md` — C1 audit architecture
 - `memory/design_implementation.md` — `@Auditable` aspect in `commons-audit`
+- `services/audit-service/.../Sha256HashCalculator.java` — チェーンハッシュ計算
+- `services/audit-service/.../Sha256MerkleTreeCalculator.java` — Merkle tree 計算(D3)
+- `services/audit-service/.../ComputeDailyMerkleAnchorService.java` — 日次 anchor 計算(D3)
+- `services/audit-service/.../V2__audit_worm_and_merkle_anchor.sql` — WORM トリガ + anchor テーブル(D3)

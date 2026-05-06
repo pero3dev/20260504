@@ -1,5 +1,6 @@
 package com.example.inventory.audit.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,14 @@ public class AuditChainReaderImpl implements AuditChainReader {
     @Override
     public List<AuditRecord> findAllOrderedBySequence(TenantId tenantId) {
         return mapper.findAllOrderedBySequence(tenantId.value()).stream()
+                .map(AuditChainReaderImpl::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<AuditRecord> findByOccurredRange(
+            TenantId tenantId, Instant fromInclusive, Instant toExclusive) {
+        return mapper.findByOccurredRange(tenantId.value(), fromInclusive, toExclusive).stream()
                 .map(AuditChainReaderImpl::toDomain)
                 .toList();
     }

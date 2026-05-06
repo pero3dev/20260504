@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.inventory.audit.adapter.out.persistence.MerkleAnchorMapper">
+
+    <resultMap id="anchorRow"
+               type="com.example.inventory.audit.adapter.out.persistence.MerkleAnchorRow">
+        <constructor>
+            <idArg column="tenant_id" javaType="java.lang.String"/>
+            <idArg column="anchor_date" javaType="java.time.LocalDate"/>
+            <arg column="root_hash" javaType="java.lang.String"/>
+            <arg column="record_count" javaType="_long"/>
+            <arg column="first_sequence" javaType="_long"/>
+            <arg column="last_sequence" javaType="_long"/>
+            <arg column="computed_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <select id="find" resultMap="anchorRow">
+        SELECT tenant_id, anchor_date, root_hash, record_count,
+               first_sequence, last_sequence, computed_at
+        FROM audit_merkle_anchor
+        WHERE tenant_id = #{tenantId} AND anchor_date = #{anchorDate}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO audit_merkle_anchor
+            (tenant_id, anchor_date, root_hash, record_count,
+             first_sequence, last_sequence, computed_at)
+        VALUES
+            (#{row.tenantId}, #{row.anchorDate}, #{row.rootHash}, #{row.recordCount},
+             #{row.firstSequence}, #{row.lastSequence}, #{row.computedAt})
+    </insert>
+
+</mapper>

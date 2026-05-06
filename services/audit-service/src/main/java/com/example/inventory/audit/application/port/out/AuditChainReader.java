@@ -1,5 +1,6 @@
 package com.example.inventory.audit.application.port.out;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.example.inventory.audit.domain.model.AuditRecord;
@@ -17,4 +18,11 @@ public interface AuditChainReader {
 
     /** 指定テナントの監査レコードを sequence 昇順で返す。空テナントは空リスト。 */
     List<AuditRecord> findAllOrderedBySequence(TenantId tenantId);
+
+    /**
+     * 指定テナント × 期間({@code fromInclusive ≤ occurred_at < toExclusive})のレコードを sequence 昇順で返す。 Merkle
+     * anchor 計算用。空期間は空リスト。
+     */
+    List<AuditRecord> findByOccurredRange(
+            TenantId tenantId, Instant fromInclusive, Instant toExclusive);
 }

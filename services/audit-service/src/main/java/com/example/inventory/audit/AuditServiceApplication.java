@@ -3,6 +3,7 @@ package com.example.inventory.audit;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Audit Service — {@code audit.log.v1} 全消費 → SHA-256 ハッシュチェーン構築 → DB 永続化(ADR-0008)。
@@ -16,11 +17,18 @@ import org.springframework.kafka.annotation.EnableKafka;
  *   <li>idempotent: event_id UNIQUE 制約による重複検出
  * </ul>
  *
- * <p>Phase 2 で実装する項目(port のみ用意):
+ * <p>Phase 2 で D3 タスクで実装した強化策:
+ *
+ * <ul>
+ *   <li>WORM トリガで audit_record / audit_merkle_anchor の UPDATE/DELETE 拒否(V2 マイグレーション)
+ *   <li>日次 Merkle anchor 計算 + 検証(ADR-0008、Scheduler + REST 管理 API)
+ * </ul>
+ *
+ * <p>Phase 3 以降で実装する項目:
  *
  * <ul>
  *   <li>S3 Object Lock(WORM, Compliance Mode)への Parquet 投入
- *   <li>Merkle root の日次アンカリング(別バケット)
+ *   <li>Merkle root を S3 にも二重保管(別バケット)
  *   <li>Athena 経由のクエリ(REST API は作らない、運用ツール直接)
  *   <li>古いレコードの保持期間 1 年での自動失効(Object Lock 失効と整合)
  * </ul>
@@ -29,6 +37,7 @@ import org.springframework.kafka.annotation.EnableKafka;
  */
 @SpringBootApplication
 @EnableKafka
+@EnableScheduling
 public class AuditServiceApplication {
 
     public static void main(String[] args) {

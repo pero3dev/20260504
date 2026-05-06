@@ -9,7 +9,7 @@
 | [inventory-core](./inventory-core/) | 在庫状態の唯一の書込権威(ADR-0002, ADR-0004) | DBあり / 書込権威 / Outbox / Bridge |
 | [inventory-read-model](./inventory-read-model/) | Kafka 購読 → Redis 投影 → 高速参照 | DBなし / 読取専用 / CQRS Read 側 |
 | [identity-broker](./identity-broker/) | JWT 発行 + テナント解決(ADR-0007) | DBあり / Pool / JWT 発行側 |
-| [audit-service](./audit-service/) | audit.log.v1 全消費 + ハッシュチェーン構築(ADR-0008) | DBあり / Pool / Kafka 消費専用 |
+| [audit-service](./audit-service/) | audit.log.v1 全消費 + SHA-256 ハッシュチェーン + 日次 Merkle anchor + WORM(ADR-0008) | DBあり / Pool / Kafka 消費専用 / WORM トリガで UPDATE/DELETE 拒否 |
 | [master-data](./master-data/) | SKU / Location / Partner マスタ | DBあり / 書込権威 / Outbox / Bridge |
 | [notification](./notification/) | 業務イベント駆動の通知配信(MVP は inventory.movement.v1 → 在庫低下メール) | DBあり / Pool / Kafka 消費 / 送信器 port 抽象化 |
 | [retail-ec](./retail-ec/) | Day-2 業態系 1 個目: 注文受付 + retail.order.placed.v1 発行 | DBあり / 書込権威 / Outbox / Bridge |
