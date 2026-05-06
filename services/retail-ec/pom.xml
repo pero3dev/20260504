@@ -136,6 +136,14 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Pact provider verifier (ADR-0019 Phase 2)。 inventory-core 等の Consumer が
+             生成した pact ファイルを読み込んで、 OrderPlacedEvent 等の実 JSON 出力が契約を満たすか verify。 -->
+        <dependency>
+            <groupId>au.com.dius.pact.provider</groupId>
+            <artifactId>junit5</artifactId>
+            <version>${pact.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
