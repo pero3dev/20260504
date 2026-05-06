@@ -27,6 +27,14 @@
 | 認証 → 引当 → 投影 → 監査チェーン | [`EndToEndAuthAndReservationFlowIT`](../e2e-tests/src/test/java/com/example/inventory/e2e/EndToEndAuthAndReservationFlowIT.java) | identity-broker → inventory-core → inventory-read-model + audit-service |
 | Master Data → 引当 SKU 投影 | [`EndToEndMasterDataInventoryFlowIT`](../e2e-tests/src/test/java/com/example/inventory/e2e/EndToEndMasterDataInventoryFlowIT.java) | master-data → master.product.v1 → inventory-core SKU 投影 |
 
+## サービス間連携 Contract Test
+
+ADR-0014 の Future complement として Pact (consumer-driven) 契約テストを導入(MVP)。 Consumer 側で「期待する Kafka メッセージ形式」を Pact ファイル(`target/pacts/`)として出力する。 Provider 側 verifier と Pact Broker 連携は将来課題。
+
+| Consumer | Provider | テスト | 契約対象 |
+|---|---|---|---|
+| inventory-core | wholesale | [`WholesaleOrderPlacedConsumerPactTest`](./inventory-core/src/test/java/com/example/inventory/core/pact/WholesaleOrderPlacedConsumerPactTest.java) | `wholesale.order.placed.v1` の必須フィールド |
+
 ## 業態 → Inventory Core Saga 配線
 
 | 業態 | トリガ | inventory-core 動作 | 失敗時補償トピック |

@@ -145,6 +145,15 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Pact consumer-driven contract test (au.com.dius.pact) — Wholesale 等の業態系から
+             受信する Kafka メッセージの形式契約を JUnit 5 テストとして記述する。
+             Pact ファイル(target/pacts)を生成。Provider verify と Pact Broker 連携は将来課題。 -->
+        <dependency>
+            <groupId>au.com.dius.pact.consumer</groupId>
+            <artifactId>junit5</artifactId>
+            <version>${pact.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
