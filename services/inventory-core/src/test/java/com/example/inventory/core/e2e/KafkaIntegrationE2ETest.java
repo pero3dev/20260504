@@ -276,6 +276,54 @@ class KafkaIntegrationE2ETest {
     }
 
     @Test
+    void retailOrderPlacedThenShipped_drivesReserveThenShip() throws Exception {
+        // Retail/EC 出荷フロー: Place → Reserve → Ship。
+        //   1. retail.order.placed.v1 (qty=4) → reserved=4, available=6
+        //   2. retail.order.shipped.v1 (qty=4) → ship、reserved=0, available=6
+        //      (ship では available は変わらない、reserve 時に既に引いてあるため)
+        long aggregateId = 6101L;
+        String orderCode = "ORD-IT-101";
+        String placedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","customerEmail":"alice@example.com","currency":"JPY",\
+                "totalAmount":4000,\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":4,"unitPrice":1000}],\
+                "occurredAt":"2026-05-06T10:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+        String shippedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","customerEmail":"alice@example.com",\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":4}],\
+                "shippedAt":"2026-05-06T11:00:00Z","occurredAt":"2026-05-06T11:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> placed =
+                    new ProducerRecord<>(
+                            "retail.order.placed.v1", "dev:" + aggregateId, placedPayload);
+            placed.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            placed.headers().add(new RecordHeader("event_id", "400".getBytes()));
+            producer.send(placed).get();
+        }
+
+        waitForInventory(1L, 6, 4);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> shipped =
+                    new ProducerRecord<>(
+                            "retail.order.shipped.v1", "dev:" + aggregateId, shippedPayload);
+            shipped.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            shipped.headers().add(new RecordHeader("event_id", "401".getBytes()));
+            producer.send(shipped).get();
+        }
+
+        // ship 完了: reserved=0, available=6(ship では available は変わらない)
+        waitForInventory(1L, 6, 0);
+    }
+
+    @Test
     void retailOrderPlacedThenCancelled_drivesReserveThenRelease() throws Exception {
         // Retail/EC 取消フロー: Place → Reserve → Cancel → Release で reserved が戻ること。
         //   1. retail.order.placed.v1 (qty=4) → reserve、reserved=4, available=6
