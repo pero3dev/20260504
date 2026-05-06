@@ -21,8 +21,10 @@ import { Trend, Rate } from 'k6/metrics';
 
 // シナリオパラメータ
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
-const TOKEN = __ENV.TOKEN || '';
+const TOKEN = __ENV.TOKEN || ''; // 方法 B (loadtest profile) では不要、 方法 A では必須
 const TENANT_ID = __ENV.TENANT_ID || 'dev';
+// 認証モード: B = loadtest profile(permitAll、 X-Tenant-Id ヘッダで tenant 解決) / A = identity-broker JWT
+const AUTH_MODE = __ENV.AUTH_MODE || 'B';
 
 // 投入対象: seed.sql で 1000 件作っているので 1〜1000
 const INVENTORY_ID_MIN = 1;
@@ -56,13 +58,16 @@ export const options = {
 };
 
 export function setup() {
-    if (!TOKEN) {
+    if (AUTH_MODE === 'A' && !TOKEN) {
         throw new Error(
-            'TOKEN environment variable is required. ' +
+            'AUTH_MODE=A is selected but TOKEN is empty. ' +
                 'Get one via load-test/scripts/get-token.sh and pass with -e TOKEN=...',
         );
     }
-    console.log(`BASE_URL=${BASE_URL}, TENANT_ID=${TENANT_ID}, target Inventory id range=[${INVENTORY_ID_MIN}, ${INVENTORY_ID_MAX}]`);
+    console.log(
+        `BASE_URL=${BASE_URL}, TENANT_ID=${TENANT_ID}, AUTH_MODE=${AUTH_MODE}, ` +
+            `target Inventory id=[${INVENTORY_ID_MIN}, ${INVENTORY_ID_MAX}]`,
+    );
 }
 
 export default function () {
@@ -71,11 +76,19 @@ export default function () {
 
     const url = `${BASE_URL}/v1/inventories/${inventoryId}/reservations`;
     const payload = JSON.stringify({ quantity });
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    if (AUTH_MODE === 'A') {
+        // identity-broker から取得した実 JWT を渡す。 TenantContextFilter が claim から
+        // tenant_id を抽出する。
+        headers['Authorization'] = `Bearer ${TOKEN}`;
+    } else {
+        // loadtest profile では LoadTestTenantHeaderFilter が X-Tenant-Id を読む。
+        headers['X-Tenant-Id'] = TENANT_ID;
+    }
     const params = {
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${TOKEN}`,
-        },
+        headers,
         tags: { name: 'reserve' }, // k6 集計タグ
     };
 

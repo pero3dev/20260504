@@ -1,0 +1,44 @@
+# 負荷試験用 Spring profile。
+#
+# 起動例:
+#   INVENTORY_CORE_DB_URL=jdbc:postgresql://localhost:5433/inventory_core \
+#   INVENTORY_CORE_DB_USER=test \
+#   INVENTORY_CORE_DB_PASSWORD=test \
+#   KAFKA_BOOTSTRAP_SERVERS=localhost:9095 \
+#   mvn -pl services/inventory-core spring-boot:run \
+#       -Dspring-boot.run.profiles=loadtest
+#
+# 効果:
+#   - JWT 認証を完全 bypass (LoadTestSecurityConfig)
+#   - tenant_id は HTTP header X-Tenant-Id から取得(既定 dev)
+#   - identity-broker 不要で Inventory Core 単体起動可
+#
+# ⚠️ 本 profile を本番で有効化してはならない。
+
+spring:
+  # OAuth2 Resource Server 自動設定を無効化(LoadTestSecurityConfig が代替)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ""
+
+logging:
+  level:
+    # Reserve 経路を観察するための DEBUG ログ。 throughput 計測時はノイズになるので、
+    # 計測本番は INFO に下げる(別 yaml override 等で)。
+    com.example.inventory.core: INFO
+    org.springframework.security: WARN
+
+# Outbox publisher は通常運転(負荷試験対象なので動かす)
+platform:
+  outbox:
+    enabled: true
+    publisher-enabled: true
+    poll-interval: PT0.2S
+    batch-size: 200
+    tenants:
+      - dev

@@ -63,27 +63,56 @@ docker compose -f docker-compose.load.yml ps
 # まず DB を初期化
 psql -h localhost -p 5433 -U test -d inventory_core -f load-test/scripts/seed.sql
 # (パスワード: test)
+```
 
-# Inventory Core を起動(host で動かす、loadtest profile はまだ作っていない)
+#### 方法 B(推奨、クイック起動 - Phase A.1 で実装)
+
+`loadtest` profile で起動すると JWT 認証バイパス + tenant は HTTP header(既定 `dev`)から取得する設定になり、 identity-broker 不要で Reserve API を叩ける。
+
+```bash
 cd ../  # repo root
+INVENTORY_CORE_DB_URL=jdbc:postgresql://localhost:5433/inventory_core \
+  INVENTORY_CORE_DB_USER=test \
+  INVENTORY_CORE_DB_PASSWORD=test \
+  KAFKA_BOOTSTRAP_SERVERS=localhost:9095 \
+  mvn -pl services/inventory-core spring-boot:run \
+      -Dspring-boot.run.profiles=loadtest
+```
+
+起動ログで `LOADTEST PROFILE: 認証バイパス有効。本番禁止。` が出ることを確認。
+
+> ⚠️ **本 profile を本番で有効化しないこと**。 K8s ConfigMap / EKS deployment で `loadtest` を誤設定しない仕組み(IaC レビュー / NetworkPolicy 閉域)を Phase 3 で追加する。
+
+#### 方法 A(本格、 identity-broker 経由)
+
+production-like な経路で実 JWT を流したい場合:
+
+```bash
+# Inventory Core(本番 profile)起動
 INVENTORY_CORE_DB_URL=jdbc:postgresql://localhost:5433/inventory_core \
   INVENTORY_CORE_DB_USER=test \
   INVENTORY_CORE_DB_PASSWORD=test \
   KAFKA_BOOTSTRAP_SERVERS=localhost:9095 \
   IDENTITY_BROKER_ISSUER=http://localhost:8081/ \
   mvn -pl services/inventory-core spring-boot:run
+
+# 別 terminal で identity-broker を起動(別途設定が必要)
+mvn -pl services/identity-broker spring-boot:run
 ```
 
-> **JWT 認証について**
-> Inventory Core は OAuth2 Resource Server で JWT 検証を要求する。Phase A では:
-> - **方法 A(本格)**: identity-broker を別途起動して実 JWT を発行 → k6 が token 取得 → 負荷投入
-> - **方法 B(クイック)**: Inventory Core を JWT 検証無効化で起動(別途 `application-loadtest.yml` + `LoadTestSecurityConfig` を追加する Phase A.1 タスク)
->
-> 本 README は方法 A を前提に記述している。方法 B のサポートは Phase A.1 で追加。
+### 3) JWT 取得
 
-### 3) JWT 取得(方法 A)
+#### 方法 B の場合
 
-identity-broker を host で起動した状態で。 認証は 2 段階フロー(`/v1/auth/sessions` で sessionToken 取得 → `/v1/auth/tenant-sessions` で accessToken 取得):
+JWT は不要。 k6 シナリオが `X-Tenant-Id: dev` header を付けるだけ:
+
+```bash
+TOKEN=""  # 空でもよい(loadtest profile は permitAll)
+```
+
+#### 方法 A の場合
+
+identity-broker から 2 段階フロー(`/v1/auth/sessions` で sessionToken 取得 → `/v1/auth/tenant-sessions` で accessToken 取得):
 
 ```bash
 # Bash
