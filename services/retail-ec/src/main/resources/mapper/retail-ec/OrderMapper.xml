@@ -14,6 +14,7 @@
             <arg column="currency" javaType="java.lang.String"/>
             <arg column="version" javaType="_long"/>
             <arg column="placed_at" javaType="java.time.Instant"/>
+            <arg column="shipped_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
@@ -30,7 +31,7 @@
     </resultMap>
 
     <select id="findById" resultMap="orderRow">
-        SELECT id, code, customer_email, status, total_amount, currency, version, placed_at
+        SELECT id, code, customer_email, status, total_amount, currency, version, placed_at, shipped_at
         FROM retail_order
         WHERE id = #{id}
     </select>
@@ -41,10 +42,10 @@
 
     <insert id="insert">
         INSERT INTO retail_order
-            (id, code, customer_email, status, total_amount, currency, version, placed_at)
+            (id, code, customer_email, status, total_amount, currency, version, placed_at, shipped_at)
         VALUES
             (#{row.id}, #{row.code}, #{row.customerEmail}, #{row.status},
-             #{row.totalAmount}, #{row.currency}, #{row.version}, #{row.placedAt})
+             #{row.totalAmount}, #{row.currency}, #{row.version}, #{row.placedAt}, #{row.shippedAt})
     </insert>
 
     <update id="update">
@@ -52,6 +53,7 @@
         SET code = #{row.code}, customer_email = #{row.customerEmail},
             status = #{row.status}, total_amount = #{row.totalAmount},
             currency = #{row.currency}, version = #{row.version},
+            shipped_at = #{row.shippedAt},
             updated_at = now()
         WHERE id = #{row.id} AND version = #{expectedVersion}
     </update>

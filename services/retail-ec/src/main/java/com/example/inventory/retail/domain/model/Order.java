@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import com.example.inventory.commons.event.DomainEvent;
 import com.example.inventory.retail.domain.event.OrderPlacedEvent;
+import com.example.inventory.retail.domain.event.OrderShippedEvent;
 
 /**
  * 注文集約ルート。テナント内の注文 1 件を表す。
@@ -17,6 +18,8 @@ import com.example.inventory.retail.domain.event.OrderPlacedEvent;
  * (commons-persistence 規約)。
  *
  * <p>明細は集約境界内に閉じた Value Object コレクション({@link OrderItem})。集約の外から行単位で 直接更新することは許可しない(Order メソッド経由のみ)。
+ *
+ * <p>ライフサイクル: PLACED → SHIPPED(終端、cancel 不可)、または PLACED → CANCELLED。 SHIPPED 後の取消は「返品」として別フロー。
  */
 public final class Order {
 
@@ -29,6 +32,7 @@ public final class Order {
     private final List<OrderItem> items;
     private long version;
     private final Instant placedAt;
+    private Instant shippedAt;
 
     private final List<DomainEvent> pendingEvents = new ArrayList<>();
 
@@ -41,9 +45,19 @@ public final class Order {
             BigDecimal totalAmount,
             List<OrderItem> items,
             long version,
-            Instant placedAt) {
+            Instant placedAt,
+            Instant shippedAt) {
         return new Order(
-                id, code, customerEmail, status, currency, totalAmount, items, version, placedAt);
+                id,
+                code,
+                customerEmail,
+                status,
+                currency,
+                totalAmount,
+                items,
+                version,
+                placedAt,
+                shippedAt);
     }
 
     /** 新規注文を確定する({@link OrderPlacedEvent} を発行)。 */
@@ -68,7 +82,8 @@ public final class Order {
                         total,
                         items,
                         0L,
-                        Instant.now());
+                        Instant.now(),
+                        null);
         order.pendingEvents.add(
                 new OrderPlacedEvent(
                         id.value(),
@@ -99,7 +114,8 @@ public final class Order {
             BigDecimal totalAmount,
             List<OrderItem> items,
             long version,
-            Instant placedAt) {
+            Instant placedAt,
+            Instant shippedAt) {
         if (customerEmail == null || customerEmail.isBlank()) {
             throw new IllegalArgumentException("customerEmail は必須");
         }
@@ -115,14 +131,47 @@ public final class Order {
         this.items = List.copyOf(items);
         this.version = version;
         this.placedAt = placedAt;
+        this.shippedAt = shippedAt;
     }
 
-    /** 注文をキャンセルする(MVP はイベント発行なし、状態のみ更新)。 */
+    /** 注文をキャンセルする(MVP はイベント発行なし、状態のみ更新)。 PLACED 状態のみ可。SHIPPED 後の取消は返品扱いで別フロー。CANCELLED への再呼出は冪等。 */
     public void cancel() {
         if (status == OrderStatus.CANCELLED) {
-            return; // 冪等
+            return;
+        }
+        if (status == OrderStatus.SHIPPED) {
+            throw new IllegalStateException("出荷済みの注文はキャンセル不可(返品で別フロー)");
         }
         this.status = OrderStatus.CANCELLED;
+    }
+
+    /**
+     * 注文を出荷確定する({@link OrderShippedEvent} を発行)。 PLACED → SHIPPED の遷移のみ可。SHIPPED 再呼出は冪等(no-op)。
+     * CANCELLED からの呼出は IllegalState。
+     */
+    public void ship() {
+        if (status == OrderStatus.SHIPPED) return; // 冪等
+        if (status != OrderStatus.PLACED) {
+            throw new IllegalStateException("PLACED 状態の注文のみ出荷確定可。現状態=" + status);
+        }
+        this.status = OrderStatus.SHIPPED;
+        this.shippedAt = Instant.now();
+        pendingEvents.add(
+                new OrderShippedEvent(
+                        id.value(),
+                        code.value(),
+                        customerEmail,
+                        items.stream()
+                                .map(
+                                        i ->
+                                                new OrderShippedEvent.Line(
+                                                        i.lineNo(),
+                                                        i.skuCode(),
+                                                        i.locationId(),
+                                                        i.quantity()))
+                                .collect(Collectors.toList()),
+                        shippedAt,
+                        shippedAt));
     }
 
     public OrderId id() {
@@ -159,6 +208,10 @@ public final class Order {
 
     public Instant placedAt() {
         return placedAt;
+    }
+
+    public Instant shippedAt() {
+        return shippedAt;
     }
 
     public List<DomainEvent> pendingEvents() {

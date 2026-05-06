@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.example.inventory.retail.domain.event.OrderPlacedEvent;
+import com.example.inventory.retail.domain.event.OrderShippedEvent;
 
 class OrderTest {
 
@@ -57,6 +58,61 @@ class OrderTest {
         order.cancel(); // 2 度目は no-op
 
         assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void ship_は_SHIPPED_に遷移し_OrderShippedEvent_を発行する() {
+        Order order =
+                Order.place(
+                        ID,
+                        CODE,
+                        "alice@example.com",
+                        "JPY",
+                        List.of(line(1, "SKU-A", 2, "150"), line(2, "SKU-B", 3, "200")));
+        order.clearPendingEvents(); // place イベントを除外して ship イベントだけ確認
+
+        order.ship();
+
+        assertThat(order.status()).isEqualTo(OrderStatus.SHIPPED);
+        assertThat(order.shippedAt()).isNotNull();
+        assertThat(order.pendingEvents()).hasSize(1);
+        OrderShippedEvent ev = (OrderShippedEvent) order.pendingEvents().get(0);
+        assertThat(ev.code()).isEqualTo(CODE.value());
+        assertThat(ev.customerEmail()).isEqualTo("alice@example.com");
+        assertThat(ev.items()).hasSize(2);
+        assertThat(ev.items().get(0).skuCode()).isEqualTo("SKU-A");
+        assertThat(ev.items().get(0).quantity()).isEqualTo(2);
+    }
+
+    @Test
+    void ship_を_2回呼んでも_2回目は_冪等で_イベントは_1回だけ() {
+        Order order =
+                Order.place(ID, CODE, "alice@example.com", "JPY", List.of(line(1, "S", 1, "100")));
+        order.ship();
+        order.clearPendingEvents();
+
+        order.ship(); // 既に SHIPPED → no-op
+
+        assertThat(order.status()).isEqualTo(OrderStatus.SHIPPED);
+        assertThat(order.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void CANCELLED_状態の注文に_ship_は_IllegalState() {
+        Order order =
+                Order.place(ID, CODE, "alice@example.com", "JPY", List.of(line(1, "S", 1, "100")));
+        order.cancel();
+
+        assertThatThrownBy(order::ship).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void SHIPPED_状態の注文に_cancel_は_IllegalState_出荷済みは返品で別フロー() {
+        Order order =
+                Order.place(ID, CODE, "alice@example.com", "JPY", List.of(line(1, "S", 1, "100")));
+        order.ship();
+
+        assertThatThrownBy(order::cancel).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

@@ -11,4 +11,5 @@ public record OrderRow(
         BigDecimal totalAmount,
         String currency,
         long version,
-        Instant placedAt) {}
+        Instant placedAt,
+        Instant shippedAt) {}

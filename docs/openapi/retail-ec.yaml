@@ -81,6 +81,37 @@ paths:
         '404':
           $ref: '#/components/responses/OrderNotFound'
 
+  /v1/orders/{orderId}/ship:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [orders]
+      operationId: shipOrder
+      summary: Confirm shipment of a placed order, emitting retail.order.shipped.v1
+      responses:
+        '200':
+          description: Order shipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          description: Order is not in a state that allows shipment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   schemas:
     PlaceOrderRequest:
@@ -145,7 +176,7 @@ components:
           type: string
         status:
           type: string
-          enum: [PLACED, CANCELLED]
+          enum: [PLACED, SHIPPED, CANCELLED]
         currency:
           type: string
         totalAmount:

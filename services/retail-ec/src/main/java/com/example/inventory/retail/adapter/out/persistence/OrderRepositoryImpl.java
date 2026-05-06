@@ -52,7 +52,8 @@ public class OrderRepositoryImpl implements OrderRepository {
                         row.totalAmount(),
                         items,
                         row.version(),
-                        row.placedAt()));
+                        row.placedAt(),
+                        row.shippedAt()));
     }
 
     @Override
@@ -71,7 +72,8 @@ public class OrderRepositoryImpl implements OrderRepository {
                         aggregate.totalAmount(),
                         aggregate.currency(),
                         aggregate.version() + 1,
-                        aggregate.placedAt());
+                        aggregate.placedAt(),
+                        aggregate.shippedAt());
 
         if (aggregate.version() == 0L) {
             mapper.insert(row);
