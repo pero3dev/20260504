@@ -47,7 +47,8 @@ public class WorkOrderRepositoryImpl implements WorkOrderRepository {
                         WorkOrderStatus.valueOf(row.status()),
                         row.version(),
                         row.placedAt(),
-                        row.releasedAt()));
+                        row.releasedAt(),
+                        row.completedAt()));
     }
 
     @Override
@@ -68,7 +69,8 @@ public class WorkOrderRepositoryImpl implements WorkOrderRepository {
                         aggregate.plannedStartDate(),
                         aggregate.version() + 1,
                         aggregate.placedAt(),
-                        aggregate.releasedAt());
+                        aggregate.releasedAt(),
+                        aggregate.completedAt());
 
         if (aggregate.version() == 0L) {
             mapper.insert(row);

@@ -10,6 +10,7 @@ import com.example.inventory.manufacturing.adapter.in.rest.api.WorkOrdersApi;
 import com.example.inventory.manufacturing.adapter.in.rest.api.model.PlaceWorkOrderRequest;
 import com.example.inventory.manufacturing.adapter.in.rest.api.model.WorkOrderComponentResponse;
 import com.example.inventory.manufacturing.adapter.in.rest.api.model.WorkOrderResponse;
+import com.example.inventory.manufacturing.application.port.in.CompleteWorkOrderUseCase;
 import com.example.inventory.manufacturing.application.port.in.GetWorkOrderUseCase;
 import com.example.inventory.manufacturing.application.port.in.PlaceWorkOrderUseCase;
 import com.example.inventory.manufacturing.application.port.in.ReleaseWorkOrderUseCase;
@@ -21,14 +22,17 @@ public class WorkOrderController implements WorkOrdersApi {
 
     private final PlaceWorkOrderUseCase placeWorkOrder;
     private final ReleaseWorkOrderUseCase releaseWorkOrder;
+    private final CompleteWorkOrderUseCase completeWorkOrder;
     private final GetWorkOrderUseCase getWorkOrder;
 
     public WorkOrderController(
             PlaceWorkOrderUseCase placeWorkOrder,
             ReleaseWorkOrderUseCase releaseWorkOrder,
+            CompleteWorkOrderUseCase completeWorkOrder,
             GetWorkOrderUseCase getWorkOrder) {
         this.placeWorkOrder = placeWorkOrder;
         this.releaseWorkOrder = releaseWorkOrder;
+        this.completeWorkOrder = completeWorkOrder;
         this.getWorkOrder = getWorkOrder;
     }
 
@@ -48,6 +52,11 @@ public class WorkOrderController implements WorkOrdersApi {
     @Override
     public ResponseEntity<WorkOrderResponse> releaseWorkOrder(Long workOrderId) {
         return ResponseEntity.ok(toResponse(releaseWorkOrder.release(workOrderId)));
+    }
+
+    @Override
+    public ResponseEntity<WorkOrderResponse> completeWorkOrder(Long workOrderId) {
+        return ResponseEntity.ok(toResponse(completeWorkOrder.complete(workOrderId)));
     }
 
     @Override

@@ -120,6 +120,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /v1/work-orders/{workOrderId}/complete:
+    parameters:
+      - name: workOrderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [work-orders]
+      operationId: completeWorkOrder
+      summary: Complete a released work order, emitting manufacturing.work_order.completed.v1
+      responses:
+        '200':
+          description: Work order completed (finished goods INBOUND triggered)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/WorkOrderNotFound'
+        '409':
+          description: Work order is not in a state that allows completion
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   schemas:
     PlaceWorkOrderRequest:

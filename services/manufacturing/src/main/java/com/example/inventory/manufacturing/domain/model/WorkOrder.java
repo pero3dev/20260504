@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.example.inventory.commons.event.DomainEvent;
+import com.example.inventory.manufacturing.domain.event.WorkOrderCompletedEvent;
 import com.example.inventory.manufacturing.domain.event.WorkOrderReleasedEvent;
 
 /**
@@ -19,7 +20,7 @@ import com.example.inventory.manufacturing.domain.event.WorkOrderReleasedEvent;
  * 時にスナップショットして指図に焼き付ける。 BOM 改訂後でも既存指図は当時の構成で release/ complete される。
  *
  * <p>ライフサイクル: PLANNED → RELEASED → COMPLETED、または PLANNED/RELEASED → CANCELLED。 release 時に {@link
- * WorkOrderReleasedEvent} を発行(部品引当の起点)。
+ * WorkOrderReleasedEvent} を発行(部品引当の起点)、complete 時に {@link WorkOrderCompletedEvent} を発行(完成品入庫の起点)。
  */
 public final class WorkOrder {
 
@@ -34,6 +35,7 @@ public final class WorkOrder {
     private long version;
     private final Instant placedAt;
     private Instant releasedAt;
+    private Instant completedAt;
 
     private final List<DomainEvent> pendingEvents = new ArrayList<>();
 
@@ -48,7 +50,8 @@ public final class WorkOrder {
             WorkOrderStatus status,
             long version,
             Instant placedAt,
-            Instant releasedAt) {
+            Instant releasedAt,
+            Instant completedAt) {
         return new WorkOrder(
                 id,
                 code,
@@ -60,7 +63,8 @@ public final class WorkOrder {
                 status,
                 version,
                 placedAt,
-                releasedAt);
+                releasedAt,
+                completedAt);
     }
 
     /** 新規製造指図を計画する。状態は PLANNED。イベントは発行しない(release 時に発行)。 */
@@ -83,6 +87,7 @@ public final class WorkOrder {
                 WorkOrderStatus.PLANNED,
                 0L,
                 Instant.now(),
+                null,
                 null);
     }
 
@@ -97,7 +102,8 @@ public final class WorkOrder {
             WorkOrderStatus status,
             long version,
             Instant placedAt,
-            Instant releasedAt) {
+            Instant releasedAt,
+            Instant completedAt) {
         if (productSkuCode == null || productSkuCode.isBlank())
             throw new IllegalArgumentException("productSkuCode は必須");
         if (locationId == null || locationId.isBlank())
@@ -116,6 +122,7 @@ public final class WorkOrder {
         this.version = version;
         this.placedAt = placedAt;
         this.releasedAt = releasedAt;
+        this.completedAt = completedAt;
     }
 
     /** 指図を着手指示状態(RELEASED)に遷移し、{@link WorkOrderReleasedEvent} を発行。 */
@@ -144,13 +151,29 @@ public final class WorkOrder {
                         releasedAt));
     }
 
-    /** 指図を完了状態(COMPLETED)に遷移。MVP ではイベント発行なし(D10 で完成品入庫イベントを追加予定)。 */
+    /**
+     * 指図を完了状態(COMPLETED)に遷移し、{@link WorkOrderCompletedEvent} を発行。 RELEASED 状態のみ可。COMPLETED
+     * への再呼出は冪等(no-op)。
+     *
+     * <p>イベントは Inventory Core 側で受信され、{@code productSkuCode} の {@code
+     * Inventory.receive(plannedQuantity)} を呼び出して 完成品在庫が増える(L3 で配線)。
+     */
     public void complete() {
         if (status == WorkOrderStatus.COMPLETED) return; // 冪等
         if (status != WorkOrderStatus.RELEASED) {
             throw new IllegalStateException("RELEASED 状態の指図のみ complete 可能。現状態=" + status);
         }
         this.status = WorkOrderStatus.COMPLETED;
+        this.completedAt = Instant.now();
+        pendingEvents.add(
+                new WorkOrderCompletedEvent(
+                        id.value(),
+                        code.value(),
+                        productSkuCode,
+                        locationId,
+                        plannedQuantity,
+                        completedAt,
+                        completedAt));
     }
 
     /** 指図をキャンセル。冪等。COMPLETED は不可。 */
@@ -204,6 +227,10 @@ public final class WorkOrder {
 
     public Instant releasedAt() {
         return releasedAt;
+    }
+
+    public Instant completedAt() {
+        return completedAt;
     }
 
     public List<DomainEvent> pendingEvents() {

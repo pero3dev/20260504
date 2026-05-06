@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.example.inventory.commons.event.DomainEvent;
+import com.example.inventory.manufacturing.domain.event.WorkOrderCompletedEvent;
 import com.example.inventory.manufacturing.domain.event.WorkOrderReleasedEvent;
 
 class WorkOrderTest {
@@ -70,6 +71,37 @@ class WorkOrderTest {
         WorkOrder w = newPlannedWorkOrder();
 
         assertThatThrownBy(w::complete).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void complete_は_COMPLETED_に遷移し_完成品入庫イベント_WorkOrderCompletedEvent_を_plannedQuantity_で発行する() {
+        WorkOrder w = newPlannedWorkOrder();
+        w.release();
+        w.clearPendingEvents(); // release イベントを除外
+
+        w.complete();
+
+        assertThat(w.status()).isEqualTo(WorkOrderStatus.COMPLETED);
+        assertThat(w.completedAt()).isNotNull();
+        List<DomainEvent> events = w.pendingEvents();
+        assertThat(events).hasSize(1);
+        WorkOrderCompletedEvent ev = (WorkOrderCompletedEvent) events.get(0);
+        assertThat(ev.productSkuCode()).isEqualTo("SKU-WIDGET-X");
+        assertThat(ev.locationId()).isEqualTo("LOC-FACTORY-A");
+        assertThat(ev.completedQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    void 同じ_RELEASED_指図に_complete_を_2_回呼んでも_2_回目は_冪等で_イベントは_1_回だけ() {
+        WorkOrder w = newPlannedWorkOrder();
+        w.release();
+        w.complete();
+        w.clearPendingEvents();
+
+        w.complete(); // 既に COMPLETED → no-op
+
+        assertThat(w.status()).isEqualTo(WorkOrderStatus.COMPLETED);
+        assertThat(w.pendingEvents()).isEmpty();
     }
 
     @Test

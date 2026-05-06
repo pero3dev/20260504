@@ -13,4 +13,5 @@ public record WorkOrderRow(
         LocalDate plannedStartDate,
         long version,
         Instant placedAt,
-        Instant releasedAt) {}
+        Instant releasedAt,
+        Instant completedAt) {}

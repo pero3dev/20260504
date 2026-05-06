@@ -16,6 +16,7 @@
             <arg column="version" javaType="_long"/>
             <arg column="placed_at" javaType="java.time.Instant"/>
             <arg column="released_at" javaType="java.time.Instant"/>
+            <arg column="completed_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
@@ -31,7 +32,7 @@
 
     <select id="findById" resultMap="workOrderRow">
         SELECT id, code, product_sku_code, location_id, planned_quantity,
-               status, planned_start_date, version, placed_at, released_at
+               status, planned_start_date, version, placed_at, released_at, completed_at
         FROM work_order
         WHERE id = #{id}
     </select>
@@ -43,11 +44,11 @@
     <insert id="insert">
         INSERT INTO work_order
             (id, code, product_sku_code, location_id, planned_quantity,
-             status, planned_start_date, version, placed_at, released_at)
+             status, planned_start_date, version, placed_at, released_at, completed_at)
         VALUES
             (#{row.id}, #{row.code}, #{row.productSkuCode}, #{row.locationId},
              #{row.plannedQuantity}, #{row.status}, #{row.plannedStartDate},
-             #{row.version}, #{row.placedAt}, #{row.releasedAt})
+             #{row.version}, #{row.placedAt}, #{row.releasedAt}, #{row.completedAt})
     </insert>
 
     <update id="update">
@@ -60,6 +61,7 @@
             planned_start_date = #{row.plannedStartDate},
             version = #{row.version},
             released_at = #{row.releasedAt},
+            completed_at = #{row.completedAt},
             updated_at = now()
         WHERE id = #{row.id} AND version = #{expectedVersion}
     </update>

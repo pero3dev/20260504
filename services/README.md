@@ -33,7 +33,8 @@
 | 3PL | `tpl.stock.movement.v1` | INBOUND=receive / OUTBOUND=reserve+ship | (補償なし、DLQ) |
 | Wholesale (受注) | `wholesale.order.placed.v1` | reserve(明細毎) | `wholesale.reservation.failed.v1` |
 | Wholesale (出荷) | `wholesale.order.shipped.v1` | ship(明細毎、reserved 消化) | (補償なし、DLQ。ADR-0017) |
-| Manufacturing | `manufacturing.work_order.released.v1` | reserve+ship(構成要素毎、all-or-nothing) | `manufacturing.consumption.failed.v1` |
+| Manufacturing (release) | `manufacturing.work_order.released.v1` | reserve+ship(構成要素毎、all-or-nothing) | `manufacturing.consumption.failed.v1` |
+| Manufacturing (complete) | `manufacturing.work_order.completed.v1` | 完成品 SKU の receive(plannedQuantity) | (補償なし、DLQ。ADR-0017) |
 
 ## 新規サービス追加
 
