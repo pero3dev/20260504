@@ -1,0 +1,53 @@
+# 負荷試験用インフラ Postgres + Kafka(Inventory Core は host で起動する)。
+#
+# 本番クラスタ(ADR-0005)とは独立した stand-alone セットアップ。
+# Testcontainers と port が衝突しないよう 5433 / 9095 にずらしてある。
+#
+# 起動: docker compose -f docker-compose.load.yml up -d
+# 停止: docker compose -f docker-compose.load.yml down -v  (volume も消す)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: load-test-postgres
+    environment:
+      POSTGRES_DB: inventory_core
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d inventory_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - load-test-pgdata:/var/lib/postgresql/data
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: load-test-kafka
+    ports:
+      - "9095:9095"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9095"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:9095"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "load-test-cluster-id-1"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  load-test-pgdata:
