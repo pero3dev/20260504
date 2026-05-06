@@ -1,0 +1,55 @@
+package com.example.inventory.wholesale.application.usecase;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.inventory.commons.audit.Auditable;
+import com.example.inventory.wholesale.application.port.in.HandleReservationFailureUseCase;
+import com.example.inventory.wholesale.application.port.out.SalesOrderRepository;
+import com.example.inventory.wholesale.domain.model.Order;
+import com.example.inventory.wholesale.domain.model.OrderId;
+
+/**
+ * 在庫引当失敗の補償を受けて SalesOrder を CANCELLED に遷移させる。
+ *
+ * <p>未知の orderId(古い Order が無い等)は無視する(at-least-once の冗長配信を吸収)。
+ *
+ * <p>@Auditable で {@code SALES_ORDER_CANCEL_BY_RESERVATION_FAILURE} を audit.log.v1 に記録。
+ */
+@Service
+public class HandleReservationFailureService implements HandleReservationFailureUseCase {
+
+    private static final Logger LOG =
+            LoggerFactory.getLogger(HandleReservationFailureService.class);
+
+    private final SalesOrderRepository orderRepository;
+
+    public HandleReservationFailureService(SalesOrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
+    }
+
+    @Override
+    @Transactional
+    @Auditable(
+            action = "SALES_ORDER_CANCEL_BY_RESERVATION_FAILURE",
+            targetType = "SalesOrder",
+            targetIdExpression = "#command.orderCode")
+    public void handle(Command command) {
+        Order order = orderRepository.findById(new OrderId(command.orderId())).orElse(null);
+        if (order == null) {
+            LOG.warn(
+                    "補償対象の受注が見つからずスキップ orderId={} orderCode={}",
+                    command.orderId(),
+                    command.orderCode());
+            return;
+        }
+        order.cancel();
+        orderRepository.save(order);
+        LOG.info(
+                "在庫引当失敗により受注 {} を CANCELLED に遷移 errorCode={}",
+                command.orderCode(),
+                command.errorCode());
+    }
+}
