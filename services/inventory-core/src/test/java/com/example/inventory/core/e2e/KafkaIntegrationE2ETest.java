@@ -179,6 +179,55 @@ class KafkaIntegrationE2ETest {
     }
 
     @Test
+    void wholesaleOrderPlacedThenShipped_drivesReserveThenShip() throws Exception {
+        // Seed inventory(SKU-1, LOC-1, available=10, reserved=0)。
+        // Wholesale から 2 つのイベントを送って reserve+ship のフローを確認する:
+        //   1. wholesale.order.placed.v1 (qty=3) → reserve、reserved=3, available=7
+        //   2. wholesale.order.shipped.v1 (qty=3) → ship、reserved=0, available=7
+        long aggregateId = 5001L;
+        String orderCode = "SO-IT-001";
+        String placedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","partnerCode":"PARTNER-X","currency":"JPY",\
+                "totalAmount":3000,\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":3,"unitPrice":1000}],\
+                "occurredAt":"2026-05-06T10:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+        String shippedPayload =
+                """
+                {"aggregateId":%d,"code":"%s","partnerCode":"PARTNER-X",\
+                "items":[{"lineNo":1,"skuCode":"SKU-1","locationId":"LOC-1","quantity":3}],\
+                "shippedAt":"2026-05-06T11:00:00Z","occurredAt":"2026-05-06T11:00:00Z"}
+                """
+                        .formatted(aggregateId, orderCode);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> placed =
+                    new ProducerRecord<>(
+                            "wholesale.order.placed.v1", "dev:" + aggregateId, placedPayload);
+            placed.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            placed.headers().add(new RecordHeader("event_id", "100".getBytes()));
+            producer.send(placed).get();
+        }
+
+        // Reserve が反映されるまで polling: reserved=3, available=7
+        waitForInventory(1L, 7, 3);
+
+        try (KafkaProducer<String, String> producer = newTestProducer()) {
+            ProducerRecord<String, String> shipped =
+                    new ProducerRecord<>(
+                            "wholesale.order.shipped.v1", "dev:" + aggregateId, shippedPayload);
+            shipped.headers().add(new RecordHeader("tenant_id", TENANT_ID.getBytes()));
+            shipped.headers().add(new RecordHeader("event_id", "101".getBytes()));
+            producer.send(shipped).get();
+        }
+
+        // Ship が反映されるまで polling: reserved=0, available=7(reserve 時の available 引きはそのまま)
+        waitForInventory(1L, 7, 0);
+    }
+
+    @Test
     void masterProductV1_isProjectedToSkuRegistry() throws Exception {
         // Kafka に master.product.v1 をテスト producer で送り、SkuMasterListener が
         // tenant_dev.sku_registry に upsert することを確認する。
@@ -216,6 +265,38 @@ class KafkaIntegrationE2ETest {
             Thread.sleep(300);
         }
         assertThat(found).as("master.product.v1 が sku_registry に投影されること").isTrue();
+    }
+
+    /** {@code inventory.id == id} の available / reserved が期待値に到達するまで polling 待機(最大 20 秒)。 */
+    private void waitForInventory(long id, int expectedAvailable, int expectedReserved)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + 20_000;
+        while (System.currentTimeMillis() < deadline) {
+            try (Connection c = dataSource.getConnection();
+                    Statement s = c.createStatement()) {
+                s.execute("SET search_path TO " + TENANT_SCHEMA);
+                try (var rs =
+                        s.executeQuery(
+                                "SELECT available, reserved FROM inventory WHERE id = " + id)) {
+                    if (rs.next()) {
+                        int available = rs.getInt(1);
+                        int reserved = rs.getInt(2);
+                        if (available == expectedAvailable && reserved == expectedReserved) {
+                            return;
+                        }
+                    }
+                }
+            }
+            Thread.sleep(300);
+        }
+        throw new AssertionError(
+                "Inventory(id="
+                        + id
+                        + ") が期待値 (available="
+                        + expectedAvailable
+                        + ", reserved="
+                        + expectedReserved
+                        + ") に到達せずタイムアウト");
     }
 
     private static KafkaConsumer<String, String> newTestConsumer() {
