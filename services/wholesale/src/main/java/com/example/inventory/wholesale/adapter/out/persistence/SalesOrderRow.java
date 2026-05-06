@@ -13,4 +13,5 @@ public record SalesOrderRow(
         String currency,
         LocalDate requestedDeliveryDate,
         long version,
-        Instant placedAt) {}
+        Instant placedAt,
+        Instant shippedAt) {}

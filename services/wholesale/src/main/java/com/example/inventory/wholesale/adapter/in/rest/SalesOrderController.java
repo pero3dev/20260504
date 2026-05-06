@@ -12,6 +12,7 @@ import com.example.inventory.wholesale.adapter.in.rest.api.model.SalesOrderLineR
 import com.example.inventory.wholesale.adapter.in.rest.api.model.SalesOrderResponse;
 import com.example.inventory.wholesale.application.port.in.GetSalesOrderUseCase;
 import com.example.inventory.wholesale.application.port.in.PlaceSalesOrderUseCase;
+import com.example.inventory.wholesale.application.port.in.ShipSalesOrderUseCase;
 import com.example.inventory.wholesale.domain.model.Order;
 
 /** SalesOrder REST 入力アダプタ。OpenAPI 生成 {@link SalesOrdersApi} を実装(ADR-0006)。 */
@@ -19,10 +20,15 @@ import com.example.inventory.wholesale.domain.model.Order;
 public class SalesOrderController implements SalesOrdersApi {
 
     private final PlaceSalesOrderUseCase placeOrder;
+    private final ShipSalesOrderUseCase shipOrder;
     private final GetSalesOrderUseCase getOrder;
 
-    public SalesOrderController(PlaceSalesOrderUseCase placeOrder, GetSalesOrderUseCase getOrder) {
+    public SalesOrderController(
+            PlaceSalesOrderUseCase placeOrder,
+            ShipSalesOrderUseCase shipOrder,
+            GetSalesOrderUseCase getOrder) {
         this.placeOrder = placeOrder;
+        this.shipOrder = shipOrder;
         this.getOrder = getOrder;
     }
 
@@ -49,6 +55,11 @@ public class SalesOrderController implements SalesOrdersApi {
     @Override
     public ResponseEntity<SalesOrderResponse> getSalesOrder(Long orderId) {
         return ResponseEntity.ok(toResponse(getOrder.get(orderId)));
+    }
+
+    @Override
+    public ResponseEntity<SalesOrderResponse> shipSalesOrder(Long orderId) {
+        return ResponseEntity.ok(toResponse(shipOrder.ship(orderId)));
     }
 
     private static SalesOrderResponse toResponse(Order order) {

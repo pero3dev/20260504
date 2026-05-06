@@ -76,6 +76,19 @@ class HandleReservationFailureServiceTest {
         assertThat(captor.getValue().status()).isEqualTo(OrderStatus.CANCELLED);
     }
 
+    @Test
+    void すでに_SHIPPED_の受注に対する補償は_整合性監査に任せて_スキップ_save_されない() {
+        Order placed = newPlacedOrder();
+        placed.ship();
+        when(repository.findById(new OrderId(1L))).thenReturn(Optional.of(placed));
+
+        service.handle(
+                new HandleReservationFailureUseCase.Command(
+                        1L, "SO-001", "ERR_INVENTORY_INSUFFICIENT", "在庫不足"));
+
+        verify(repository, never()).save(any());
+    }
+
     private static Order newPlacedOrder() {
         return Order.place(
                 new OrderId(1L),

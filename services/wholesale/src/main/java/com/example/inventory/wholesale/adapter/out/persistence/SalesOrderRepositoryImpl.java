@@ -54,7 +54,8 @@ public class SalesOrderRepositoryImpl implements SalesOrderRepository {
                         items,
                         row.requestedDeliveryDate(),
                         row.version(),
-                        row.placedAt()));
+                        row.placedAt(),
+                        row.shippedAt()));
     }
 
     @Override
@@ -74,7 +75,8 @@ public class SalesOrderRepositoryImpl implements SalesOrderRepository {
                         aggregate.currency(),
                         aggregate.requestedDeliveryDate(),
                         aggregate.version() + 1,
-                        aggregate.placedAt());
+                        aggregate.placedAt(),
+                        aggregate.shippedAt());
 
         if (aggregate.version() == 0L) {
             mapper.insert(row);

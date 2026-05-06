@@ -30,7 +30,8 @@
 |---|---|---|---|
 | Retail/EC | `retail.order.placed.v1` | reserve(明細毎) | `inventory.reservation.failed.v1` |
 | 3PL | `tpl.stock.movement.v1` | INBOUND=receive / OUTBOUND=reserve+ship | (補償なし、DLQ) |
-| Wholesale | `wholesale.order.placed.v1` | reserve(明細毎) | `wholesale.reservation.failed.v1` |
+| Wholesale (受注) | `wholesale.order.placed.v1` | reserve(明細毎) | `wholesale.reservation.failed.v1` |
+| Wholesale (出荷) | `wholesale.order.shipped.v1` | ship(明細毎、reserved 消化) | (補償なし、DLQ。ADR-0017) |
 | Manufacturing | `manufacturing.work_order.released.v1` | reserve+ship(構成要素毎、all-or-nothing) | `manufacturing.consumption.failed.v1` |
 
 ## 新規サービス追加

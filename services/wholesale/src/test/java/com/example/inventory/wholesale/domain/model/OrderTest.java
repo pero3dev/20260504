@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.example.inventory.commons.event.DomainEvent;
 import com.example.inventory.wholesale.domain.event.SalesOrderPlacedEvent;
+import com.example.inventory.wholesale.domain.event.SalesOrderShippedEvent;
 
 class OrderTest {
 
@@ -49,6 +50,53 @@ class OrderTest {
         order.cancel();
         order.cancel();
         assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void ship_は_SHIPPED_に遷移し_SalesOrderShippedEvent_を発行する() {
+        Order order = newOrder();
+        order.clearPendingEvents(); // place イベントを除外して ship イベントだけ確認
+
+        order.ship();
+
+        assertThat(order.status()).isEqualTo(OrderStatus.SHIPPED);
+        assertThat(order.shippedAt()).isNotNull();
+        List<DomainEvent> events = order.pendingEvents();
+        assertThat(events).hasSize(1);
+        SalesOrderShippedEvent ev = (SalesOrderShippedEvent) events.get(0);
+        assertThat(ev.code()).isEqualTo("SO-2026-0001");
+        assertThat(ev.partnerCode()).isEqualTo("PARTNER-ACME");
+        assertThat(ev.items()).hasSize(2);
+        assertThat(ev.items().get(0).skuCode()).isEqualTo("SKU-A");
+        assertThat(ev.items().get(0).quantity()).isEqualTo(2);
+    }
+
+    @Test
+    void ship_を_2回呼んでも_2回目は_冪等で_イベントは_1回だけ() {
+        Order order = newOrder();
+        order.ship();
+        order.clearPendingEvents();
+
+        order.ship(); // 既に SHIPPED → no-op
+
+        assertThat(order.status()).isEqualTo(OrderStatus.SHIPPED);
+        assertThat(order.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void CANCELLED_状態の受注に_ship_は_IllegalState() {
+        Order order = newOrder();
+        order.cancel();
+
+        assertThatThrownBy(order::ship).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void SHIPPED_状態の受注に_cancel_は_IllegalState_出荷済みは返品で別フロー() {
+        Order order = newOrder();
+        order.ship();
+
+        assertThatThrownBy(order::cancel).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

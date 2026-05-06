@@ -87,6 +87,37 @@ paths:
         '404':
           $ref: '#/components/responses/SalesOrderNotFound'
 
+  /v1/sales-orders/{orderId}/ship:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    post:
+      tags: [sales-orders]
+      operationId: shipSalesOrder
+      summary: Confirm shipment of a placed sales order, emitting wholesale.order.shipped.v1
+      responses:
+        '200':
+          description: Sales order shipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SalesOrderNotFound'
+        '409':
+          description: Sales order is not in a state that allows shipment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   schemas:
     PlaceSalesOrderRequest:
@@ -152,7 +183,7 @@ components:
           type: string
         status:
           type: string
-          enum: [PLACED, CANCELLED]
+          enum: [PLACED, SHIPPED, CANCELLED]
         currency:
           type: string
         totalAmount:

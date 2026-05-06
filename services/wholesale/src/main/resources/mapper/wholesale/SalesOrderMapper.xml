@@ -15,6 +15,7 @@
             <arg column="requested_delivery_date" javaType="java.time.LocalDate"/>
             <arg column="version" javaType="_long"/>
             <arg column="placed_at" javaType="java.time.Instant"/>
+            <arg column="shipped_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
@@ -32,7 +33,7 @@
 
     <select id="findById" resultMap="salesOrderRow">
         SELECT id, code, partner_code, status, total_amount, currency,
-               requested_delivery_date, version, placed_at
+               requested_delivery_date, version, placed_at, shipped_at
         FROM sales_order
         WHERE id = #{id}
     </select>
@@ -44,11 +45,11 @@
     <insert id="insert">
         INSERT INTO sales_order
             (id, code, partner_code, status, total_amount, currency,
-             requested_delivery_date, version, placed_at)
+             requested_delivery_date, version, placed_at, shipped_at)
         VALUES
             (#{row.id}, #{row.code}, #{row.partnerCode}, #{row.status},
              #{row.totalAmount}, #{row.currency}, #{row.requestedDeliveryDate},
-             #{row.version}, #{row.placedAt})
+             #{row.version}, #{row.placedAt}, #{row.shippedAt})
     </insert>
 
     <update id="update">
@@ -58,6 +59,7 @@
             currency = #{row.currency},
             requested_delivery_date = #{row.requestedDeliveryDate},
             version = #{row.version},
+            shipped_at = #{row.shippedAt},
             updated_at = now()
         WHERE id = #{row.id} AND version = #{expectedVersion}
     </update>
