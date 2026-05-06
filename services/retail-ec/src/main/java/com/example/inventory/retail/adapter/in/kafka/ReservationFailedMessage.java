@@ -4,7 +4,7 @@ import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-/** {@code inventory.reservation.failed.v1} ペイロード。 */
+/** {@code retail.reservation.failed.v1} ペイロード。 */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReservationFailedMessage(
         long aggregateId,

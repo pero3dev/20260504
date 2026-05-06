@@ -14,12 +14,12 @@
 
 | 業態 | トリガ | 補償トピック | 購読サービス |
 |---|---|---|---|
-| Retail/EC | `retail.order.placed.v1` | `inventory.reservation.failed.v1` | retail-ec |
+| Retail/EC | `retail.order.placed.v1` | `retail.reservation.failed.v1` | retail-ec |
 | Wholesale | `wholesale.order.placed.v1` | `wholesale.reservation.failed.v1` | wholesale |
 | Manufacturing | `manufacturing.work_order.released.v1` | `manufacturing.consumption.failed.v1` | manufacturing |
 | 3PL | `tpl.stock.movement.v1` | (なし、DLQ) | (該当なし) |
 
-注: `inventory.reservation.failed.v1` だけは歴史的経緯で `inventory.*` 命名(Phase 2 で命名規則が固まる前に作成)。本 ADR を機に **次のリファクタで `retail.reservation.failed.v1` に改名する** ことを決定する(別 task 化)。
+注: Retail/EC の補償トピックは Phase 2 で当初 `inventory.reservation.failed.v1`(共通名前空間)として実装されていたが、本 ADR の Decision に従い L4 タスクで `retail.reservation.failed.v1` に改名済み(commit 履歴参照)。本プロジェクトはまだ本番投入前のためアトミック改名で対応(下流の Datadog ダッシュボード等は未敷設)。
 
 業界慣行としては:
 - **共有トピック派**: 「在庫引当失敗」という事実は普遍で、業態別に重複したトピックを増やすのは命名汚染。`originContext` フィールドで購読側が振り分ければよい。
@@ -38,7 +38,7 @@
 2. **発行側**: Inventory Core(共通基盤)が業態を認識して**業態別トピックに発行する**。Inventory Core 内の Listener は `XxxOrderPlacedListener` のように業態ごとに分かれており、各 Listener が対応する補償 UseCase(`EmitWholesaleReservationFailedService` 等)を呼ぶ。
 3. **Schema**: 補償イベント Schema は業態間で構造的にほぼ同じだが**型としては別**(別 record class)。共通親型を継承させない。共通フィールド(`aggregateId, code, errorCode, reason, occurredAt`)に加え、業態固有のヒント(Wholesale: `failedSkuCode/failedLocationId`、Manufacturing: `failedComponentSkuCode/failedLocationId`)を持つ。
 4. **購読側**: 各業態サービスは自業態の補償トピックのみ購読する(他業態を購読しない)。Group ID は `<service>-compensation` で固定。
-5. **既存の Phase 2 トピック改名**: `inventory.reservation.failed.v1` を `retail.reservation.failed.v1` に改名する。リファクタは下流影響(Datadog ダッシュボード、Audit クエリ)を伴うので別 task 扱い、本 ADR では「方針として改名する」とだけ記す。
+5. **既存の Phase 2 トピック改名**: `inventory.reservation.failed.v1` を `retail.reservation.failed.v1` に改名する。L4 タスクで実施完了(本 ADR コミット直後)。本プロジェクトは本番投入前のためアトミック改名で対応した。本番運用後に同様の改名が発生した場合は、新トピック並行発行 → 購読切替 → 旧トピック sunset の段階移行が必要。
 
 ## Consequences
 
@@ -119,4 +119,4 @@ Inventory Core が業態サービスに直接 gRPC で「この Order を cancel
 
 ## Follow-up tasks
 
-- `inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名(下流影響評価 + 段階移行)
+- ~~`inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名~~ — L4 タスクで完了(本プロジェクトは本番投入前なのでアトミック改名で対応)

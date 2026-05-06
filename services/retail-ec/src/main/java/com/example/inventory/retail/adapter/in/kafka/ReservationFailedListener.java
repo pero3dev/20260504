@@ -16,9 +16,9 @@ import com.example.inventory.retail.application.port.in.HandleReservationFailure
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * {@code inventory.reservation.failed.v1} を購読する Kafka リスナ。
+ * {@code retail.reservation.failed.v1} を購読する Kafka リスナ。
  *
- * <p>Inventory Core からの補償通知を受けて Order を CANCELLED に遷移させる。
+ * <p>Inventory Core からの補償通知を受けて Order を CANCELLED に遷移させる。 業態ごとに補償トピックを分離する方針(ADR-0016)に従う。
  */
 @Component
 public class ReservationFailedListener {
@@ -36,14 +36,14 @@ public class ReservationFailedListener {
     }
 
     @KafkaListener(
-            topics = "inventory.reservation.failed.v1",
+            topics = "retail.reservation.failed.v1",
             groupId = "${spring.application.name}-compensation")
     public void onReservationFailed(ConsumerRecord<String, String> record, Acknowledgment ack)
             throws Exception {
         String tenantIdValue = headerValue(record, HEADER_TENANT_ID);
         if (tenantIdValue == null) {
             LOG.warn(
-                    "tenant_id 無しの inventory.reservation.failed.v1 をスキップ partition={} offset={}",
+                    "tenant_id 無しの retail.reservation.failed.v1 をスキップ partition={} offset={}",
                     record.partition(),
                     record.offset());
             ack.acknowledge();

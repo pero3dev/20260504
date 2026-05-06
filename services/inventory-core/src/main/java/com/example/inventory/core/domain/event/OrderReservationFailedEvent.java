@@ -5,7 +5,10 @@ import java.time.Instant;
 import com.example.inventory.commons.event.DomainEvent;
 
 /**
- * 注文の在庫引当が失敗したことを通知する補償イベント。{@code inventory.reservation.failed.v1}。
+ * Retail/EC 注文の在庫引当が失敗したことを通知する補償イベント。{@code retail.reservation.failed.v1}。
+ *
+ * <p>業態ごとに補償トピックを分離する方針(ADR-0016)に従う。Wholesale 用 {@code WholesaleReservationFailedEvent}
+ * と構造的には類似だが、別トピック。
  *
  * <p>主な発生原因:
  *
@@ -30,7 +33,7 @@ public record OrderReservationFailedEvent(
         Instant occurredAt)
         implements DomainEvent {
 
-    public static final String TOPIC = "inventory.reservation.failed.v1";
+    public static final String TOPIC = "retail.reservation.failed.v1";
     public static final String SCHEMA_VERSION = "1.0";
 
     @Override

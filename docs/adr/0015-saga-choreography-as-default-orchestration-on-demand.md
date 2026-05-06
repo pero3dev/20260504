@@ -12,7 +12,7 @@
 
 | 経路 | パターン | TX 境界 | 補償 | ステップ数 |
 |---|---|---|---|---|
-| Retail/EC ↔ Core (Phase 1+2) | choreography | 受注=1TX、引当=1TX | `inventory.reservation.failed.v1` → Order.cancel | 2 |
+| Retail/EC ↔ Core (Phase 1+2) | choreography | 受注=1TX、引当=1TX | `retail.reservation.failed.v1` → Order.cancel | 2 |
 | 3PL → Core (D6) | choreography | 1TX | (なし、DLQ) | 1 |
 | Wholesale ↔ Core (D9) | choreography | 受注=1TX、引当=1TX | `wholesale.reservation.failed.v1` → Order.cancel | 2 |
 | Manufacturing ↔ Core (D10) | choreography | 指図 release=1TX、消費=1TX(構成要素 all-or-nothing) | `manufacturing.consumption.failed.v1` → WorkOrder.cancel | 2 |
