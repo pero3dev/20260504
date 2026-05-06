@@ -5,16 +5,28 @@
 #   - main直push: マージ後の継続検証
 #
 # 実行内容:
-#   1. build-and-test ... mvn verify(コンパイル・ユニット・統合・ArchUnit)
+#   1. build-and-test ... mvn -T 1C verify(コンパイル・ユニット・統合・ArchUnit、CPU 数並列)
 #   2. lint-format   ... Spotless check(google-java-format AOSP)
 #
 # ⚠️ 初回CI失敗の典型: Spotless が既存コードのフォーマットに合わない場合は
 #    `mvn spotless:apply` を実行 → 差分をコミットしてPR再push。
 #
+# 並列化方針 (2026-05-07 更新):
+#   - `mvn -T 1C` で「CPU コア数 = 4 (ubuntu-latest standard) スレッド」の Maven 内部並列を有効化
+#   - 13 サービス + 10 commons モジュールが直線的だった verify を依存グラフ並列実行に変更
+#   - 並列度 ~4x、cache 戦略は既存のまま(actions/setup-java の cache: maven)
+#   - 各モジュールの failure 隔離は surefire-reports artifact upload で十分
+#
+# 本格的な GitHub Actions matrix build(各サービス別 runner で並列)は、サービスが増えて
+# 1 runner の総時間が 10 分超えなど顕著になったら検討する。base ジョブで commons-* を
+# install → matrix runner に artifact pass する構成が必要で、現状の規模では
+# `mvn -T 1C` の方が cost-benefit に優れる。
+#
 # 将来追加予定:
 #   - Checkstyle / SpotBugs / PMD のルール明文化と必須化
 #   - Trivy/ECR scan によるイメージ脆弱性チェック(ECR導入後)
 #   - Image build/push と ArgoCD への signal(GitOps Bridgeとなる別job)
+#   - matrix build (上記参照、サービス数 / CI 時間がしきい値超えたら)
 name: CI
 
 on:
@@ -54,8 +66,11 @@ jobs:
       # 多重 Spring Context を 1 JVM に同居させる e2e-tests/* IT は現状 fragile(JDBC/Kafka
       # リソース競合)で CI でも skip する。Kafka 連携の実証は inventory-core の単一 context
       # Kafka IT(KafkaIntegrationE2ETest)が surefire 経路で担う。多重 IT の hardening は将来課題。
-      - name: Maven verify (compile + unit + ArchUnit + Spotless + 単一 context IT)
-        run: mvn -B -ntp --fail-at-end verify
+      #
+      # `-T 1C` で「CPU コア数 = 4」の Maven 内部並列を有効化。23 モジュールの依存グラフを
+      # 並列実行することで verify 時間を約 1/4 に短縮(2026-05-07 計測 ~2:00 → ~30s 想定)。
+      - name: Maven verify (compile + unit + ArchUnit + Spotless + 単一 context IT、4 並列)
+        run: mvn -B -ntp -T 1C --fail-at-end verify
 
       - name: Upload Surefire/Failsafe reports on failure
         if: failure()
