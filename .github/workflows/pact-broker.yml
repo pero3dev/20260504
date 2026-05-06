@@ -1,0 +1,148 @@
+# Pact Broker 連携(ADR-0019 Phase 3)。
+#
+# トリガ:
+#   - PR (main向け): consumer 契約を生成 → can-i-deploy で「main にマージしてよいか」を判定
+#   - main 直push: consumer 契約を Broker に publish(他チームの Provider verify trigger)
+#
+# 必要な GitHub secret:
+#   - PACT_BROKER_URL       (例: https://pact-broker.example.com)
+#   - PACT_BROKER_USERNAME  (Basic Auth)
+#   - PACT_BROKER_PASSWORD  (Basic Auth)
+#
+# 上記が未設定なら全 job が skip される(steps の `if` で env 存在チェック)。本 workflow は
+# Broker hosting が確定するまで dormant。 Phase 3 の本番運用フェーズ移行時に有効化。
+#
+# Provider verify は当面 ci.yml の `mvn verify` 経路(PactFolder)で行う(ADR-0019 Phase 3.5
+# でブローカ駆動化を別途検討)。本 workflow では publish + can-i-deploy のみ扱う。
+name: Pact Broker
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: pact-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish Consumer Contracts
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if Broker not configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.PACT_BROKER_URL }}" ]; then
+            echo "broker_configured=false" >> "$GITHUB_OUTPUT"
+            echo "PACT_BROKER_URL secret 未設定。 publish skip。"
+          else
+            echo "broker_configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 21
+        if: steps.check.outputs.broker_configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run consumer Pact tests
+        if: steps.check.outputs.broker_configured == 'true'
+        run: |
+          mvn -B -ntp -pl services/inventory-core \
+            -Dspotless.check.skip=true \
+            -Dtest='*ConsumerPactTest' test
+
+      - name: Publish to Pact Broker
+        if: steps.check.outputs.broker_configured == 'true'
+        env:
+          PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+        run: |
+          mvn -B -ntp -pl services/inventory-core pact:publish \
+            -Dpact.broker.url="$PACT_BROKER_URL" \
+            -Dpact.broker.username="$PACT_BROKER_USERNAME" \
+            -Dpact.broker.password="$PACT_BROKER_PASSWORD" \
+            -Dpact.consumer.version="${{ github.sha }}" \
+            -Dpact.consumer.tags=main
+
+  can-i-deploy:
+    name: can-i-deploy (PR check)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if Broker not configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.PACT_BROKER_URL }}" ]; then
+            echo "broker_configured=false" >> "$GITHUB_OUTPUT"
+            echo "PACT_BROKER_URL secret 未設定。 can-i-deploy skip。"
+          else
+            echo "broker_configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 21
+        if: steps.check.outputs.broker_configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # PR 上の HEAD で生成した contract を Broker に publish(branch tag = PR HEAD SHA)。
+      # main にマージ前のチェックなので、 publish は ephemeral tag で行う。
+      - name: Run consumer Pact tests
+        if: steps.check.outputs.broker_configured == 'true'
+        run: |
+          mvn -B -ntp -pl services/inventory-core \
+            -Dspotless.check.skip=true \
+            -Dtest='*ConsumerPactTest' test
+
+      - name: Publish PR contract (ephemeral)
+        if: steps.check.outputs.broker_configured == 'true'
+        env:
+          PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+        run: |
+          mvn -B -ntp -pl services/inventory-core pact:publish \
+            -Dpact.broker.url="$PACT_BROKER_URL" \
+            -Dpact.broker.username="$PACT_BROKER_USERNAME" \
+            -Dpact.broker.password="$PACT_BROKER_PASSWORD" \
+            -Dpact.consumer.version="${{ github.event.pull_request.head.sha }}" \
+            -Dpact.consumer.tags="pr-${{ github.event.pull_request.number }}"
+
+      # can-i-deploy は Pact CLI Docker image を使う。 main 環境にこの consumer を入れて
+      # 良いかを Broker に問い合わせる。 Provider verify が未実施なら fail。
+      - name: can-i-deploy
+        if: steps.check.outputs.broker_configured == 'true'
+        env:
+          PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+        run: |
+          docker run --rm \
+            -e PACT_BROKER_BASE_URL="$PACT_BROKER_URL" \
+            -e PACT_BROKER_USERNAME="$PACT_BROKER_USERNAME" \
+            -e PACT_BROKER_PASSWORD="$PACT_BROKER_PASSWORD" \
+            pactfoundation/pact-cli:latest \
+            broker can-i-deploy \
+              --pacticipant inventory-core \
+              --version "${{ github.event.pull_request.head.sha }}" \
+              --to-environment main

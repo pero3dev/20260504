@@ -147,7 +147,8 @@
         </dependency>
         <!-- Pact consumer-driven contract test (au.com.dius.pact) — Wholesale 等の業態系から
              受信する Kafka メッセージの形式契約を JUnit 5 テストとして記述する。
-             Pact ファイル(target/pacts)を生成。Provider verify と Pact Broker 連携は将来課題。 -->
+             Pact ファイル(target/pacts)を生成し、 ADR-0019 Phase 3 で導入した
+             pact:publish goal で Pact Broker に上げる。 -->
         <dependency>
             <groupId>au.com.dius.pact.consumer</groupId>
             <artifactId>junit5</artifactId>
@@ -218,6 +219,29 @@
               maven-compiler-plugin に追加の sources/excludes は設定不要(generate-sources フェーズで
               build-helper 相当の自動追加が openapi-generator により行われる)。
             -->
+
+            <!--
+              Pact publish plugin (ADR-0019 Phase 3)。
+              Consumer test が target/pacts/*.json を生成した後 mvn pact:publish で Broker に上げる。
+              使用例は infra/pact-broker/README.md 参照。 phase には bind せず、明示実行のみ
+              (CI でだけ走らせるため)。
+            -->
+            <plugin>
+                <groupId>au.com.dius.pact.provider</groupId>
+                <artifactId>maven</artifactId>
+                <version>${pact.version}</version>
+                <configuration>
+                    <pactDirectory>${project.build.directory}/pacts</pactDirectory>
+                    <pactBrokerUrl>${pact.broker.url}</pactBrokerUrl>
+                    <pactBrokerUsername>${pact.broker.username}</pactBrokerUsername>
+                    <pactBrokerPassword>${pact.broker.password}</pactBrokerPassword>
+                    <projectVersion>${pact.consumer.version}</projectVersion>
+                    <tags>
+                        <tag>${pact.consumer.tags}</tag>
+                    </tags>
+                    <trimSnapshot>true</trimSnapshot>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

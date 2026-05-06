@@ -72,6 +72,9 @@
 - **KafkaIntegrationE2ETest** 8 ケース — 業態 4/4 全成功パス + Master 投影 + 認証 + 直接 reserve(コミット [`953cd98`](https://github.com/pero3dev/20260504/commit/953cd98) / [`c6dd5c0`](https://github.com/pero3dev/20260504/commit/c6dd5c0) / [`524a28b`](https://github.com/pero3dev/20260504/commit/524a28b) / [`a497f62`](https://github.com/pero3dev/20260504/commit/a497f62))
 - **mvn -T 1C 並列化** — verify 時間 ~50% 短縮(2:16 → 1:10)。コミット [`56341c1`](https://github.com/pero3dev/20260504/commit/56341c1)
 - **Pact consumer-driven 契約テスト MVP** — `wholesale.order.placed.v1` の Consumer 期待形式を Pact ファイル出力。コミット [`025803f`](https://github.com/pero3dev/20260504/commit/025803f)
+- **Pact Phase 2.1 — Provider verify** — Wholesale 側の `SalesOrderPlacedEvent` が Consumer 契約を満たすか verify(コミット [`79c794b`](https://github.com/pero3dev/20260504/commit/79c794b))。
+- **Pact Phase 2.2 — 4 経路の契約追加** — `retail.order.placed.v1` / `wholesale.order.shipped.v1` / `manufacturing.work_order.released.v1` / `tpl.stock.movement.v1` の Consumer/Provider 契約(コミット [`ed01832`](https://github.com/pero3dev/20260504/commit/ed01832))。
+- **Pact Phase 3 — Broker + can-i-deploy** — 1) `infra/pact-broker/` に local Broker docker-compose + README、2) `inventory-core` に `pact:publish` Maven plugin、3) `.github/workflows/pact-broker.yml` で main push 時 publish + PR 時 can-i-deploy(secret 未設定時は skip)。 ADR-0019 Phase 3 セクション追加。
 
 ### Changed
 
@@ -95,11 +98,13 @@
 - **Saga 配線**: 4/4 業態
 - **ADR**: 18 本
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
-- **Contract Test**: 1 件(Pact MVP、Wholesale → Inventory Core)
+- **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify) + Broker publish + can-i-deploy(ADR-0019 Phase 3 完了)
 
 ### Future Work
 
-- Pact Provider verify テスト + Pact Broker 連携
+- Pact Phase 3.5 — Provider verify を Broker-driven 化(現状は PactFolder 経由)
+- Pact Phase 4 候補 — `LambdaDsl` 全面移行で matching rule strict 一致を緩和(ADR-0019 Known Limitation)
+- Pact Broker 本番ホスティング先確定(別 ADR、 EKS namespace / Pactflow SaaS)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
 - Workflow 自動 step handler / SLA タイムアウト

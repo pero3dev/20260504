@@ -54,6 +54,13 @@
         <testcontainers.version>1.21.3</testcontainers.version>
         <opentelemetry.version>1.45.0</opentelemetry.version>
         <pact.version>4.6.14</pact.version>
+        <!-- Pact Broker 連携(ADR-0019 Phase 3)。 default は localhost broker。
+             CI / 別 environment では -D / env で上書き。 -->
+        <pact.broker.url>http://localhost:9292</pact.broker.url>
+        <pact.broker.username>pact_user</pact.broker.username>
+        <pact.broker.password>pact_password</pact.broker.password>
+        <pact.consumer.version>0.0.1-SNAPSHOT</pact.consumer.version>
+        <pact.consumer.tags>local</pact.consumer.tags>
         <logstash.encoder.version>8.0</logstash.encoder.version>
 
         <!-- Plugin versions -->
