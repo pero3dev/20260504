@@ -24,6 +24,15 @@
 | 認証 → 引当 → 投影 → 監査チェーン | [`EndToEndAuthAndReservationFlowIT`](../e2e-tests/src/test/java/com/example/inventory/e2e/EndToEndAuthAndReservationFlowIT.java) | identity-broker → inventory-core → inventory-read-model + audit-service |
 | Master Data → 引当 SKU 投影 | [`EndToEndMasterDataInventoryFlowIT`](../e2e-tests/src/test/java/com/example/inventory/e2e/EndToEndMasterDataInventoryFlowIT.java) | master-data → master.product.v1 → inventory-core SKU 投影 |
 
+## 業態 → Inventory Core Saga 配線
+
+| 業態 | トリガ | inventory-core 動作 | 失敗時補償トピック |
+|---|---|---|---|
+| Retail/EC | `retail.order.placed.v1` | reserve(明細毎) | `inventory.reservation.failed.v1` |
+| 3PL | `tpl.stock.movement.v1` | INBOUND=receive / OUTBOUND=reserve+ship | (補償なし、DLQ) |
+| Wholesale | `wholesale.order.placed.v1` | reserve(明細毎) | `wholesale.reservation.failed.v1` |
+| Manufacturing | `manufacturing.work_order.released.v1` | reserve+ship(構成要素毎、all-or-nothing) | `manufacturing.consumption.failed.v1` |
+
 ## 新規サービス追加
 
 [**docs/services/scaffold-guide.md**](../docs/services/scaffold-guide.md) を読む。
