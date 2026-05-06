@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.example.inventory.commons.event.DomainEvent;
 import com.example.inventory.core.domain.event.InventoryReceivedEvent;
+import com.example.inventory.core.domain.event.InventoryReleasedEvent;
 import com.example.inventory.core.domain.event.InventoryReservedEvent;
 import com.example.inventory.core.domain.event.InventoryShippedEvent;
 
@@ -97,6 +98,34 @@ public final class Inventory {
         this.available = available.plus(quantity);
         this.pendingEvents.add(
                 new InventoryReceivedEvent(
+                        id.value(),
+                        skuId.value(),
+                        locationId.value(),
+                        quantity.value(),
+                        this.available.value(),
+                        this.reserved.value(),
+                        this.version + 1,
+                        java.time.Instant.now()));
+    }
+
+    /**
+     * 引当済み在庫を available に戻す(注文キャンセル等の補償)。{@code reserved -= quantity}, {@code available +=
+     * quantity}。
+     *
+     * <p>{@code reserved} が要求量未満の場合は {@link InsufficientReservedException} を投げる。 成功時に {@link
+     * InventoryReleasedEvent} を発行する。{@link #ship} と異なり available が同量増える(系外に出ない、保留解除)。
+     */
+    public void release(Quantity quantity) {
+        if (quantity.value() == 0) {
+            throw new IllegalArgumentException("release 数量は 1 以上である必要があります");
+        }
+        if (!reserved.isAtLeast(quantity)) {
+            throw new InsufficientReservedException(id, reserved, quantity);
+        }
+        this.reserved = reserved.minus(quantity);
+        this.available = available.plus(quantity);
+        this.pendingEvents.add(
+                new InventoryReleasedEvent(
                         id.value(),
                         skuId.value(),
                         locationId.value(),

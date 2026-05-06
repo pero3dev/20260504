@@ -48,7 +48,9 @@ public class HandleReservationFailureService implements HandleReservationFailure
             return;
         }
         try {
-            order.cancel();
+            // 補償経由のキャンセルは release イベントを発行しない(Reserve 失敗時に reserved が
+            // 乗っていないため、cancel() の release 経路を流すと InsufficientReserved になる)。
+            order.cancelAfterReservationFailure();
         } catch (IllegalStateException e) {
             // SHIPPED 状態への補償遅延などは整合性監査に任せ、ここではスキップ。
             LOG.warn("受注 {} は cancel 不可状態のため補償スキップ: {}", command.orderCode(), e.getMessage());

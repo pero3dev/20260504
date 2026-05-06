@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.example.inventory.retail.domain.event.OrderCancelledEvent;
 import com.example.inventory.retail.domain.event.OrderPlacedEvent;
 import com.example.inventory.retail.domain.event.OrderShippedEvent;
 
@@ -51,13 +52,41 @@ class OrderTest {
     }
 
     @Test
-    void cancel_は冪等() {
+    void cancel_は_OrderCancelledEvent_を発行し_2回目は冪等で発行なし() {
         Order order =
-                Order.place(ID, CODE, "alice@example.com", "JPY", List.of(line(1, "S", 1, "100")));
+                Order.place(
+                        ID,
+                        CODE,
+                        "alice@example.com",
+                        "JPY",
+                        List.of(line(1, "SKU-A", 2, "150"), line(2, "SKU-B", 3, "200")));
+        order.clearPendingEvents();
+
         order.cancel();
-        order.cancel(); // 2 度目は no-op
+        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.pendingEvents()).hasSize(1);
+        OrderCancelledEvent ev = (OrderCancelledEvent) order.pendingEvents().get(0);
+        assertThat(ev.code()).isEqualTo(CODE.value());
+        assertThat(ev.customerEmail()).isEqualTo("alice@example.com");
+        assertThat(ev.items()).hasSize(2);
+
+        order.clearPendingEvents();
+        order.cancel(); // 2 度目は no-op、イベント発行なし
 
         assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void cancelAfterReservationFailure_は_状態を_CANCELLED_に_遷移するが_イベントは発行しない() {
+        Order order =
+                Order.place(ID, CODE, "alice@example.com", "JPY", List.of(line(1, "S", 1, "100")));
+        order.clearPendingEvents();
+
+        order.cancelAfterReservationFailure();
+
+        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.pendingEvents()).isEmpty();
     }
 
     @Test

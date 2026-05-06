@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
 import com.example.inventory.core.domain.event.InventoryReceivedEvent;
+import com.example.inventory.core.domain.event.InventoryReleasedEvent;
 import com.example.inventory.core.domain.event.InventoryReservedEvent;
 import com.example.inventory.core.domain.event.InventoryShippedEvent;
 
@@ -84,6 +85,47 @@ class InventoryTest {
         InventoryShippedEvent ev = (InventoryShippedEvent) inventory.pendingEvents().get(0);
         assertThat(ev.quantityShipped()).isEqualTo(3);
         assertThat(ev.reservedAfter()).isEqualTo(1);
+    }
+
+    @Test
+    void release_で_reserved_が_available_に戻され_InventoryReleasedEvent_が出る() {
+        Inventory inventory = Inventory.create(ID, SKU, LOC, new Quantity(10));
+        inventory.reserve(new ReservationId(99L), new Quantity(4)); // available=6, reserved=4
+        inventory.clearPendingEvents();
+
+        inventory.release(new Quantity(3));
+
+        assertThat(inventory.available()).isEqualTo(new Quantity(9)); // 6 + 3
+        assertThat(inventory.reserved()).isEqualTo(new Quantity(1)); // 4 - 3
+        assertThat(inventory.pendingEvents()).hasSize(1);
+        assertThat(inventory.pendingEvents().get(0)).isInstanceOf(InventoryReleasedEvent.class);
+
+        InventoryReleasedEvent ev = (InventoryReleasedEvent) inventory.pendingEvents().get(0);
+        assertThat(ev.quantityReleased()).isEqualTo(3);
+        assertThat(ev.availableAfter()).isEqualTo(9);
+        assertThat(ev.reservedAfter()).isEqualTo(1);
+    }
+
+    @Test
+    void 引当済を超える_release_は_拒否される() {
+        Inventory inventory = Inventory.create(ID, SKU, LOC, new Quantity(10));
+        inventory.reserve(new ReservationId(99L), new Quantity(2));
+        inventory.clearPendingEvents();
+
+        assertThatThrownBy(() -> inventory.release(new Quantity(5)))
+                .isInstanceOf(InsufficientReservedException.class);
+
+        assertThat(inventory.reserved()).isEqualTo(new Quantity(2));
+        assertThat(inventory.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void release_数量_0_は_拒否される() {
+        Inventory inventory = Inventory.create(ID, SKU, LOC, new Quantity(10));
+        inventory.reserve(new ReservationId(99L), new Quantity(2));
+
+        assertThatThrownBy(() -> inventory.release(Quantity.ZERO))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

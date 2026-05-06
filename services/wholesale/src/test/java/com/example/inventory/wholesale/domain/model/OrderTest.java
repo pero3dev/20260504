@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.example.inventory.commons.event.DomainEvent;
+import com.example.inventory.wholesale.domain.event.SalesOrderCancelledEvent;
 import com.example.inventory.wholesale.domain.event.SalesOrderPlacedEvent;
 import com.example.inventory.wholesale.domain.event.SalesOrderShippedEvent;
 
@@ -45,11 +46,44 @@ class OrderTest {
     }
 
     @Test
-    void cancel_は_CANCELLED_に遷移し_2回呼んでも冪等() {
+    void cancel_は_CANCELLED_に遷移し_SalesOrderCancelledEvent_を発行する_2回目は_冪等で発行なし() {
         Order order = newOrder();
+        order.clearPendingEvents(); // place イベントを除外
         order.cancel();
-        order.cancel();
+
         assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        List<DomainEvent> events = order.pendingEvents();
+        assertThat(events).hasSize(1);
+        SalesOrderCancelledEvent ev = (SalesOrderCancelledEvent) events.get(0);
+        assertThat(ev.code()).isEqualTo("SO-2026-0001");
+        assertThat(ev.partnerCode()).isEqualTo("PARTNER-ACME");
+        assertThat(ev.items()).hasSize(2);
+
+        order.clearPendingEvents();
+        order.cancel(); // 2 回目は no-op
+
+        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void cancelAfterReservationFailure_は_状態を_CANCELLED_に_遷移するが_イベントは発行しない() {
+        Order order = newOrder();
+        order.clearPendingEvents();
+
+        order.cancelAfterReservationFailure();
+
+        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void cancelAfterReservationFailure_も_SHIPPED_からは_IllegalState() {
+        Order order = newOrder();
+        order.ship();
+
+        assertThatThrownBy(order::cancelAfterReservationFailure)
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

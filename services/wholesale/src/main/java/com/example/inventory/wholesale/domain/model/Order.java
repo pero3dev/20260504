@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.example.inventory.commons.event.DomainEvent;
+import com.example.inventory.wholesale.domain.event.SalesOrderCancelledEvent;
 import com.example.inventory.wholesale.domain.event.SalesOrderPlacedEvent;
 import com.example.inventory.wholesale.domain.event.SalesOrderShippedEvent;
 
@@ -140,8 +141,44 @@ public final class Order {
         this.shippedAt = shippedAt;
     }
 
-    /** 受注をキャンセルする(MVP はイベント発行なし、状態のみ更新)。 PLACED 状態のみ可。SHIPPED 後の取消は返品扱いで別フロー。CANCELLED への再呼出は冪等。 */
+    /**
+     * 受注をキャンセルする(業務側起因)。PLACED → CANCELLED 遷移で {@link SalesOrderCancelledEvent} を発行 (Inventory Core
+     * が reserved を解放する起点)。CANCELLED への再呼出は冪等(イベント発行なし)。 SHIPPED 後の取消は返品扱いで別フロー。
+     */
     public void cancel() {
+        if (status == OrderStatus.CANCELLED) {
+            return;
+        }
+        if (status == OrderStatus.SHIPPED) {
+            throw new IllegalStateException("出荷済みの受注はキャンセル不可(返品で別フロー)");
+        }
+        this.status = OrderStatus.CANCELLED;
+        Instant cancelledAt = Instant.now();
+        pendingEvents.add(
+                new SalesOrderCancelledEvent(
+                        id.value(),
+                        code.value(),
+                        partnerCode.value(),
+                        items.stream()
+                                .map(
+                                        i ->
+                                                new SalesOrderCancelledEvent.Line(
+                                                        i.lineNo(),
+                                                        i.skuCode(),
+                                                        i.locationId(),
+                                                        i.quantity()))
+                                .collect(Collectors.toList()),
+                        cancelledAt,
+                        cancelledAt));
+    }
+
+    /**
+     * Reserve 失敗の補償でキャンセルする。状態のみ更新し、{@link SalesOrderCancelledEvent} は発行しない。
+     *
+     * <p>Reserve 失敗時は Inventory Core 側で TX rollback により reserved が乗っていないため、 release イベントを送ると {@code
+     * InsufficientReserved} で失敗する。本メソッドはイベント無しで状態だけ閉じる。
+     */
+    public void cancelAfterReservationFailure() {
         if (status == OrderStatus.CANCELLED) {
             return;
         }
