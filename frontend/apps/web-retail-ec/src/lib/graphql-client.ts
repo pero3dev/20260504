@@ -22,38 +22,30 @@ export const client = new GraphQLClient(endpoint, {
   },
 });
 
-const SKU_QUERY = gql`
-  query Sku($skuId: ID!) {
-    sku(skuId: $skuId) {
+const INVENTORY_QUERY = gql`
+  query Inventory($inventoryId: ID!) {
+    inventory(inventoryId: $inventoryId) {
+      id
       skuId
-      displayName
-      inventories {
-        skuId
-        locationId
-        available
-        reserved
-        updatedAt
-      }
+      locationId
+      available
+      reserved
+      version
     }
   }
 `;
 
-interface InventoryFragment {
-  skuId: string;
-  locationId: string;
-  available: number;
-  reserved: number;
-  updatedAt: string;
-}
-
-export interface SkuQueryResult {
-  sku: {
+export interface InventoryQueryResult {
+  inventory: {
+    id: string;
     skuId: string;
-    displayName: string;
-    inventories: InventoryFragment[];
+    locationId: string;
+    available: number;
+    reserved: number;
+    version: number;
   } | null;
 }
 
-export async function fetchSku(skuId: string): Promise<SkuQueryResult> {
-  return client.request<SkuQueryResult>(SKU_QUERY, { skuId });
+export async function fetchInventory(inventoryId: string): Promise<InventoryQueryResult> {
+  return client.request<InventoryQueryResult>(INVENTORY_QUERY, { inventoryId });
 }

@@ -77,6 +77,28 @@ pnpm format      # Prettier(差分書込み)
 pnpm format:check
 ```
 
+## 実 backend 接続(F6)
+
+`bff-retail-ec` は `inventory-read-model`(`services/inventory-read-model`)の `GET /v1/inventories/{inventoryId}` を叩く。 dev で UI から実在庫を見るには Java service 側を起動する必要がある:
+
+```bash
+# 1. infra(Postgres + Redis + Kafka)を docker compose で起動。 既存スクリプト or 手動で。
+# 2. inventory-read-model を起動
+cd <repo-root>
+mvn -pl services/inventory-read-model spring-boot:run
+
+# 3. BFF + Web を起動
+cd frontend
+pnpm --filter bff-retail-ec dev   # http://localhost:4001/graphql
+pnpm --filter web-retail-ec dev   # http://localhost:5173/
+```
+
+接続先は `INVENTORY_READ_MODEL_URL` env で切替え可能(default `http://localhost:8080`)。 production は K8s Service DNS を渡す。
+
+`http://localhost:5173/` を開くと `inventoryId=1` の在庫を表示する。 該当 inventory が無ければ「該当無し」 メッセージ、 backend 不通なら「BFF 取得失敗」 メッセージ。
+
+残 3 業態(Manufacturing / 3PL / Wholesale)は次の commit で同パターンを `services/manufacturing` / `services/tpl` / `services/wholesale` の REST に接続する。
+
 ## 認証(MVP)
 
 `web-retail-ec` は **stub auth**(localStorage に dev token を入れる)で起動する。 Cognito federation 実配線は後続フェーズ:

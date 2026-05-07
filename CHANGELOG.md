@@ -111,6 +111,15 @@
     - `apps/bff-{manufacturing,tpl,wholesale}` — 各 BFF が独自 schema を持つ:Manufacturing は `workOrder(workOrderId)` + WorkOrderStatus enum、 3PL は `stockMovement(movementId)` + MovementDirection enum、 Wholesale は `salesOrder(salesOrderId)` + SalesOrderStatus enum + 取引先別契約金額。 各々別 port(4002 / 4003 / 4004)で並走可能、 F6 で実 backend(`services/manufacturing` / `services/tpl` / `services/wholesale`)に繋ぐ
     - `apps/web-{manufacturing,tpl,wholesale}` — それぞれ port 5174 / 5175 / 5176 で起動し対応 BFF に proxy。 dashboard page は per-business のドメイン語彙(WorkOrder / StockMovement / SalesOrder)で表示、 stub auth は per-business localStorage key で隔離
     - CI 整理: `frontend.yml` の per-app step + `continue-on-error` を **`turbo run typecheck/lint/build/test` に統合**。 全業態で緑化したため soft-fail を解除
+- **F6 第 1 弾 bff-retail-ec を inventory-read-model に実接続** — mock を解消し、 UI が実 Redis 投影の在庫を見るようにする:
+    - `apps/bff-retail-ec/src/clients/inventory-read-model-client.ts` 新規 — `GET /v1/inventories/{inventoryId}` を `fetch` で呼出し、 404 → null / 5xx → Error の最小限の error mapping。 `INVENTORY_READ_MODEL_URL` env で切替(default `http://localhost:8080`、 production は K8s Service DNS)
+    - schema を `sku(skuId)` から **`inventory(inventoryId)`** に変更(inventory-read-model API と signature を揃える、 SKU 横断索引は read-model 側に secondary index API を入れて F6 phase 2 で再設計)
+    - DataLoader は同パターンで `inventoryById` に統合、 1 リクエスト 1 client で同 id の重複呼出を抑制
+    - JWT pass-through:resolver context が `Authorization: Bearer ...` を BFF → backend へそのまま流す(BFF 側 verify は F2 で追加)
+    - test:client 単体(200 / 404 / 500)+ resolver の Mock client 経由 1 系統。 vi.stubGlobal で fetch を差替え
+    - `apps/web-retail-ec` を新 schema に合わせ、 dashboard で固定 `inventoryId=1` を取りに行く構成に。 「該当無し」 / 「BFF 取得失敗」 をそれぞれ表示分岐
+    - 残 3 業態(Manufacturing / 3PL / Wholesale)は同パターンで後続 commit。 各々の REST(`services/{manufacturing,tpl,wholesale}`)を確認しながら順次
+
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
     - `packages/ui/src/components/{button,app-shell,data-table}.tsx` — Button(primary / secondary / ghost)、 AppShell(brand + nav の構造化、 TanStack Router `Link` 内蔵)、 DataTable(generic な table)
@@ -193,7 +202,7 @@
 - **F2** Cognito SAML 実配線 + Identity Broker token 交換 + BFF 側 JWT verify(jwks 取得 + verify + tenant 取出 + downstream への pass-through)
 - **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
-- **F6** BFF resolver を本物の backend(`inventory-read-model` / `inventory-core` / 業態 service / `master-data`)に繋ぐ。 GraphQL Code Generator で typed client 生成、 `__generated__/` を消費
+- **F6 follow-up** 残 3 業態 BFF を実 backend に接続:`bff-manufacturing` → `services/manufacturing` REST、 `bff-tpl` → `services/tpl` REST、 `bff-wholesale` → `services/wholesale` REST。 加えて GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活
 - **F7** **ADR-0022** で Frontend 構造を明文化。 i18n(react-intl or i18next)、 a11y(WCAG 2.1 AA)、 design token、 form validation(zod + react-hook-form)、 chart(recharts or visx)等の方針を決める
 - CI: `pnpm-lock.yaml` を `frontend/` に commit して `--frozen-lockfile` に切替え(現状は CI で都度 install で生成)
 

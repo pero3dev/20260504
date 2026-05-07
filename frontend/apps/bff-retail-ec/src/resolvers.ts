@@ -31,18 +31,13 @@ export const resolvers = {
   DateTime,
   Query: {
     health: () => 'ok',
-    sku: (_parent: unknown, args: { skuId: string }) => {
-      // schema 上 inventories は Sku.inventories field resolver で解決(DataLoader 経由)。
-      return { skuId: args.skuId, displayName: `SKU ${args.skuId}` };
-    },
-  },
-  Sku: {
-    inventories: async (
-      parent: { skuId: string },
-      _args: unknown,
+    inventory: async (
+      _parent: unknown,
+      args: { inventoryId: string },
       context: BffContext,
     ) => {
-      return context.loaders.inventoryBySku.load(parent.skuId);
+      // GraphQL ID は string で渡るので number に変換。
+      return context.loaders.inventoryById.load(args.inventoryId);
     },
   },
 };

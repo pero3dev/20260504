@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import {
+  InventoryReadModelClient,
+  type InventoryDto,
+} from './clients/inventory-read-model-client.js';
 import { createLoaders } from './dataloaders.js';
 import { resolvers, type BffContext } from './resolvers.js';
 
@@ -9,14 +13,39 @@ describe('Query.health', () => {
   });
 });
 
-describe('Query.sku → Sku.inventories', () => {
-  it('DataLoader 経由で in-memory mock を返す', async () => {
-    const ctx: BffContext = { loaders: createLoaders(), authToken: null };
-    const sku = resolvers.Query.sku(undefined, { skuId: 'SKU-1' });
-    const inventories = await resolvers.Sku.inventories({ skuId: sku.skuId }, undefined, ctx);
+describe('Query.inventory', () => {
+  it('DataLoader 経由で client.getInventory を呼ぶ', async () => {
+    const dto: InventoryDto = {
+      id: 100,
+      skuId: 'SKU-1',
+      locationId: 'tokyo-warehouse',
+      available: 50,
+      reserved: 3,
+      version: 1,
+    };
+    const client = new InventoryReadModelClient('http://stub');
+    const spy = vi.spyOn(client, 'getInventory').mockResolvedValue(dto);
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+    };
 
-    expect(inventories).toHaveLength(1);
-    expect(inventories[0]?.skuId).toBe('SKU-1');
-    expect(inventories[0]?.available).toBe(100);
+    const result = await resolvers.Query.inventory(undefined, { inventoryId: '100' }, ctx);
+
+    expect(result).toEqual(dto);
+    expect(spy).toHaveBeenCalledWith(100, null);
+  });
+
+  it('client が null を返したら resolver も null を返す', async () => {
+    const client = new InventoryReadModelClient('http://stub');
+    vi.spyOn(client, 'getInventory').mockResolvedValue(null);
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+    };
+
+    const result = await resolvers.Query.inventory(undefined, { inventoryId: '999' }, ctx);
+
+    expect(result).toBeNull();
   });
 });

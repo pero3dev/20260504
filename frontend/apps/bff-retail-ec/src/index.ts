@@ -5,16 +5,19 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
+import { InventoryReadModelClient } from './clients/inventory-read-model-client.js';
 import { createLoaders } from './dataloaders.js';
 import { resolvers, type BffContext } from './resolvers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// schema.graphql は build 時に dist 配下にコピーされない構成のため、 src からの相対参照で読む(本番では rollup
-// 等で bundle するか generate-sources で .ts に変換するのが望ましいが MVP は read at boot)。
 const typeDefs = readFileSync(resolve(__dirname, '../src/schema.graphql'), 'utf8');
 
 async function main() {
   const fastify = Fastify({ logger: true });
+
+  const inventoryClient = new InventoryReadModelClient(
+    process.env.INVENTORY_READ_MODEL_URL ?? 'http://localhost:8080',
+  );
 
   const apollo = new ApolloServer<BffContext>({
     typeDefs,
@@ -25,13 +28,12 @@ async function main() {
 
   await fastify.register(fastifyApollo(apollo), {
     context: async (request) => {
-      // F2 で Identity Broker JWT verify を入れる。 F1 stub は header をそのまま流すだけ。
       const authHeader = request.headers.authorization;
       const authToken = authHeader?.startsWith('Bearer ')
         ? authHeader.slice('Bearer '.length)
         : null;
       return {
-        loaders: createLoaders(),
+        loaders: createLoaders(inventoryClient, authToken),
         authToken,
       };
     },
@@ -41,7 +43,11 @@ async function main() {
 
   const port = Number(process.env.PORT ?? 4001);
   await fastify.listen({ port, host: '0.0.0.0' });
-  console.info(`bff-retail-ec listening on :${port}/graphql`);
+  console.info(
+    `bff-retail-ec listening on :${port}/graphql (inventory-read-model: ${
+      process.env.INVENTORY_READ_MODEL_URL ?? 'http://localhost:8080'
+    })`,
+  );
 }
 
 main().catch((err) => {

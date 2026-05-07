@@ -1,4 +1,4 @@
-import { AppShell, DataTable } from '@inventory/ui';
+import { AppShell } from '@inventory/ui';
 import { useQuery } from '@tanstack/react-query';
 import {
   createRootRoute,
@@ -7,7 +7,7 @@ import {
   Outlet,
 } from '@tanstack/react-router';
 
-import { fetchSku } from './lib/graphql-client';
+import { fetchInventory } from './lib/graphql-client';
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -27,10 +27,14 @@ const indexRoute = createRoute({
   component: DashboardPage,
 });
 
+// F6 vertical では固定 inventory id を叩いて疎通確認する。 F4 follow-up で id を入力する form +
+// SKU 横断 list を追加(inventory-read-model 側に SKU index API が要る)。
+const DEFAULT_INVENTORY_ID = '1';
+
 function DashboardPage() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sku', 'SKU-1'],
-    queryFn: () => fetchSku('SKU-1'),
+    queryKey: ['inventory', DEFAULT_INVENTORY_ID],
+    queryFn: () => fetchInventory(DEFAULT_INVENTORY_ID),
   });
 
   return (
@@ -38,7 +42,7 @@ function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">在庫ダッシュボード</h1>
         <p className="text-sm text-muted-foreground">
-          BFF(/graphql)経由で SKU 在庫を取得しています。
+          BFF(/graphql)経由で inventory-read-model から実在庫を取得しています。
         </p>
       </div>
 
@@ -49,26 +53,27 @@ function DashboardPage() {
         </p>
       )}
 
-      {data?.sku && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">{data.sku.displayName}</h2>
-          <DataTable
-            rows={data.sku.inventories}
-            rowKey={(inv) => inv.locationId}
-            columns={[
-              { header: 'Location', render: (inv) => inv.locationId },
-              { header: 'Available', render: (inv) => inv.available },
-              { header: 'Reserved', render: (inv) => inv.reserved },
-              {
-                header: 'Updated',
-                render: (inv) => (
-                  <span className="text-muted-foreground">
-                    {new Date(inv.updatedAt).toLocaleString('ja-JP')}
-                  </span>
-                ),
-              },
-            ]}
-          />
+      {data?.inventory === null && !isLoading && (
+        <p className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
+          inventoryId={DEFAULT_INVENTORY_ID} に該当する在庫はありません。
+        </p>
+      )}
+
+      {data?.inventory && (
+        <section className="space-y-3 rounded-lg border border-border p-4">
+          <h2 className="text-lg font-semibold">Inventory {data.inventory.id}</h2>
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <dt className="text-muted-foreground">SKU</dt>
+            <dd>{data.inventory.skuId}</dd>
+            <dt className="text-muted-foreground">Location</dt>
+            <dd>{data.inventory.locationId}</dd>
+            <dt className="text-muted-foreground">Available</dt>
+            <dd>{data.inventory.available}</dd>
+            <dt className="text-muted-foreground">Reserved</dt>
+            <dd>{data.inventory.reserved}</dd>
+            <dt className="text-muted-foreground">Version</dt>
+            <dd>{data.inventory.version}</dd>
+          </dl>
         </section>
       )}
     </div>
