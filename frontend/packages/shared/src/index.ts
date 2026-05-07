@@ -2,3 +2,5 @@
 export * from './types/tenant.js';
 export * from './types/inventory.js';
 export * from './problem-details.js';
+export * from './auth/verify-jwt.js';
+export * from './auth/bff-context.js';

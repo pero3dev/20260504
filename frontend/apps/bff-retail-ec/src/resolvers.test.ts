@@ -28,6 +28,7 @@ describe('Query.inventory', () => {
     const ctx: BffContext = {
       loaders: createLoaders(client, null),
       authToken: null,
+      user: null,
     };
 
     const result = await resolvers.Query.inventory(undefined, { inventoryId: '100' }, ctx);
@@ -42,6 +43,7 @@ describe('Query.inventory', () => {
     const ctx: BffContext = {
       loaders: createLoaders(client, null),
       authToken: null,
+      user: null,
     };
 
     const result = await resolvers.Query.inventory(undefined, { inventoryId: '999' }, ctx);

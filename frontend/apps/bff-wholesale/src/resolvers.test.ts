@@ -26,7 +26,11 @@ describe('Query.salesOrder', () => {
     };
     const client = new WholesaleClient('http://stub');
     const spy = vi.spyOn(client, 'getSalesOrder').mockResolvedValue(dto);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.salesOrder(undefined, { orderId: '11' }, ctx);
 
@@ -37,7 +41,11 @@ describe('Query.salesOrder', () => {
   it('client が null を返したら resolver も null', async () => {
     const client = new WholesaleClient('http://stub');
     vi.spyOn(client, 'getSalesOrder').mockResolvedValue(null);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.salesOrder(undefined, { orderId: '999' }, ctx);
 

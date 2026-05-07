@@ -126,6 +126,13 @@
     - 各 BFF とも DataLoader は `xxxById` に集約し 1 リクエスト 1 client、 JWT は `Authorization: Bearer ...` を BFF→backend へ pass-through(F2 で BFF 側 verify を追加予定)
     - test:各 client 単体(200 / 404 / 500、 `vi.stubGlobal` で fetch 差替)+ resolver Mock client 経由(`vi.spyOn(client, 'getXxx')`)。 phase 1 で確立した pattern を 3 業態に一気に展開
     - これにより全 4 業態 BFF が mock 完全解消、 F2(Cognito SAML 実配線)+ F7(ADR-0022 Frontend 構造文書化)に進む準備完了
+- **F2 phase A BFF 側 JWT verify**(Cognito 配線前の足場)— 4 BFF 全て が Identity Broker 発行 JWT を verify するように:
+    - `packages/shared/src/auth/verify-jwt.ts` 新規 — `jose@5` の `createRemoteJWKSet` + `jwtVerify` を使った `createJwtVerifier({ jwksUrl, issuer, audience? })`。 RS256 固定、 `clockTolerance` default 30s、 JWKS は in-process キャッシュで cold start 1 回のみ identity-broker へ HTTP。 Identity Broker `NimbusJwtTokenIssuer` の access token claim と一致する `BffUserClaims { userId, tenantId, roles[], scopes:{locations,partners}, mfaStrength }` に正規化。 `token_use=access` 強制(session token を弾く)/ `tenant_id` 必須 / `sub` を Number 化
+    - `packages/shared/src/auth/bff-context.ts` 新規 — `buildBffAuth({ authorizationHeader, verifier })` で `Bearer ` 抜き出し + verify 呼出を 4 BFF で重複させない最小 helper。 verifier 未設定なら token を抽出だけして user=null(dev 用)、 verify 失敗は `JwtVerificationError` を throw
+    - 各 BFF index.ts は `JWT_JWKS_URL` + `JWT_ISSUER`(任意で `JWT_AUDIENCE`)env 設定で verifier を構築。 設定無しは warn を吐いて pass-through 維持(local dev 用)、 設定有りで verify 失敗は GraphQLError(`code=UNAUTHENTICATED, http.status=401`)で reject
+    - `BffContext` に `user: BffUserClaims | null` を追加。 resolver は `context.user?.tenantId` 等を直接読める。 backend へは元 token を pass-through なので双方で同 claim を共有
+    - test:`generateKeyPair('RS256')` でローカル鍵生成 → JWKS を `vi.stubGlobal('fetch')` で配って verify を 1 系統エンドツーエンド検証(正常 / aud 不一致 / 期限切れ / iss 不一致 / token_use=session / tenant_id 欠落)。 `buildBffAuth` 単体は 5 系統(token 有無 × verifier 有無の組合せ + verify 失敗の throw 伝播)
+    - F2 残: web 側 `oidc-client-ts` 配線(login redirect / callback / token refresh / logout)+ Cognito SAML pool の CDK / Identity Broker の token exchange は phase B 以降
 
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
@@ -206,7 +213,7 @@
 
 #### F2〜F7. Frontend follow-up(F1 + F3 から先)
 
-- **F2** Cognito SAML 実配線 + Identity Broker token 交換 + BFF 側 JWT verify(jwks 取得 + verify + tenant 取出 + downstream への pass-through)
+- **F2 phase B**(BFF JWT verify は phase A で完了)— web 側 `oidc-client-ts` 配線(login redirect / callback / silent refresh / logout)+ Cognito User Pool + SAML federation の CDK 化 + Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token)+ BFF JWT_JWKS_URL を K8s ConfigMap で配布
 - **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
 - **F6 follow-up**(残 3 業態 BFF の実 backend 接続は完了)— GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活、 加えて pagination(cursor)/ filter / sort の BFF DSL 設計

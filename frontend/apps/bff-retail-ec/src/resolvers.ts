@@ -1,3 +1,4 @@
+import type { BffUserClaims } from '@inventory/shared';
 import { GraphQLScalarType, Kind } from 'graphql';
 
 import type { DataLoaderContext } from './dataloaders.js';
@@ -23,8 +24,10 @@ const DateTime = new GraphQLScalarType<string, string>({
 
 export interface BffContext {
   loaders: DataLoaderContext;
-  /** Identity Broker 由来の JWT(F1 stub では未使用、 F2 で実 verify)。 */
+  /** Identity Broker 由来の生 JWT。 verify 後 backend へ pass-through する。 */
   authToken: string | null;
+  /** F2 verify 済み user claim。 verifier 未設定 (= dev) または anonymous リクエストでは null。 */
+  user: BffUserClaims | null;
 }
 
 export const resolvers = {

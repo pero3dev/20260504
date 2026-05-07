@@ -23,7 +23,11 @@ describe('Query.workOrder', () => {
     };
     const client = new ManufacturingClient('http://stub');
     const spy = vi.spyOn(client, 'getWorkOrder').mockResolvedValue(dto);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.workOrder(undefined, { workOrderId: '100' }, ctx);
 
@@ -34,7 +38,11 @@ describe('Query.workOrder', () => {
   it('client が null を返したら resolver も null', async () => {
     const client = new ManufacturingClient('http://stub');
     vi.spyOn(client, 'getWorkOrder').mockResolvedValue(null);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.workOrder(undefined, { workOrderId: '999' }, ctx);
 

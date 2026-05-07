@@ -1,3 +1,4 @@
+import type { BffUserClaims } from '@inventory/shared';
 import { GraphQLScalarType, Kind } from 'graphql';
 
 import type { DataLoaderContext } from './dataloaders.js';
@@ -22,6 +23,7 @@ const Date_ = new GraphQLScalarType<string, string>({
 export interface BffContext {
   loaders: DataLoaderContext;
   authToken: string | null;
+  user: BffUserClaims | null;
 }
 
 export const resolvers = {

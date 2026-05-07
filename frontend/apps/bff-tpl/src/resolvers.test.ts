@@ -25,7 +25,11 @@ describe('Query.stockMovement', () => {
     };
     const client = new TplClient('http://stub');
     const spy = vi.spyOn(client, 'getStockMovement').mockResolvedValue(dto);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.stockMovement(undefined, { movementId: '7' }, ctx);
 
@@ -36,7 +40,11 @@ describe('Query.stockMovement', () => {
   it('client が null を返したら resolver も null', async () => {
     const client = new TplClient('http://stub');
     vi.spyOn(client, 'getStockMovement').mockResolvedValue(null);
-    const ctx: BffContext = { loaders: createLoaders(client, null), authToken: null };
+    const ctx: BffContext = {
+      loaders: createLoaders(client, null),
+      authToken: null,
+      user: null,
+    };
 
     const result = await resolvers.Query.stockMovement(undefined, { movementId: '999' }, ctx);
 
