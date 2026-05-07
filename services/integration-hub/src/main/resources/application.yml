@@ -38,15 +38,25 @@ application:
 
 # 統合 Hub 個別設定:
 # platform.hub.adapters.<adapter-name>.enabled: アダプタの有効化
+# platform.hub.adapters.<adapter-name>.type: local | s3(A3 で追加、 default は local)
 # platform.hub.adapters.<adapter-name>.<key>: アダプタ固有設定
 platform:
   hub:
     adapters:
       retail-order-csv:
         enabled: ${HUB_RETAIL_CSV_ENABLED:false}
-        # 出力先ディレクトリ。テナントごとに <baseDir>/<tenant>/ に CSV を追記出力する。
+        type: ${HUB_RETAIL_CSV_TYPE:local}
+        # type=local 用: 出力先ディレクトリ。テナントごとに <baseDir>/<tenant>/ に CSV を追記出力する。
         baseDir: ${HUB_RETAIL_CSV_BASE_DIR:${java.io.tmpdir}/integration-hub}
         fileName: ${HUB_RETAIL_CSV_FILE_NAME:retail-orders.csv}
+        # type=s3 用: S3 への 1 注文 = 1 オブジェクト PUT(A3)。
+        s3:
+          bucket: ${HUB_RETAIL_CSV_S3_BUCKET:}
+          region: ${HUB_RETAIL_CSV_S3_REGION:ap-northeast-1}
+          key-prefix: ${HUB_RETAIL_CSV_S3_KEY_PREFIX:retail-order-csv}
+          # LocalStack / MinIO 用、 本番では空。
+          endpoint-override: ${HUB_RETAIL_CSV_S3_ENDPOINT_OVERRIDE:}
+          content-type: ${HUB_RETAIL_CSV_S3_CONTENT_TYPE:text/csv}
 
 logging:
   config: classpath:logback-spring.xml

@@ -3,7 +3,6 @@ package com.example.inventory.hub.adapter.in.kafka;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.List;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -16,9 +15,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import com.example.inventory.commons.tenant.TenantId;
-import com.example.inventory.hub.adapter.out.file.LocalFileDestination;
 import com.example.inventory.hub.application.port.out.OutboundDestination;
-import com.example.inventory.hub.config.HubProperties;
+import com.example.inventory.hub.config.HubConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -44,13 +42,10 @@ public class RetailOrderCsvExportListener {
     private final ObjectMapper objectMapper;
     private final RetailOrderCsvFormatter formatter;
 
-    public RetailOrderCsvExportListener(HubProperties properties, ObjectMapper objectMapper) {
-        HubProperties.AdapterConfig cfg = properties.adapter(ADAPTER_NAME);
-        if (cfg.baseDir() == null || cfg.fileName() == null) {
-            throw new IllegalStateException(
-                    "platform.hub.adapters.retail-order-csv.{baseDir,fileName} の設定が必要");
-        }
-        this.destination = new LocalFileDestination(Path.of(cfg.baseDir()), cfg.fileName());
+    public RetailOrderCsvExportListener(
+            HubConfiguration.DestinationFactory destinationFactory, ObjectMapper objectMapper) {
+        // type=local | s3 を properties で切替(local の場合は baseDir / fileName、 s3 は bucket 等を要求)。
+        this.destination = destinationFactory.create(ADAPTER_NAME);
         this.objectMapper = objectMapper;
         this.formatter = new RetailOrderCsvFormatter();
     }
@@ -74,9 +69,8 @@ public class RetailOrderCsvExportListener {
 
         List<String> rows = formatter.format(msg);
         TenantId tenantId = new TenantId(tenantIdValue);
-        for (String row : rows) {
-            destination.write(tenantId, row);
-        }
+        // S3 のような pay-per-PUT 系で 1 オブジェクトに収まるよう writeBatch 経由(local は default で逐次 write 相当)。
+        destination.writeBatch(tenantId, rows);
         ack.acknowledge();
         LOG.debug(
                 "retail-order-csv 出力 tenant={} order={} lines={}",

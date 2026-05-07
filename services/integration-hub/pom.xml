@@ -73,6 +73,12 @@
             <artifactId>commons-observability</artifactId>
         </dependency>
 
+        <!-- A3: S3Destination 用。 BOM がバージョンを管理する。 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
