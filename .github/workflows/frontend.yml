@@ -1,0 +1,80 @@
+# Frontend CI workflow(F1 follow-up)。
+#
+# Java backend の ci.yml(Maven 経路)とは独立に動かす。 frontend/ 配下の変更だけが
+# トリガで、 Java 変更には反応しない(逆も同様)。
+#
+# 実行内容:
+#   1. install   ... pnpm install(初回 commit 時点では lockfile 無し → CI が生成)
+#   2. typecheck ... 全 app + package で tsc --noEmit
+#   3. lint      ... 全 app + package で ESLint
+#   4. build     ... 全 app + package で build(Vite + tsc --emitDeclarationOnly + tsc)
+#   5. test      ... 全 app + package で Vitest
+#
+# Future Work:
+#   - lockfile commit 後に --frozen-lockfile を有効化
+#   - matrix で BFF / Web を並列実行(現状は Turborepo の自動並列で十分)
+#   - Storybook build 検証(F5 時点で追加)
+#   - Playwright E2E(F5 時点で追加)
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+concurrency:
+  group: frontend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  build-test:
+    name: Build & Test (Node 20 + pnpm 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # 初回 commit 時点では lockfile が無いため frozen-lockfile を外す。
+      # 1 度 CI が走って lockfile が生成 / commit されたら本ステップを `pnpm install --frozen-lockfile`
+      # に切替える。
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck (turbo run typecheck)
+        run: pnpm typecheck
+
+      - name: Lint (turbo run lint)
+        run: pnpm lint
+
+      - name: Build (turbo run build)
+        run: pnpm build
+
+      - name: Test (turbo run test)
+        run: pnpm test

@@ -32,8 +32,15 @@ name: CI
 on:
   pull_request:
     branches: [ main ]
+    # frontend/ のみ変更された PR では Java CI を skip する(frontend.yml が走る)。
+    paths-ignore:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
 
 # 同一PRに複数pushされたら古いCIをキャンセルしてリソースを節約。
 concurrency:
