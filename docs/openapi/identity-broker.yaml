@@ -28,6 +28,11 @@ tags:
     description: Authentication and tenant selection
   - name: jwks
     description: JSON Web Key Set for token verification
+  - name: admin-tenants
+    description: |
+      Tenant lifecycle management (A5). All endpoints require a SUPER_ADMIN-scoped
+      JWT. Mutations propagate to downstream services via best-effort runbook
+      execution; see infra/tenant-provisioning/README.md.
 
 paths:
   /v1/auth/sessions:
@@ -88,6 +93,156 @@ paths:
           $ref: '#/components/responses/AuthenticationFailed'
         '403':
           description: Session token is valid but the user is not a member of the requested tenant
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/admin/tenants:
+    post:
+      tags: [admin-tenants]
+      operationId: registerTenant
+      summary: Register a new tenant
+      description: |
+        Creates a tenant record in the broker. Idempotent on tenantId — re-registering
+        an existing active tenant returns 409. Schema provisioning on the business
+        databases is performed out-of-band; this endpoint only owns the broker-side
+        record. Returns 201 with the canonical resource representation.
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTenantRequest'
+      responses:
+        '201':
+          description: Tenant registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResource'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: A tenant with this tenantId already exists
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    get:
+      tags: [admin-tenants]
+      operationId: listTenants
+      summary: List all tenants
+      description: |
+        Returns all tenants known to the broker, including DEACTIVATED ones.
+        Cursor-based pagination not yet wired (tenant count is bounded at the
+        low hundreds); MVP returns the full list.
+      security:
+        - bearerJwt: []
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/admin/tenants/{tenantId}:
+    get:
+      tags: [admin-tenants]
+      operationId: getTenant
+      summary: Get a tenant by id
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 32
+            pattern: '^[a-z0-9][a-z0-9-]{2,31}$'
+      responses:
+        '200':
+          description: Tenant resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No tenant with this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/admin/tenants/{tenantId}/deactivate:
+    post:
+      tags: [admin-tenants]
+      operationId: deactivateTenant
+      summary: Deactivate a tenant
+      description: |
+        Marks the tenant as DEACTIVATED. Existing sessions remain valid until
+        their TTL expires; new tenant-session issuance for this tenant fails.
+        Idempotent — deactivating an already-DEACTIVATED tenant returns 200
+        with the existing resource.
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 32
+            pattern: '^[a-z0-9][a-z0-9-]{2,31}$'
+      responses:
+        '200':
+          description: Tenant deactivated (or was already DEACTIVATED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No tenant with this id
           content:
             application/problem+json:
               schema:
@@ -179,6 +334,40 @@ components:
           type: integer
           format: int32
           example: 900
+
+    RegisterTenantRequest:
+      type: object
+      required: [tenantId, displayName]
+      properties:
+        tenantId:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[a-z0-9][a-z0-9-]{2,31}$'
+          description: External-facing tenant identifier. Stable for the lifetime of the tenant.
+        displayName:
+          type: string
+          maxLength: 128
+          description: Human-readable tenant name for UI / audit logs.
+
+    TenantResource:
+      type: object
+      required: [tenantId, displayName, status, createdAt]
+      properties:
+        tenantId:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, DEACTIVATED]
+        createdAt:
+          type: string
+          format: date-time
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
 
     ProblemDetail:
       type: object
