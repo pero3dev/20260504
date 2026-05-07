@@ -10,7 +10,7 @@
 
 ### Highlights
 
-13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路、業態 OUTBOUND/Cancel フローの完成、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース。
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース。
 
 ### Added
 
@@ -84,6 +84,11 @@
 - **ADR-0021 Phase 2.5 — nginx sidecar による完全シームレス SSO** — Pact Broker pod に `nginx:1.27-alpine` sidecar を同居させ、 ALB Cognito auth 通過後の UI 経路で `Authorization: Basic <read-only-cred>` を自動注入。 Phase 2 の二段認証 UX(Cognito + Basic Auth ダイアログ)を解消し、 ユーザは Cognito 1 回サインインだけで Pact Broker UI が即時表示される。 CI 経路は sidecar バイパスで Pact Broker へ直接到達(別 Service named port)。 注入する credential は read-only 固定で Phase 3(社内全員 read-only 公開)と整合。 oauth2-proxy ではなく nginx を選んだのは、 ALB が既に Cognito auth を完了させており OIDC handshake 重複が不要なため(image 5MB / memory 32MB の軽量)。
 - **ADR-0021 Phase 3 — UI を engineering org 全員に read-only 公開** — `pdb.yaml`(PodDisruptionBudget、 `minAvailable: 1`)を追加し voluntary disruption(node drain / cluster autoscaler / rolling update)時に常時 1 replica を保持。 NetworkPolicy に sidecar 9293 ingress を補完(Phase 2.5 の追加漏れを塞ぐ)。 README に Phase 3 デプロイ手順 + Cognito access policy(全 eng org or engineering group)+ 社内告知テンプレ + 運用ノート(load 想定 / Aurora-C 負荷 / 退職者アクセス取り消し)を追加。 注入 credential が read-only 固定なので audience 拡大しても write 操作は CI 経由のみ、 安全に開放可能。
 
+#### ビジネスフロー残ロジック(B1 / B2)
+
+- **B1 Manufacturing 完成品 INBOUND 失敗時の補償フロー** — `WorkOrder.complete` 後の `inventory.work_order.completed.v1` Saga で完成品 INBOUND が失敗するケースを補償。 `WorkOrderCompletionFailedEvent` を `manufacturing.completion.failed.v1` トピックへ Outbox 経由で発行する `EmitWorkOrderCompletionFailedService`(`REQUIRES_NEW`)を `inventory-core` に追加し、 `WorkOrderCompletedListener` が補償経路を起動。 manufacturing 側 `CompletionFailedListener` + `HandleCompletionFailureService` は WorkOrder 状態を巻き戻さず audit + warn のみ(完成品の物理的不可逆性)。 部品消費失敗時のキャンセルとは非対称(ADR-0017 follow-up)。 コミット [`963a289`](https://github.com/pero3dev/20260504/commit/963a289)
+- **B2 Workflow SLA timeout(中央タイマ)** — ADR-0015 B2 の中央タイマ実体。 各 `WorkflowDefinition.instanceSla()` を見て `now - startedAt > sla` の STARTED インスタンスを 30 秒間隔で FAILED に強制遷移させ `workflow.instance.completed.v1` を発行する。 `WorkflowInstance.expireIfOverdue` で集約内遷移 + イベント発行、 `ExpireOverdueWorkflowsService` は per-instance 独立 TX(`TransactionTemplate`、 self-invocation の `@Transactional` 不発を回避)で 1 件失敗が他に波及しない。 `WorkflowSlaScheduler` は `@ConditionalOnProperty(platform.workflow.sla.enabled)` で test/loadtest profile では無効化可能。 `ApprovalFlow` は 24h SLA。 イベント駆動の Workflow 自動 step handler は別タスク(per-event-source カスタムロジック規模)として保留。 コミット [`43fc896`](https://github.com/pero3dev/20260504/commit/43fc896)
+
 ### Changed
 
 - **`inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名**(L4、ADR-0016 follow-up)。Phase 2 で命名規則が固まる前に作った共通名前空間を、業態別命名に揃える。コミット [`3cc68f3`](https://github.com/pero3dev/20260504/commit/3cc68f3)
@@ -103,7 +108,8 @@
 
 - **Modules**: 26(commons 10 + services 13 + 親 + e2e + commons-bom)
 - **業態 / 共通基盤**: 4/4 + 9/9 = 13/13 services
-- **Saga 配線**: 4/4 業態
+- **Saga 配線**: 4/4 業態(Manufacturing 完成品 INBOUND 失敗補償含む)
+- **Workflow SLA**: 中央タイマで STARTED インスタンスを 30 秒間隔 scan、 ApprovalFlow 24h SLA を strict 適用
 - **ADR**: 21 本(ADR-0021 で Pact Broker 本番ホスティングを EKS self-host on Aurora-C に確定)
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
 - **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back + matchingRules 完備 + LambdaDsl + branch-aware selectors(ADR-0019 Phase 3 / 3.5 / 4 / 4.5 / 5 完了)
@@ -121,8 +127,7 @@
 
 #### B. ビジネスフロー(残ロジック)
 
-- Manufacturing 補償フロー — 完成品 INBOUND 失敗時の `WorkOrder` ロールバック(ADR-0017 の WorkOrder 完成品 INBOUND は実装済、 失敗時補償が未実装)
-- Workflow 自動 step handler / SLA タイムアウト — orchestration が必要な candidate(ADR-0015):業態横断承認、 EDI ACK 待ち、 WorkOrder ライフサイクル全体
+- Workflow 自動 step handler — orchestration が必要な candidate(ADR-0015):業態横断承認、 EDI ACK 待ち、 WorkOrder ライフサイクル全体。 per-event-source カスタムロジックが必要(SLA timeout = 中央タイマは B2 で実装済、 step 推進ロジックが未実装)
 
 #### C. 監査・コンプライアンス(ADR-0008 未実装)
 
