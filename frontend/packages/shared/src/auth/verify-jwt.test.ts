@@ -1,4 +1,4 @@
-import { exportJWK, generateKeyPair, SignJWT, type KeyLike } from 'jose';
+import { exportJWK, generateKeyPair, SignJWT, type JWK, type KeyLike } from 'jose';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -24,7 +24,7 @@ const ISSUER = 'https://idp.example.test/';
 const AUDIENCE = 'tenant-acme';
 
 let privateKey: KeyLike;
-let publicJwk: Record<string, unknown>;
+let publicJwk: JWK;
 
 beforeAll(async () => {
   const pair = await generateKeyPair('RS256');
