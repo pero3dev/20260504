@@ -26,5 +26,10 @@
     "turbo": "^2.3.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.18.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "^6.0.0"
+    }
   }
 }
