@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 
-import { WholesaleClient, type SalesOrderDto } from './clients/wholesale-client.js';
+import type { WholesaleClient, SalesOrderDto } from './clients/wholesale-client.js';
 
 /**
  * SalesOrder id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても

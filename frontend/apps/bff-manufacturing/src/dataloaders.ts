@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 
-import { ManufacturingClient, type WorkOrderDto } from './clients/manufacturing-client.js';
+import type { ManufacturingClient, WorkOrderDto } from './clients/manufacturing-client.js';
 
 /**
  * WorkOrder id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても

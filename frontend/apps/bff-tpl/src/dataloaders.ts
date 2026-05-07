@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 
-import { TplClient, type StockMovementDto } from './clients/tpl-client.js';
+import type { TplClient, StockMovementDto } from './clients/tpl-client.js';
 
 /**
  * StockMovement id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても

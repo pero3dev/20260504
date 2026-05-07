@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
 
-import {
+import type {
   InventoryReadModelClient,
-  type InventoryDto,
+  InventoryDto,
 } from './clients/inventory-read-model-client.js';
 
 /**
