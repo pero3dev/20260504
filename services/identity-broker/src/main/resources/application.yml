@@ -43,6 +43,14 @@ server:
 platform:
   identity:
     issuer: ${IDENTITY_ISSUER:https://idp.example.com/}
+    # F2 phase C: 外部 IdP(Cognito 等) federation 設定。 issuer-uri が空ならエンドポイントは 401。
+    # 通常 prod は infra/cognito の CDK 出力(User Pool issuer / domain client id)を K8s Secret 経由で渡す。
+    federation:
+      issuer-uri: ${FEDERATION_ISSUER_URI:}
+      jwks-uri: ${FEDERATION_JWKS_URI:}
+      subject-claim: ${FEDERATION_SUBJECT_CLAIM:email}
+      audience-claim: ${FEDERATION_AUDIENCE_CLAIM:client_id}
+      audience: ${FEDERATION_AUDIENCE:}
   snowflake:
     worker-id: ${POD_ORDINAL:0}
   outbox:

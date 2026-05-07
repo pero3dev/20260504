@@ -1,0 +1,36 @@
+# 4 BFF Deployment の env 注入断片。 各 BFF の Deployment manifest にコピペする想定。
+# F2 phase C: bff-jwt-config ConfigMap から JWT_ISSUER / JWT_JWKS_URL を envFrom で全部取り込み。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-retail-ec  # bff-manufacturing / bff-tpl / bff-wholesale も同パターン
+  namespace: inventory-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: bff-retail-ec }
+  template:
+    metadata:
+      labels: { app: bff-retail-ec }
+    spec:
+      containers:
+        - name: bff
+          image: ghcr.io/example/bff-retail-ec:0.0.1
+          ports:
+            - containerPort: 4001
+          envFrom:
+            - configMapRef:
+                name: bff-jwt-config
+          env:
+            - name: PORT
+              value: "4001"
+            - name: INVENTORY_READ_MODEL_URL
+              value: "http://inventory-read-model.inventory-platform.svc.cluster.local:8083"
+          readinessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 30
+            periodSeconds: 30

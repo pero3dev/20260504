@@ -7,9 +7,11 @@ import com.example.inventory.identity.adapter.in.rest.api.SessionsApi;
 import com.example.inventory.identity.adapter.in.rest.api.model.AccessibleTenant;
 import com.example.inventory.identity.adapter.in.rest.api.model.CreateSessionRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.CreateSessionResponse;
+import com.example.inventory.identity.adapter.in.rest.api.model.ExchangeFederatedTokenRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.SelectTenantRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.SelectTenantResponse;
 import com.example.inventory.identity.application.port.in.AuthenticateUseCase;
+import com.example.inventory.identity.application.port.in.ExchangeFederatedTokenUseCase;
 import com.example.inventory.identity.application.port.in.SelectTenantUseCase;
 
 /**
@@ -21,10 +23,15 @@ public class AuthController implements SessionsApi {
 
     private final AuthenticateUseCase authenticate;
     private final SelectTenantUseCase selectTenant;
+    private final ExchangeFederatedTokenUseCase exchangeFederatedToken;
 
-    public AuthController(AuthenticateUseCase authenticate, SelectTenantUseCase selectTenant) {
+    public AuthController(
+            AuthenticateUseCase authenticate,
+            SelectTenantUseCase selectTenant,
+            ExchangeFederatedTokenUseCase exchangeFederatedToken) {
         this.authenticate = authenticate;
         this.selectTenant = selectTenant;
+        this.exchangeFederatedToken = exchangeFederatedToken;
     }
 
     @Override
@@ -32,6 +39,16 @@ public class AuthController implements SessionsApi {
         AuthenticateUseCase.Result result =
                 authenticate.authenticate(
                         new AuthenticateUseCase.Command(request.getEmail(), request.getPassword()));
+        return ResponseEntity.ok(toCreateSessionResponse(result));
+    }
+
+    @Override
+    public ResponseEntity<CreateSessionResponse> exchangeFederatedToken(
+            ExchangeFederatedTokenRequest request) {
+        ExchangeFederatedTokenUseCase.Result result =
+                exchangeFederatedToken.exchange(
+                        new ExchangeFederatedTokenUseCase.Command(
+                                request.getProviderAccessToken()));
 
         CreateSessionResponse response = new CreateSessionResponse();
         response.setSessionToken(result.sessionToken());
@@ -59,5 +76,21 @@ public class AuthController implements SessionsApi {
         response.setTokenType("Bearer");
         response.setExpiresInSeconds((int) result.expiresInSeconds());
         return ResponseEntity.ok(response);
+    }
+
+    private static CreateSessionResponse toCreateSessionResponse(
+            AuthenticateUseCase.Result result) {
+        CreateSessionResponse response = new CreateSessionResponse();
+        response.setSessionToken(result.sessionToken());
+        response.setExpiresInSeconds((int) result.expiresInSeconds());
+        result.accessibleTenants()
+                .forEach(
+                        m -> {
+                            AccessibleTenant t = new AccessibleTenant();
+                            t.setTenantId(m.tenantId().value());
+                            t.setDisplayName(m.tenantDisplayName());
+                            response.addAccessibleTenantsItem(t);
+                        });
+        return response;
     }
 }

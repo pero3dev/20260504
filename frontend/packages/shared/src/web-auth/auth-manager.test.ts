@@ -26,15 +26,17 @@ describe('readOidcConfigFromEnv', () => {
     ).toBeNull();
   });
 
-  it('postLogoutRedirectUri / scope は任意で含める', () => {
+  it('postLogoutRedirectUri / silentRedirectUri / scope は任意で含める', () => {
     const cfg = readOidcConfigFromEnv({
       VITE_OIDC_AUTHORITY: 'https://idp.example/',
       VITE_OIDC_CLIENT_ID: 'web-retail-ec',
       VITE_OIDC_REDIRECT_URI: 'https://app.example/callback',
       VITE_OIDC_POST_LOGOUT_REDIRECT_URI: 'https://app.example/',
+      VITE_OIDC_SILENT_REDIRECT_URI: 'https://app.example/silent-renew.html',
       VITE_OIDC_SCOPE: 'openid profile email',
     });
     expect(cfg?.postLogoutRedirectUri).toBe('https://app.example/');
+    expect(cfg?.silentRedirectUri).toBe('https://app.example/silent-renew.html');
     expect(cfg?.scope).toBe('openid profile email');
   });
 

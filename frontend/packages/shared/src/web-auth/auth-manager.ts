@@ -31,6 +31,13 @@ export interface OidcConfig {
   redirectUri: string;
   /** Logout 後の遷移先(省略時は redirectUri と同じ origin) */
   postLogoutRedirectUri?: string;
+  /**
+   * Silent renew 用 hidden iframe redirect URL(`/silent-renew` 等)。 prod は本 URL に
+   * 「postMessage で UserManager に code を返すだけの空ページ」を hosting する想定
+   * (Vite なら public/silent-renew.html)。 省略時は signin 用 redirect_uri を再利用するが、
+   * iframe 内で React app が立ち上がってしまうため非推奨。
+   */
+  silentRedirectUri?: string;
   /** 取得するスコープ(`openid profile` 等)。 default は `openid profile` */
   scope?: string;
 }
@@ -75,6 +82,10 @@ class DevAuthManager implements AuthManager {
  * oidc-client-ts UserManager を AuthManager に適合させる実装。 `User` は
  * UserManager 内蔵の sessionStorage に持たせ、 cross-tab 同期は OIDC の
  * `monitorSession` に任せる(本 phase ではあえて使わない)。
+ *
+ * <p>silent token refresh: `automaticSilentRenew=true` で UserManager が
+ * `accessTokenExpiring` 時に hidden iframe 経由 (`/silent-renew`) で refresh する。
+ * refresh 失敗時は `silentRenewError` event が発火するので signOut を caller に通知。
  */
 class OidcAuthManager implements AuthManager {
   private readonly um: UserManager;
@@ -85,6 +96,22 @@ class OidcAuthManager implements AuthManager {
     // 既に session 内に token が居る場合、 同期 getAccessToken に応えるため warmup
     void this.um.getUser().then((u) => {
       this.cachedAccessToken = u?.access_token ?? null;
+    });
+    // silent renew 成功 → cache 更新
+    this.um.events.addUserLoaded((u) => {
+      this.cachedAccessToken = u.access_token ?? null;
+    });
+    // session timeout / refresh 失敗 → cache クリア(UI が再 login を促す)
+    this.um.events.addUserUnloaded(() => {
+      this.cachedAccessToken = null;
+    });
+    this.um.events.addAccessTokenExpired(() => {
+      this.cachedAccessToken = null;
+    });
+    this.um.events.addSilentRenewError((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('OIDC silent renew failed:', err);
+      this.cachedAccessToken = null;
     });
   }
 
@@ -130,8 +157,15 @@ export function createAuthManager(
     redirect_uri: config.redirectUri,
     response_type: 'code',
     scope: config.scope ?? 'openid profile',
+    automaticSilentRenew: true,
+    // accessTokenExpiringNotificationTimeInSeconds の default 60s で、 expire 60秒前に
+    // accessTokenExpiring が発火 → automaticSilentRenew=true なら自動で signinSilent を起動
+    monitorSession: false,
     ...(config.postLogoutRedirectUri !== undefined
       ? { post_logout_redirect_uri: config.postLogoutRedirectUri }
+      : {}),
+    ...(config.silentRedirectUri !== undefined
+      ? { silent_redirect_uri: config.silentRedirectUri }
       : {}),
   });
 }
@@ -150,6 +184,8 @@ export function readOidcConfigFromEnv(env: Record<string, unknown>): OidcConfig 
   const config: OidcConfig = { authority, clientId, redirectUri };
   const post = pickString(env['VITE_OIDC_POST_LOGOUT_REDIRECT_URI']);
   if (post) config.postLogoutRedirectUri = post;
+  const silent = pickString(env['VITE_OIDC_SILENT_REDIRECT_URI']);
+  if (silent) config.silentRedirectUri = silent;
   const scope = pickString(env['VITE_OIDC_SCOPE']);
   if (scope) config.scope = scope;
   return config;

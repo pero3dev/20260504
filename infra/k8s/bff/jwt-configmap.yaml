@@ -1,0 +1,15 @@
+# 4 BFF 共通の JWT 検証設定。 F2 phase A の verify-jwt.ts が読む env を K8s で配布。
+# Identity Broker の JWKS は本 platform 内 service。 内部 DNS で参照する。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bff-jwt-config
+  namespace: inventory-platform
+data:
+  # NimbusJwtTokenIssuer.platform.identity.issuer と一致させる。
+  JWT_ISSUER: "https://idp.example.com/"
+  # K8s 内部 DNS。 identity-broker Service の cluster DNS 名 + JWKS path。
+  JWT_JWKS_URL: "http://identity-broker.inventory-platform.svc.cluster.local:8081/.well-known/jwks.json"
+  # 通常 BFF 側では aud をチェックしない(tenant 単位 token を全 BFF で受けるため空)。
+  # tenant ごとに BFF を分離している場合は対応する tenantId を入れる。
+  # JWT_AUDIENCE: ""

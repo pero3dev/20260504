@@ -140,6 +140,12 @@
     - 各 web app `lib/auth.ts` を全面置換(stub `localStorage` → `createAuthManager(...)`)、 `router.tsx` に `/callback` route と `<AuthButtons />` を追加。 `graphql-client.ts` は `getAuthToken()` 経由で UserManager の access_token を JWT pass-through(F2 phase A の BFF verify と組合さって prod では署名検証が走る)
     - test:`@inventory/shared/web-auth` 単体(env パース 4 系統 + dev fallback 4 系統)、 各 web app `auth.test.ts`(initial 状態 + signIn/signOut round-trip)
     - F2 残(phase C): Cognito User Pool + SAML federation の CDK 化、 Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token、 tenant 解決込み)、 BFF の K8s ConfigMap で `JWT_JWKS_URL` を配布
+- **F2 phase C federation 配線**(SAML フェデレーション全体)— Cognito SAML を経由した社内 IdP login → Identity Broker exchange → BFF verify までの end-to-end pipeline を成立させる:
+    - **Identity Broker `POST /v1/auth/exchange` 新設**(OpenAPI / `AuthController` / `ExchangeFederatedTokenService` / `IdpTokenVerifier` port + `NimbusIdpTokenVerifier` 実装)— 外部 IdP の access token を JWKS で verify(`platform.identity.federation.{issuer-uri,jwks-uri,subject-claim,audience,audience-claim}` 設定経由)し、 subject claim(default `email`)で内部 User を引いて IB session token + accessibleTenants[] を返す。 既存 `POST /v1/auth/sessions` と同 response 型に揃え、 web app は次の `/v1/auth/tenant-sessions` を同じ flow で叩ける。 列挙攻撃対策で token 不正 / subject 未 provision / 内部 User 不在は全て `AuthenticationFailedException`(401)に丸める
+    - test:`ExchangeFederatedTokenServiceTest` 4 系統(正常 + verify 失敗 + 内部 User 不在 + subject 形式違反)、 `IdpTokenVerifier` は port mock で網羅
+    - **web 側 silent token refresh** — `OidcAuthManager` に `automaticSilentRenew=true` + UserManager events(`userLoaded` / `userUnloaded` / `accessTokenExpired` / `silentRenewError`) wiring。 `OidcConfig.silentRedirectUri` 任意項目を追加し、 Vite `VITE_OIDC_SILENT_REDIRECT_URI` env で `/silent-renew.html` を hosting する想定。 prod は accessTokenExpiringNotificationTimeInSeconds の default 60 秒前に hidden iframe で refresh、 失敗時は cache クリアで UI が再 login を促す
+    - **infra scaffolding** — `infra/cognito/README.md` に Cognito User Pool + SAML IdP 連携の AWS CLI ランブック(User Pool 作成 → Hosted UI domain → SAML IdP 登録 → App Client → SAML IdP 側 ACS URL 設定 → 配布値)。 `infra/k8s/identity-broker/federation-configmap.yaml`(`FEDERATION_*` env を ConfigMap + Secret で注入)、 `infra/k8s/bff/jwt-configmap.yaml`(`JWT_ISSUER` + `JWT_JWKS_URL` を 4 BFF 共通 ConfigMap で配布)、 `infra/k8s/bff/deployment-snippet.yaml`(`envFrom` 注入の BFF Deployment 雛形)
+    - F2 残: SAML JIT provisioning(SCIM 連携 / 別 batch で先行 user 投入)、 Cognito の Terraform / CDK IaC 化、 K8s helm/kustomize overlay は別タスクで切出し
 
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
@@ -220,7 +226,7 @@
 
 #### F2〜F7. Frontend follow-up(F1 + F3 から先)
 
-- **F2 phase C**(BFF verify は phase A、 web OIDC 配線は phase B で完了)— Cognito User Pool + SAML federation の CDK 化 + Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token、 tenant 解決込み)+ silent token refresh + BFF JWT_JWKS_URL を K8s ConfigMap で配布
+- **F2 残 follow-up**(phase A〜C で BFF verify / web OIDC 配線 / IB exchange / K8s scaffolding 完了)— SAML JIT provisioning(SCIM or 先行 user 投入 batch)、 Cognito を Terraform / CDK で IaC 化、 K8s manifest を helm / kustomize で env overlay 化、 silent renew iframe 用 `silent-renew.html` の Vite public asset 化
 - **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
 - **F6 follow-up**(残 3 業態 BFF の実 backend 接続は完了)— GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活、 加えて pagination(cursor)/ filter / sort の BFF DSL 設計

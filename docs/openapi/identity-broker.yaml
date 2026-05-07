@@ -8,10 +8,11 @@ info:
     services to verify them. MVP scope:
 
     - `POST /v1/auth/sessions` — username/password login → session token + accessible tenants
+    - `POST /v1/auth/exchange` — exchange external IdP (Cognito SAML) access token → session token
     - `POST /v1/auth/tenant-sessions` — pick a tenant → tenant-scoped access token
     - `GET /.well-known/jwks.json` — public keys for JWT verification
 
-    Future iterations: Cognito SAML federation, refresh tokens, step-up MFA.
+    Future iterations: refresh tokens, step-up MFA, SAML JIT provisioning.
   version: 1.0.0
   contact:
     name: Platform Team
@@ -63,6 +64,47 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/AuthenticationFailed'
+
+  /v1/auth/exchange:
+    post:
+      tags: [sessions]
+      operationId: exchangeFederatedToken
+      summary: Exchange external IdP access token for an Identity Broker session token
+      description: |
+        Verifies an access token issued by an external IdP (typically AWS Cognito
+        configured with SAML federation), looks up the corresponding internal user,
+        and returns a session token + accessible tenants — same shape as
+        `POST /v1/auth/sessions`. The federated subject claim (default `email`) must
+        match a user that has already been provisioned in identity-broker. JIT
+        provisioning is out of scope for this endpoint.
+
+        Configuration is environment-driven on the server side
+        (`platform.identity.federation.{issuer-uri,jwks-uri,subject-claim,
+        audience,audience-claim}`). When unconfigured the endpoint returns 401.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeFederatedTokenRequest'
+      responses:
+        '200':
+          description: Federated token accepted, session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: |
+            Federated token invalid (signature / iss / exp / audience mismatch),
+            federation unconfigured, or no internal user maps to the subject.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /v1/auth/tenant-sessions:
     post:
@@ -307,6 +349,17 @@ components:
         displayName:
           type: string
           example: Acme Corporation
+
+    ExchangeFederatedTokenRequest:
+      type: object
+      required: [providerAccessToken]
+      properties:
+        providerAccessToken:
+          type: string
+          description: |
+            Access token issued by the external IdP (Cognito User Pool configured with
+            SAML federation). Must be a JWT signed by the IdP's published JWKS. The
+            client never sees the underlying SAML assertion — Cognito mediates.
 
     SelectTenantRequest:
       type: object
