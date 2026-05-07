@@ -1,0 +1,24 @@
+# 3PL BFF GraphQL schema(F3 vertical)。 倉庫オペレータ向け UI が
+# 入出庫履歴を 1 画面で取れるようにする。
+
+scalar DateTime
+
+type StockMovement {
+  movementId: ID!
+  skuId: ID!
+  locationId: ID!
+  direction: MovementDirection!
+  quantity: Int!
+  occurredAt: DateTime!
+}
+
+enum MovementDirection {
+  IN
+  OUT
+}
+
+type Query {
+  stockMovement(movementId: ID!): StockMovement
+
+  health: String!
+}

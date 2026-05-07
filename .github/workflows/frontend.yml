@@ -1,11 +1,9 @@
-# Frontend CI workflow(F1 follow-up)。
+# Frontend CI workflow。
 #
 # Java backend の ci.yml(Maven 経路)とは独立に動かす。 frontend/ 配下の変更だけが
 # トリガで、 Java 変更には反応しない(逆も同様)。
 #
-# F1 では各 step を per-app に分割し continue-on-error にすることで、 どの app の
-# どの step が失敗しているかをジョブ API から特定しやすくしている。 lockfile commit +
-# 全 step 緑化が確認できたら通常の `turbo run *` に統合する。
+# F1 で per-app step + soft-fail で原因切分けし、 F3 で turbo run 統合 + 全 step 緑化に戻した。
 name: Frontend CI
 
 on:
@@ -50,60 +48,23 @@ jobs:
         with:
           node-version: '20'
 
+      # 初回 commit 時点では pnpm-lock.yaml が無いため frozen-lockfile を外す。 lockfile が
+      # CI artifact 経由で frontend/pnpm-lock.yaml に commit されたら --frozen-lockfile に切替。
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # Per-app に分けて continue-on-error にする(F1 一時措置)。 どの step が落ちたかは jobs API から
-      # 各 step の conclusion で特定可能。 lockfile + 全 step 緑化が確認できたら turbo run typecheck に統合。
-      - name: Typecheck shared
-        continue-on-error: true
-        run: pnpm --filter '@inventory/shared' typecheck
+      - name: Typecheck (turbo run typecheck)
+        run: pnpm typecheck
 
-      - name: Typecheck bff-retail-ec
-        continue-on-error: true
-        run: pnpm --filter bff-retail-ec typecheck
+      - name: Lint (turbo run lint)
+        run: pnpm lint
 
-      - name: Typecheck web-retail-ec
-        continue-on-error: true
-        run: pnpm --filter web-retail-ec typecheck
+      - name: Build (turbo run build)
+        run: pnpm build
 
-      - name: Lint shared
-        continue-on-error: true
-        run: pnpm --filter '@inventory/shared' lint
+      - name: Test (turbo run test)
+        run: pnpm test
 
-      - name: Lint bff-retail-ec
-        continue-on-error: true
-        run: pnpm --filter bff-retail-ec lint
-
-      - name: Lint web-retail-ec
-        continue-on-error: true
-        run: pnpm --filter web-retail-ec lint
-
-      - name: Build shared
-        continue-on-error: true
-        run: pnpm --filter '@inventory/shared' build
-
-      - name: Build bff-retail-ec
-        continue-on-error: true
-        run: pnpm --filter bff-retail-ec build
-
-      - name: Build web-retail-ec
-        continue-on-error: true
-        run: pnpm --filter web-retail-ec build
-
-      - name: Test shared (none)
-        continue-on-error: true
-        run: pnpm --filter '@inventory/shared' run --if-present test
-
-      - name: Test bff-retail-ec
-        continue-on-error: true
-        run: pnpm --filter bff-retail-ec test
-
-      - name: Test web-retail-ec
-        continue-on-error: true
-        run: pnpm --filter web-retail-ec test
-
-      # 後続フェーズで lockfile 化したいので artifact 化しておく(認証なしの API でも DL 可能)。
       - name: Upload pnpm-lock.yaml
         if: always()
         uses: actions/upload-artifact@v4

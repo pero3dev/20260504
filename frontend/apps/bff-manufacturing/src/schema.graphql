@@ -1,0 +1,29 @@
+# Manufacturing BFF GraphQL schema(F3 vertical)。
+#
+# 製造現場向け UI が WorkOrder の進行状況 + BOM + 完成品 INBOUND の様子を
+# 1 query で取れるよう設計。 後続フェーズで manufacturing service の REST
+# (services/manufacturing)を呼び出して結合する。
+
+scalar DateTime
+
+type WorkOrder {
+  workOrderId: ID!
+  productSkuId: ID!
+  status: WorkOrderStatus!
+  startedAt: DateTime!
+  completedAt: DateTime
+}
+
+enum WorkOrderStatus {
+  STARTED
+  RELEASED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+type Query {
+  workOrder(workOrderId: ID!): WorkOrder
+
+  health: String!
+}

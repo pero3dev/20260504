@@ -10,7 +10,7 @@
 
 ### Highlights
 
-13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ + 承認アクション自動 step advance、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor + S3 Object Lock 二重保管)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定、 Notification SES 実 sender、 identity-broker テナント lifecycle 管理、 integration-hub S3Destination、 Frontend monorepo(Turborepo + Retail/EC vertical spike)までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース + Frontend skeleton(BFF + Web 各 1)。
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ + 承認アクション自動 step advance、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor + S3 Object Lock 二重保管)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定、 Notification SES 実 sender、 identity-broker テナント lifecycle 管理、 integration-hub S3Destination、 Frontend monorepo(Turborepo + 全 4 業態 BFF + Web スケルトン + CI 緑化)までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース + Frontend 全 4 業態スケルトン(BFF + Web 各 4)。
 
 ### Added
 
@@ -100,14 +100,17 @@
 - **A1 Workflow 承認アクション自動 step advance** — ApprovalFlow に対する Kafka 駆動の自動 step 進行。 `workflow.approval.action.v1` を購読し、 `ApprovalAction.{APPROVE, REJECT, SKIP}` を既存 `AdvanceWorkflowUseCase` に dispatch する `HandleApprovalActionService`。 listener は manual_immediate ack で `BusinessException`(既終端 / NotFound)は ack 続行、 RuntimeException は ack せず Kafka retry に委ねる。 これで ADR-0015「業態横断承認」の orchestration が REST に依らず Kafka 駆動で完結。 EDI ACK 待ち / WorkOrder ライフサイクル等の他 trigger は同パターンで listener を増やすだけで拡張可能(汎用 step trigger フレームワーク化は後フェーズ)。 コミット [`9657bb5`](https://github.com/pero3dev/20260504/commit/9657bb5)
 - **A3 integration-hub S3Destination 第 1 弾** — 既存 `OutboundDestination` 抽象に `default writeBatch` を追加し、 S3 のような pay-per-PUT 系で 1 注文 = 1 オブジェクトにまとめられるように。 `S3Destination`(AWS SDK v2)+ `HubProperties.AdapterConfig.type={local|s3}` の切替 + `HubConfiguration.DestinationFactory` で adapter 名 → destination を構築。 key 形式は `<prefix>/<tenantId>/<yyyy-MM-dd>/<epoch-millis>-<rand>.csv` で per-tenant 日次 partition、 取引先 export / 監査人検証を容易にする。 SFTP / AS2-EDI / 外部 EC は同パターンで後続 commit。 コミット [`1578b2d`](https://github.com/pero3dev/20260504/commit/1578b2d)
 
-#### Frontend monorepo 立ち上げ(F1)
+#### Frontend monorepo 立ち上げ(F1 + F3)
 
-- **F1 frontend/ 立ち上げ + Retail/EC vertical spike** — 13 サービス backend に対する Frontend 層(4 BFF + 4 Web UI、 memory:アーキテクチャ A2-15)を `frontend/` 配下に **Turborepo + pnpm workspace** で着工。 第 1 vertical として Retail/EC のみ実装(残 3 業態は同パターンの後続 commit で複製):
+- **F1 frontend/ 立ち上げ + Retail/EC vertical spike** — 13 サービス backend に対する Frontend 層(4 BFF + 4 Web UI、 memory:アーキテクチャ A2-15)を `frontend/` 配下に **Turborepo + pnpm workspace** で着工。 第 1 vertical として Retail/EC を実装:
     - `apps/bff-retail-ec` — Apollo Server v4(Fastify integration)+ schema-first(`.graphql`)+ DataLoader 雛形(SKU 在庫の N+1 防止、 in-memory mock、 F6 で実 backend HTTP 接続)+ 1 query(`sku(skuId)`)+ Vitest
-    - `apps/web-retail-ec` — Vite + React 19 + Tailwind CSS + shadcn/ui semantic CSS 変数 + TanStack Router(file-based)+ TanStack Query + graphql-request、 `/dashboard` page で SKU 在庫テーブル表示、 stub auth(localStorage、 F2 で oidc-client-ts 実配線)+ Vitest + jsdom
+    - `apps/web-retail-ec` — Vite + React 19 + Tailwind CSS + shadcn/ui semantic CSS 変数 + TanStack Router + TanStack Query + graphql-request、 `/dashboard` page で SKU 在庫テーブル表示、 stub auth(localStorage、 F2 で oidc-client-ts 実配線)+ Vitest + jsdom
     - `packages/shared` — 共通型(Tenant / InventorySnapshot)+ RFC 7807 ProblemDetail 判定 helper
-    - 横断: 厳格 `tsconfig.base.json`(noUncheckedIndexedAccess / exactOptionalPropertyTypes 等)+ ESLint Flat config + Prettier + `.npmrc` + Turborepo task graph(`build` / `dev` / `lint` / `typecheck` / `test` / `format`)
-    - 実 build / install は本 commit 対象外(Node 環境前提、 別 CI 経路で `cd frontend && pnpm install && pnpm build` を後続フェーズで wire)。 `frontend/README.md` に layout / セットアップ / dev コマンド / 後続フェーズ計画を整備
+    - 横断: 厳格 `tsconfig.base.json` + ESLint Flat config + Prettier + `.npmrc` + Turborepo task graph(`build` / `dev` / `lint` / `typecheck` / `test` / `format`)+ `.github/workflows/frontend.yml`(pnpm 9 / Node 20、 paths-trigger で Java CI と独立)
+- **F3 残 3 業態 BFF + Web 複製 + CI 統合** — Manufacturing / 3PL / Wholesale を retail-ec パターンで一気に複製し、 全業態 UI スケルトンを揃える:
+    - `apps/bff-{manufacturing,tpl,wholesale}` — 各 BFF が独自 schema を持つ:Manufacturing は `workOrder(workOrderId)` + WorkOrderStatus enum、 3PL は `stockMovement(movementId)` + MovementDirection enum、 Wholesale は `salesOrder(salesOrderId)` + SalesOrderStatus enum + 取引先別契約金額。 各々別 port(4002 / 4003 / 4004)で並走可能、 F6 で実 backend(`services/manufacturing` / `services/tpl` / `services/wholesale`)に繋ぐ
+    - `apps/web-{manufacturing,tpl,wholesale}` — それぞれ port 5174 / 5175 / 5176 で起動し対応 BFF に proxy。 dashboard page は per-business のドメイン語彙(WorkOrder / StockMovement / SalesOrder)で表示、 stub auth は per-business localStorage key で隔離
+    - CI 整理: `frontend.yml` の per-app step + `continue-on-error` を **`turbo run typecheck/lint/build/test` に統合**。 全業態で緑化したため soft-fail を解除
 
 ### Changed
 
@@ -134,7 +137,7 @@
 - **Tenant lifecycle**: identity-broker に Pool 方式の tenants テーブル + 4 admin REST + provisioning runbook
 - **Integration Hub**: 1 adapter(retail-order-csv)+ destination type 切替(local / s3)— SFTP / AS2 / 外部 EC は同パターンで後続
 - **Audit WORM 二重保管**: DB(WORM トリガ)+ S3 Object Lock(Compliance + 365 days)+ Athena projection
-- **Frontend**: `frontend/`(Turborepo + pnpm workspace)+ Retail/EC vertical(BFF Apollo Server v4 + Web Vite/React 19/Tailwind/shadcn)+ `packages/shared`
+- **Frontend**: `frontend/`(Turborepo + pnpm workspace)+ 全 4 業態 vertical(`bff-{retail-ec,manufacturing,tpl,wholesale}` + `web-{retail-ec,manufacturing,tpl,wholesale}`)+ `packages/shared` + `frontend.yml` CI(turbo run typecheck/lint/build/test)
 - **ADR**: 21 本(ADR-0021 で Pact Broker 本番ホスティングを EKS self-host on Aurora-C に確定)
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
 - **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back + matchingRules 完備 + LambdaDsl + branch-aware selectors(ADR-0019 Phase 3 / 3.5 / 4 / 4.5 / 5 完了)
@@ -178,15 +181,14 @@
 - Nightly E2E — 単一 context IT + Pact + 結合動作の三層 testing 構想の最終層(ADR-0014 Future complement)
 - LocalStack による S3 / SES の integration test 整備(現状は Mockito mock のみ)
 
-#### F2〜F7. Frontend follow-up(F1 vertical spike から先)
+#### F2〜F7. Frontend follow-up(F1 + F3 から先)
 
 - **F2** Cognito SAML 実配線 + Identity Broker token 交換 + BFF 側 JWT verify(jwks 取得 + verify + tenant 取出 + downstream への pass-through)
-- **F3** 残 3 業態の BFF + UI を同パターンで複製(`bff-{manufacturing,tpl,wholesale}` + `web-{manufacturing,tpl,wholesale}`)
-- **F4** `packages/ui/` に共通 design system(Button / Form / Table / Pagination / Toast 等)を切り出し。 shadcn/ui を base に owned-code 化
+- **F4** `packages/ui/` に共通 design system(Button / Form / Table / Pagination / Toast 等)を切り出し。 shadcn/ui を base に owned-code 化(現状は各 web app が tailwind config と CSS 変数を独自に持つ重複あり)
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
 - **F6** BFF resolver を本物の backend(`inventory-read-model` / `inventory-core` / 業態 service / `master-data`)に繋ぐ。 GraphQL Code Generator で typed client 生成、 `__generated__/` を消費
 - **F7** **ADR-0022** で Frontend 構造を明文化。 i18n(react-intl or i18next)、 a11y(WCAG 2.1 AA)、 design token、 form validation(zod + react-hook-form)、 chart(recharts or visx)等の方針を決める
-- CI: `cd frontend && pnpm install && pnpm typecheck && pnpm lint && pnpm build && pnpm test` を `.github/workflows/frontend.yml` に追加(現状の `ci.yml` は Java Maven 専用)
+- CI: `pnpm-lock.yaml` を `frontend/` に commit して `--frozen-lockfile` に切替え(現状は CI で都度 install で生成)
 
 #### G. 本番デプロイ(コードでは閉じない、 別 PR / 別リポジトリで管理)
 
