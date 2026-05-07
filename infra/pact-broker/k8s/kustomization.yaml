@@ -13,6 +13,8 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - configmap.yaml
+  # Phase 2.5: nginx-auth-bridge sidecar 設定。 UI 経路で Cognito JWT → Basic Auth 注入。
+  - configmap-nginx.yaml
   - deployment.yaml
   - service.yaml
   # ingress は Phase 2 で UI / API の 2 経路に分割。 同一 ALB を IngressGroup で共有。

@@ -64,7 +64,7 @@ ADR-0019 で Pact Consumer-driven contract testing を Phase 5(consumer version 
 | 0 | 全 dormant、 ローカル round-trip のみ | 本 ADR commit 時点 | ✅ |
 | 1 | Aurora-C に DB 切り出し + EKS Deployment + ALB + Basic Auth で立ち上げ(manifests コミット済) | 本 ADR Accepted 後 1 sprint 以内 | ✅ manifests / 実適用は EKS プロビジョニング待ち |
 | 2 | Cognito OIDC 連携で人間 UI 経路を SSO 化(CI は Basic Auth 維持、 hostname 分離) | identity-broker MVP 完了後 | ✅ manifests |
-| 2.5(候補)| oauth2-proxy 等で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO) | Phase 2 で UX 課題が顕在化したら | 未実装 |
+| 2.5 | nginx sidecar で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO) | Phase 2 で UX 課題が顕在化したら | ✅ manifests |
 | 3 | Pact Broker UI を社内エンジニア全員に read-only 公開 | Phase 1 安定運用 1 ヶ月後 | 未実装 |
 
 #### Phase 2 実装メモ(2026-05-07)
@@ -74,6 +74,14 @@ ADR-0019 で Pact Consumer-driven contract testing を Phase 5(consumer version 
 - **Pact Broker 自身の Basic Auth は据え置き**: Phase 2 では Cognito SSO で組織アクセス制御 + Pact Broker Basic Auth で role 管理、 という二段構成。 ブラウザで二段認証になる UX は許容(社内ツールのため)。
 - **CI 影響なし**: `pact-broker-api.internal.example.com` 経由で Basic Auth 直結。 GitHub Actions secret は host だけ書き換え、 credential はそのまま。
 - **シームレス SSO(Cognito JWT → Basic Auth header 自動注入)** は Phase 2.5 候補で別タスク。 oauth2-proxy sidecar / ALB Lambda authorizer / Pact Broker の `PACT_BROKER_AUTH_HEADER_HEADER_NAME` 連携など複数選択肢があり、 Phase 2 の段階で決め切る必要なし。
+
+#### Phase 2.5 実装メモ(2026-05-07)
+
+- **採用**: nginx sidecar(`nginx:1.27-alpine`、 20 行の conf、 ~32MB memory)で auth bridge を実装。
+- **Pact Broker pod に同居**: nginx 9293 listen → `localhost:9292` の Pact Broker へ proxy。 Service が 2 named ports(`api` / `ui`)を公開し、 Ingress 側で port name で振り分け。 ALB Cognito auth 通過後の UI トラフィックだけが sidecar 経由、 CI トラフィックは Pact Broker へ直接到達(sidecar バイパス)。
+- **読み取り専用 credential を注入**: `PACT_BROKER_INJECT_BASIC_AUTH_B64` を Secret から読み、 nginx の `Authorization: Basic ${...}` ヘッダで upstream に渡す。 値は `PACT_BROKER_BASIC_AUTH_READ_ONLY_USERNAME:PASSWORD` の base64。 これにより UI 経路の操作は read-only に物理的に制限され、 Phase 3(社内全員 read-only 公開)とも整合。
+- **client 提供の Authorization ヘッダを尊重**: nginx config の `if ($http_authorization = "")` で分岐。 既にヘッダがあればそれを upstream へ。 デバッグ / 手動 write の escape hatch。
+- **oauth2-proxy ではなく nginx を選んだ理由**: ALB が既に Cognito auth を完了させており、 sidecar 側で OIDC handshake をやり直す必要がない。 oauth2-proxy はフル OIDC client で重い(50-100MB)。 nginx は ~5MB image / ~32MB memory で十分。
 
 ## Consequences
 

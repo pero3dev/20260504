@@ -1,9 +1,11 @@
-# Pact Broker Deployment(ADR-0021 Phase 1)。
+# Pact Broker Deployment(ADR-0021 Phase 1〜2.5)。
 #
 # - 2 replicas で SPOF 排除。 HPA で 3 まで scale(burst verify 対策)。
 # - resource は (256MB, 250m CPU) 程度の軽量サービス。 Aurora-C への接続だけが重い。
 # - readinessProbe / livenessProbe は Pact Broker 公式の `/diagnostic/status/heartbeat`。
 # - `pactfoundation/pact-broker:latest` ではなく特定タグを pin(infra/pact-broker/docker-compose と一致)。
+# - Phase 2.5 で nginx sidecar を追加。 UI 経路の Cognito JWT → Basic Auth 自動注入で
+#   完全シームレス SSO を実現(二段認証 UX 解消)。 CI 経路は sidecar をバイパス。
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -84,6 +86,68 @@ spec:
             capabilities:
               drop:
                 - ALL
+
+        # Phase 2.5: UI 経路の auth bridge sidecar。
+        # ALB Cognito auth で認証された人間リクエストに Pact Broker の read-only Basic Auth
+        # credential を自動注入し、 二段認証 UX を解消する。 CI 経路(api port 9292)は本 sidecar を
+        # 経由しないので影響なし。
+        - name: nginx-auth-bridge
+          image: nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: ui
+              containerPort: 9293
+              protocol: TCP
+          env:
+            # Secret から Pact Broker read-only credential の base64 を受け取る。
+            # 例: echo -n 'reader:secret' | base64 → cmVhZGVyOnNlY3JldA==
+            - name: PACT_BROKER_INJECT_BASIC_AUTH_B64
+              valueFrom:
+                secretKeyRef:
+                  name: pact-broker
+                  key: PACT_BROKER_INJECT_BASIC_AUTH_B64
+          volumeMounts:
+            # nginx 公式 image は /etc/nginx/templates/*.template を起動時に envsubst して
+            # /etc/nginx/conf.d/*.conf に展開する仕組み。
+            - name: nginx-templates
+              mountPath: /etc/nginx/templates
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: ui
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: ui
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # nginx は /var/cache/nginx 等に書き込む
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: nginx-templates
+          configMap:
+            name: pact-broker-nginx
+            items:
+              - key: default.conf.template
+                path: default.conf.template
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone

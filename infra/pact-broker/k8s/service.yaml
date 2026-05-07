@@ -1,5 +1,11 @@
-# Pact Broker Service(ADR-0021 Phase 1)。
+# Pact Broker Service(ADR-0021 Phase 1〜2.5)。
 # ClusterIP で Ingress 経由のみ公開。 NodePort / LoadBalancer は使わない(internal-only 方針)。
+#
+# Phase 2.5 で 2 ポート公開:
+#   - api: pod port 9292(Pact Broker 直接、 CI Basic Auth 用)
+#   - ui:  pod port 9293(nginx sidecar、 ALB Cognito auth + Basic Auth 自動注入)
+#
+# UI / API ingress は同一 Service の named port を指す(別 Service にせず本数を抑える)。
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,9 +17,13 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http
+    - name: api
       port: 80
-      targetPort: http
+      targetPort: http  # pact-broker container, 9292
+      protocol: TCP
+    - name: ui
+      port: 81
+      targetPort: ui  # nginx-auth-bridge sidecar, 9293
       protocol: TCP
   selector:
     app.kubernetes.io/name: pact-broker

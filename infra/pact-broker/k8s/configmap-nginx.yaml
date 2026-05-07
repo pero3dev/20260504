@@ -1,0 +1,69 @@
+# nginx sidecar 設定(ADR-0021 Phase 2.5)。
+#
+# UI 経路用の auth bridge: ALB Cognito auth で認証された人間リクエストに
+# Pact Broker の read-only Basic Auth credential を自動注入し、 Pact Broker から見て
+# 「常に Basic Auth 済み」の状態にする。
+#
+# nginx 公式 image は /etc/nginx/templates/*.template に置かれた envsubst 形式の
+# テンプレートを起動時に展開する仕組みを持つので、 PACT_BROKER_INJECT_BASIC_AUTH
+# 環境変数(Secret から注入)を template に差し込んで /etc/nginx/conf.d/default.conf を生成。
+#
+# 経路:
+#   ALB(Cognito auth)→ pod:9293(本 sidecar)→ localhost:9292(Pact Broker)
+#
+# CI 用 API 経路は本 sidecar を経由せず pod:9292 に直接到達する(Service の別ポート)。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pact-broker-nginx
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/component: auth-bridge
+data:
+  default.conf.template: |
+    # Phase 2.5: UI 経路の auth bridge。
+    # ALB Cognito auth が事前に Cognito 認証を完了させているため、 本 nginx に到達する
+    # リクエストはすべて社内エンジニア。 Pact Broker 側の read-only Basic Auth credential を
+    # 自動注入することで、 ブラウザの Basic Auth ダイアログ(Phase 2 の二段認証 UX)を排除。
+
+    server {
+      listen 9293;
+      server_name _;
+
+      # ヘッダ転送量を増やす場合は client_header_buffer_size 等を調整。
+      # Pact Broker 側の HAL Browser がそれなりにヘッダを使うため緩めに。
+      large_client_header_buffers 4 16k;
+
+      location = /healthz {
+        # Sidecar 自体の liveness 用(Deployment の sidecar livenessProbe ターゲット)。
+        access_log off;
+        return 200 "ok\n";
+        add_header Content-Type text/plain;
+      }
+
+      location / {
+        # ALB Cognito auth を通った後のリクエストは X-Amzn-Oidc-Data ヘッダを持つ。
+        # 既に Authorization ヘッダが付いている場合(curl --user 等)はそれを尊重し、
+        # 不在時にだけ static credential を注入する。
+        set $injected_auth $http_authorization;
+        if ($http_authorization = "") {
+          set $injected_auth "Basic ${PACT_BROKER_INJECT_BASIC_AUTH_B64}";
+        }
+
+        proxy_set_header Authorization $injected_auth;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Cognito 連携の OIDC ヘッダはそのまま Pact Broker に渡す(将来 Pact Broker の
+        # auth_header 機能を使うなら、 ここで X-Amzn-Oidc-Data から user 情報を取り出せる)。
+
+        proxy_pass http://127.0.0.1:9292;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+      }
+    }

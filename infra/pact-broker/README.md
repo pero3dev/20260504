@@ -6,16 +6,17 @@ ADR-0019 Phase 3 で local 用 docker-compose を導入。 ADR-0021 で本番ホ
 infra/pact-broker/
 ├── docker-compose.pact-broker.yml  # local dev 用(ADR-0019 Phase 3)
 ├── README.md                       # 本ファイル
-├── k8s/                            # 本番デプロイ manifests(ADR-0021 Phase 1〜2)
+├── k8s/                            # 本番デプロイ manifests(ADR-0021 Phase 1〜2.5)
 │   ├── kustomization.yaml
 │   ├── namespace.yaml
 │   ├── serviceaccount.yaml         # IRSA 経由
-│   ├── configmap.yaml              # 非機密設定
+│   ├── configmap.yaml              # Pact Broker 非機密設定
+│   ├── configmap-nginx.yaml        # nginx sidecar config(Phase 2.5、 auth bridge)
 │   ├── secret.example.yaml         # 機密 (External Secrets Operator で生成)
-│   ├── deployment.yaml             # 2 replicas
-│   ├── service.yaml                # ClusterIP
-│   ├── ingress-ui.yaml             # ALB internal + Cognito SSO(Phase 2、 人間用)
-│   ├── ingress-api.yaml            # ALB internal + Basic Auth 直結(Phase 1、 CI 用)
+│   ├── deployment.yaml             # 2 replicas + nginx-auth-bridge sidecar(Phase 2.5)
+│   ├── service.yaml                # ClusterIP、 api(9292)+ ui(9293) の 2 ポート
+│   ├── ingress-ui.yaml             # ALB internal + Cognito SSO → sidecar 9293(Phase 2/2.5)
+│   ├── ingress-api.yaml            # ALB internal + Basic Auth 直結 → 9292(Phase 1)
 │   ├── hpa.yaml                    # 2-3 replicas autoscale
 │   └── networkpolicy.yaml          # ingress: ALB only / egress: Aurora + DNS
 ├── argocd/
@@ -263,15 +264,82 @@ curl -u <user>:<pass> https://pact-broker-api.internal.example.com/diagnostic/st
 # GitHub Actions の pact-broker.yml workflow が緑のまま走るか
 ```
 
-### Phase 2.5 候補(後送り)
+## ADR-0021 Phase 2.5 — 完全シームレス SSO(nginx auth bridge)
 
-完全シームレス SSO(Cognito 1 回サインインで Pact Broker までアクセス)が要件化したら:
+Phase 2 の二段認証 UX(Cognito + Basic Auth ダイアログ)を解消する。 Pact Broker pod に nginx sidecar を同居させ、 ALB Cognito auth で認証されたリクエストに Pact Broker の Basic Auth credential を自動注入する。
 
-1. **oauth2-proxy** sidecar を Pact Broker pod に追加、 Cognito JWT → Basic Auth header 注入
-2. または **ALB Lambda authorizer** で同等処理
-3. Pact Broker の `PACT_BROKER_AUTH_HEADER_HEADER_NAME` 等を活用して header 連携
+### 構成
 
-優先度は低い(Phase 2 の二段認証 UX で実用上問題ないため)。
+```
+人間 (UI)
+  ↓ HTTPS
+ALB (Cognito auth)
+  ↓ X-Amzn-Oidc-Data 付き
+nginx-auth-bridge sidecar (pod port 9293)
+  ↓ Authorization: Basic <read-only-cred> 注入
+Pact Broker container (pod port 9292)
+
+CI (API)
+  ↓ HTTPS + Authorization: Basic <ci-cred>
+ALB (Cognito auth bypass、 別 hostname)
+  ↓ そのまま
+Pact Broker container (pod port 9292)  ← sidecar 経由しない
+```
+
+### 主な仕掛け
+
+- **nginx 公式 image の template 機能**(`/etc/nginx/templates/*.template` を起動時に envsubst 展開)で、 `${PACT_BROKER_INJECT_BASIC_AUTH_B64}` を Secret から差し込む。
+- **Service が 2 ポート公開**: `api` (port 80 → pod 9292) と `ui` (port 81 → pod 9293)。 各 Ingress が named port で振り分ける。
+- **注入する credential は read-only**: Phase 3 の「UI を社内全員に read-only 公開」と整合。 write 操作は CI(API hostname)経由でのみ行う。
+- **client が Authorization ヘッダを送ってきた場合は尊重**: nginx config の `if ($http_authorization = "")` で分岐し、 既にヘッダがあればそれを upstream に転送。 デバッグや手動 write が必要な場合の escape hatch。
+
+### Step 1 — ExternalSecret 拡張
+
+`PACT_BROKER_INJECT_BASIC_AUTH_B64` を AWS Secrets Manager から K8s Secret に同期するよう、 ExternalSecret マニフェストを 1 行追加:
+
+```yaml
+- secretKey: PACT_BROKER_INJECT_BASIC_AUTH_B64
+  remoteRef:
+    key: prod/pact-broker/inject-basic-auth-b64
+```
+
+Secrets Manager 側の値は:
+
+```bash
+echo -n "${PACT_BROKER_BASIC_AUTH_READ_ONLY_USERNAME}:${PACT_BROKER_BASIC_AUTH_READ_ONLY_PASSWORD}" | base64
+# → cmVhZGVyOnNlY3JldA== みたいな
+```
+
+`PACT_BROKER_BASIC_AUTH_READ_ONLY_USERNAME / PASSWORD` と整合する base64 を保存。
+
+### Step 2 — ArgoCD で sync
+
+`infra/pact-broker/k8s/configmap-nginx.yaml` + `deployment.yaml`(sidecar 追加)+ `service.yaml`(2 ポート化)+ `ingress-*.yaml`(named port 化)が PR で merge されると、 ArgoCD が同期して新構成へ rolling update。
+
+### Step 3 — 動作確認
+
+```bash
+# UI: ブラウザで Cognito sign-in 1 回 → Pact Broker が即時表示(Basic Auth ダイアログ無し)
+open https://pact-broker.internal.example.com/
+
+# API: 引き続き Basic Auth 直結
+curl -u <user>:<pass> https://pact-broker-api.internal.example.com/diagnostic/status/heartbeat
+
+# Sidecar 健全性
+kubectl -n pact-broker get pods
+# pact-broker-xxxxx 2/2 Running ← 2/2 が pact-broker + nginx-auth-bridge
+kubectl -n pact-broker logs deployment/pact-broker -c nginx-auth-bridge | head
+```
+
+### 設計選択の根拠
+
+なぜ oauth2-proxy ではなく nginx を選んだか:
+
+- **ALB が既に Cognito auth を済ませている**ため、 sidecar 側で OIDC handshake をやり直す必要がない。 oauth2-proxy はフルの OIDC client だが、 そこまで要らない。
+- **nginx は超軽量**(20m CPU / 32Mi memory)、 image 5MB 程度の alpine。 oauth2-proxy は OIDC token cache / session store 等を持つので 50-100MB。
+- **設定が tiny**(20 行の nginx.conf)で運用負担小。
+
+ALB が JWT 発行(Cognito 連携)+ session 維持、 sidecar が credential 注入、 Pact Broker は Basic Auth のまま、 という **責務分離** が綺麗に決まる。
 
 ## 参照
 

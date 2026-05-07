@@ -81,6 +81,7 @@
 - **Pact Phase 5 — Consumer version selectors の本格運用** — 各 ProviderPactBase に `@PactBrokerConsumerVersionSelectors` を追加。 `mainBranch()`(プロダクション safety net)+ `deployedOrReleased()`(後方互換 safety)+ `branch(<provider branch>)`(PR 連動)の 3 selector で Broker から Consumer pact を取得。 `pact.consumer.branch` で publish に branch metadata を付与、 `pact-broker.yml` を branch-aware に。 Pact-JVM 4.6 の `matchingBranch()` バグ(`providerVersionBranch` 未付与で 400)を `branch(System.getProperty(...))` で回避。 main / pr-N 両ケースで Broker round-trip 確認済。
 - **ADR-0021 Phase 1 — Pact Broker 本番デプロイ用 manifests** — `infra/pact-broker/k8s/`(Namespace / SA(IRSA)/ ConfigMap / Secret(External Secrets template)/ Deployment(2 replicas, RuntimeDefault seccomp, topology spread)/ Service(ClusterIP)/ Ingress(ALB internal, ACM)/ HPA(2-3, CPU 60%)/ NetworkPolicy(ALB → broker / broker → Aurora 5432 + DNS)) + `argocd/application.yaml`(GitOps)+ `db/001-create-pact-broker-db.sql`(Aurora-C 切り出し)+ README に Step 1〜8 ランブック。 ACM ARN / IRSA ARN / VPC CIDR / DB host は placeholder で、本番 PR 時に環境別値で patch する想定。 全 11 manifests が YAML parse 緑。
 - **ADR-0021 Phase 2 — Cognito SSO 連携(人間 UI 経路)** — `ingress.yaml` を `ingress-ui.yaml`(`pact-broker.internal.example.com`、 ALB Cognito auth、 8h session)+ `ingress-api.yaml`(`pact-broker-api.internal.example.com`、 Basic Auth 直結)に分割。 同一 ALB を `IngressGroup` で共有。 Pact Broker 自体の Basic Auth は据え置き(二段認証 UX を許容)。 CI は API hostname に切替えるだけで Basic Auth credential 不変。 README に Phase 2 ランブック(Cognito User Pool App Client 作成 → ingress patch → DNS 追加 → GitHub secret 更新)。 シームレス SSO(JWT → Basic Auth 注入)は Phase 2.5 候補で後送り。
+- **ADR-0021 Phase 2.5 — nginx sidecar による完全シームレス SSO** — Pact Broker pod に `nginx:1.27-alpine` sidecar を同居させ、 ALB Cognito auth 通過後の UI 経路で `Authorization: Basic <read-only-cred>` を自動注入。 Phase 2 の二段認証 UX(Cognito + Basic Auth ダイアログ)を解消し、 ユーザは Cognito 1 回サインインだけで Pact Broker UI が即時表示される。 CI 経路は sidecar バイパスで Pact Broker へ直接到達(別 Service named port)。 注入する credential は read-only 固定で Phase 3(社内全員 read-only 公開)と整合。 oauth2-proxy ではなく nginx を選んだのは、 ALB が既に Cognito auth を完了させており OIDC handshake 重複が不要なため(image 5MB / memory 32MB の軽量)。
 
 ### Changed
 
@@ -108,8 +109,7 @@
 
 ### Future Work
 
-- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1〜2 manifests は git に置いてあるが、 EKS / Aurora / Cognito 環境への実適用は別作業)
-- ADR-0021 Phase 2.5 候補 — oauth2-proxy 等で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO)
+- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1〜2.5 manifests は git に置いてあるが、 EKS / Aurora / Cognito 環境への実適用は別作業)
 - ADR-0021 Phase 3 — Pact Broker UI を社内エンジニア全員に read-only 公開(Phase 1 安定運用 1 ヶ月後)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)

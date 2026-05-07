@@ -43,4 +43,4 @@ spec:
               service:
                 name: pact-broker
                 port:
-                  number: 80
+                  name: api  # pact-broker container 9292(Basic Auth 直結)

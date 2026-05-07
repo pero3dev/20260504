@@ -1,4 +1,4 @@
-# Pact Broker UI ingress(ADR-0021 Phase 2、 人間用)。
+# Pact Broker UI ingress(ADR-0021 Phase 2 / 2.5、 人間用)。
 #
 # 社内エンジニアの UI 閲覧アクセス用。 ALB の Cognito 認証アクション(AWS 標準機能)で
 # Cognito User Pool 経由の SSO を強制する。 Basic Auth 個別管理を廃止し、 退職者の
@@ -6,16 +6,17 @@
 #
 # host: pact-broker.internal.example.com
 #
-# Auth flow:
+# Auth flow(Phase 2.5 完了形):
 #   1. ブラウザが GET https://pact-broker.internal.example.com/ にアクセス
 #   2. ALB が Cognito session cookie 不在を検知 → Cognito Hosted UI へリダイレクト
 #   3. ユーザが社内 IdP(SAML 連携、 ADR-0007)で認証
 #   4. Cognito から ALB へ auth code 戻し → ALB が token 交換 → session cookie 発行
-#   5. リクエストが Pact Broker pod へ転送(`X-Amzn-Oidc-Data` JWT 付き)
-#   6. Pact Broker は forwarded request をそのまま処理(Basic Auth 検証は configmap で
-#      `PACT_BROKER_PUBLIC_HEARTBEAT` 等の例外を除き UI 経路ではスキップする想定)
+#   5. リクエストが pod の **nginx-auth-bridge sidecar(9293)** に転送(X-Amzn-Oidc-Data JWT 付き)
+#   6. nginx が Authorization: Basic <read-only-cred> を自動注入 → localhost:9292 の Pact Broker へ
+#   7. Pact Broker が Basic Auth として認証成功 → response
+# → ユーザは Cognito 1 回サインインだけで Pact Broker UI が見える(二段認証 UX 解消)。
 #
-# CI / machine-to-machine アクセスは ingress-api.yaml(別 hostname)経由で行う。
+# CI / machine-to-machine アクセスは ingress-api.yaml(別 hostname、 sidecar バイパス)経由。
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -67,4 +68,4 @@ spec:
               service:
                 name: pact-broker
                 port:
-                  number: 80
+                  name: ui  # nginx-auth-bridge sidecar 9293(Cognito JWT → Basic Auth 注入)
