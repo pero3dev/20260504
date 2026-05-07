@@ -22,6 +22,8 @@ import au.com.dius.pact.provider.PactVerifyProvider;
 import au.com.dius.pact.provider.junit5.MessageTestTarget;
 import au.com.dius.pact.provider.junit5.PactVerificationContext;
 import au.com.dius.pact.provider.junit5.PactVerificationInvocationContextProvider;
+import au.com.dius.pact.provider.junitsupport.loader.PactBrokerConsumerVersionSelectors;
+import au.com.dius.pact.provider.junitsupport.loader.SelectorBuilder;
 
 /**
  * Wholesale Provider Pact verifier 共通基底(ADR-0019 Phase 3.5)。
@@ -37,6 +39,30 @@ public class WholesaleProviderPactBase {
     // 継承させているが、 base 自体も instantiable に保つ必要がある。
     // surefire の include パターン (**/*Test.java) には Base が含まれないので
     // テストとしては実行されない。
+
+    /**
+     * Consumer version selectors(ADR-0019 Phase 5)。 Broker から取得する Consumer pact のバージョンを限定する。
+     *
+     * <ul>
+     *   <li>{@code mainBranch()} — main の最新 pact(プロダクション safety net)
+     *   <li>{@code deployedOrReleased()} — 各 environment に現在 deploy 済みの pact(後方互換 safety)
+     *   <li>{@code branch(provider branch)} — Provider と同じ branch identifier の Consumer pact(PR
+     *       連動)。 Pact-JVM 4.6 の {@code matchingBranch()} は Broker request body に {@code
+     *       providerVersionBranch} を自動付与しないため 400 になる(2026-04 時点の既知バグ)。 回避策として、 {@code
+     *       pact.provider.branch} system property の値で明示的に branch を指定する。
+     * </ul>
+     *
+     * Folder source({@code @PactFolder})経路では本メソッドは無視される(Broker 専用)。
+     */
+    @PactBrokerConsumerVersionSelectors
+    public static SelectorBuilder consumerVersionSelectors() {
+        SelectorBuilder b = new SelectorBuilder().mainBranch().deployedOrReleased();
+        String providerBranch = System.getProperty("pact.provider.branch");
+        if (providerBranch != null && !providerBranch.isBlank() && !"main".equals(providerBranch)) {
+            b.branch(providerBranch);
+        }
+        return b;
+    }
 
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper()

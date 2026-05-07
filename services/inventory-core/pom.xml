@@ -236,6 +236,7 @@
                     <pactBrokerUsername>${pact.broker.username}</pactBrokerUsername>
                     <pactBrokerPassword>${pact.broker.password}</pactBrokerPassword>
                     <projectVersion>${pact.consumer.version}</projectVersion>
+                    <branchName>${pact.consumer.branch}</branchName>
                     <tags>
                         <tag>${pact.consumer.tags}</tag>
                     </tags>

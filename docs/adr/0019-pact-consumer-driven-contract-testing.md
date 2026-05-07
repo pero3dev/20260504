@@ -169,6 +169,61 @@ DslPart payload = LambdaDsl.newJsonBody(o -> {
 
 **機能差**: なし。可読性向上のみのリファクタリング。
 
+### Phase 5(2026-05-07 実施分)— Consumer version selectors の本格運用
+
+Phase 3.5 までは Provider Broker test の `@PactBroker` annotation に selectors を指定していなかったため、 Broker は **「最新版だけ」** を返していた。 これでは複数 Consumer バージョン(main / PR / 過去本番)に対する verify ができず、 monorepo PR で publish される PR 用 pact が verify されないギャップがあった。
+
+**実装したもの**:
+
+- 各 ProviderPactBase に `@PactBrokerConsumerVersionSelectors` で static `consumerVersionSelectors()` を追加:
+
+  ```java
+  @PactBrokerConsumerVersionSelectors
+  public static SelectorBuilder consumerVersionSelectors() {
+      SelectorBuilder b = new SelectorBuilder().mainBranch().deployedOrReleased();
+      String providerBranch = System.getProperty("pact.provider.branch");
+      if (providerBranch != null && !providerBranch.isBlank() && !"main".equals(providerBranch)) {
+          b.branch(providerBranch);
+      }
+      return b;
+  }
+  ```
+
+- **意味**:
+  - `mainBranch()` — main の最新 Consumer pact(プロダクション safety net)
+  - `deployedOrReleased()` — 各 environment に現在 deploy 済みの版(後方互換 safety)
+  - `branch(<provider branch>)` — Provider と同じ branch identifier の Consumer pact(monorepo PR 連動)
+
+- **`pact.consumer.branch` プロパティで Consumer publish に branch metadata を付与**(`inventory-core/pom.xml` の plugin 設定 + parent POM デフォルト)。
+
+- **CI workflow `pact-broker.yml` を branch-aware に**:
+  - `pact.consumer.branch` を publish step に渡す(main / pr-NN)
+  - `pact.provider.branch` を verify step に渡す(同じ identifier で揃える)
+
+**Pact-JVM 4.6 の落とし穴**:
+
+- `SelectorBuilder.matchingBranch()` は Broker request body に `providerVersionBranch` を **自動付与しない** ため、 Broker が `400 the providerVersionBranch must be specified when the selector matchingBranch=true is used` を返す既知バグ。
+- 回避策: `branch(System.getProperty("pact.provider.branch"))` で明示的に branch identifier を指定。
+
+**確認(local Broker round-trip)**:
+
+main branch ケース:
+```
+publish: tag=main, branch=main
+selectors: mainBranch + deployedOrReleased
+verify: 「latest version from the main branch 'main'」で 5 interaction 緑
+```
+
+PR branch ケース(branch=pr-99):
+```
+publish: tag=pr-99, branch=pr-99
+selectors: mainBranch + deployedOrReleased + branch(pr-99)
+verify reason:
+  * latest version from branch 'pr-99' (phase5-pr99-1)
+  * latest version from the main branch 'main' (phase5-smoke-1)
+両方の Consumer 版に対して verify、 5 interaction 緑
+```
+
 ### スコープ外
 
 - **PactBroker 自体の運用**(管理サービス、認証、SLA 設計)— 必要時に別 ADR で扱う
@@ -272,5 +327,5 @@ E2E IT で実際にメッセージを流して動作確認しているので、P
 - ✅ Phase 3.5: Provider verify の Broker 化 + verify 結果 publish back(完了)
 - ✅ Phase 4: matching rule strict 一致を緩和(V4 native API へ移行で完了)
 - ✅ Phase 4.5: `LambdaDsl` 全面移行(完了、可読性向上のみ)
-- Phase 5 候補: consumer version selectors の本格運用(現状は branch=main / pr-N の単純取得)
+- ✅ Phase 5: consumer version selectors の本格運用(完了、 mainBranch + deployedOrReleased + 動的 branch)
 - 別 ADR: Pact Broker のホスティング先確定(EKS namespace / Pactflow SaaS、 HA / 認証 / バックアップ)

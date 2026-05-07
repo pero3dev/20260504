@@ -42,6 +42,7 @@ jobs:
       broker_configured: ${{ steps.check.outputs.broker_configured }}
       consumer_version: ${{ steps.version.outputs.consumer_version }}
       consumer_tag: ${{ steps.version.outputs.consumer_tag }}
+      branch: ${{ steps.version.outputs.branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,15 +57,19 @@ jobs:
             echo "broker_configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Compute consumer version + tag
+      - name: Compute consumer version + tag + branch
         id: version
         run: |
+          # Phase 5: branch metadata で consumer version selectors の mainBranch / matchingBranch
+          # が機能する。 Provider verify は同じ branch identifier で動かして整合性を保つ。
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "consumer_version=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
             echo "consumer_tag=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "branch=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
             echo "consumer_version=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "consumer_tag=main" >> "$GITHUB_OUTPUT"
+            echo "branch=main" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up JDK 21
@@ -94,7 +99,8 @@ jobs:
             -Dpact.broker.username="$PACT_BROKER_USERNAME" \
             -Dpact.broker.password="$PACT_BROKER_PASSWORD" \
             -Dpact.consumer.version="${{ steps.version.outputs.consumer_version }}" \
-            -Dpact.consumer.tags="${{ steps.version.outputs.consumer_tag }}"
+            -Dpact.consumer.tags="${{ steps.version.outputs.consumer_tag }}" \
+            -Dpact.consumer.branch="${{ steps.version.outputs.branch }}"
 
   provider-verify:
     name: Provider Verify (Broker)
@@ -134,6 +140,8 @@ jobs:
             BROKER_PORT=$( [ "$BROKER_SCHEME" = "https" ] && echo 443 || echo 80 )
           fi
 
+          # Phase 5: pact.provider.branch を渡して selector matchingBranch / mainBranch を機能させる。
+          # consumer 側 publish と同じ branch identifier(main / pr-NN)を使うのが重要。
           mvn -B -ntp -pl services/${{ matrix.provider }} \
             -Dspotless.check.skip=true \
             -Dtest='*BrokerPactTest' \
@@ -145,7 +153,8 @@ jobs:
             -Dpactbroker.auth.password="$PACT_BROKER_PASSWORD" \
             -Dpact.verifier.publishResults=true \
             -Dpact.provider.version="${{ github.sha }}" \
-            -Dpact.provider.tag="${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}" \
+            -Dpact.provider.tag="${{ needs.publish.outputs.branch }}" \
+            -Dpact.provider.branch="${{ needs.publish.outputs.branch }}" \
             test
 
   can-i-deploy:
