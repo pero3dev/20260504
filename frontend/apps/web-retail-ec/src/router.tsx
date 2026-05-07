@@ -1,14 +1,54 @@
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Link,
+  Outlet,
+} from '@tanstack/react-router';
 
-import { fetchSku } from '@/lib/graphql-client';
+import { fetchSku } from './lib/graphql-client';
 
-export const Route = createFileRoute('/')({
+// F1 vertical spike では file-based router を使わず手動 createRoute で 1 ファイル集約。
+// F4 で per-business UI が増えてきたら TanStack Router の vite plugin で file-based に移行。
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
+});
+
+function RootLayout() {
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <Link to="/" className="text-lg font-semibold">
+            Retail/EC
+          </Link>
+          <nav className="flex gap-4 text-sm">
+            <Link
+              to="/"
+              activeProps={{ className: 'font-semibold' }}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ダッシュボード
+            </Link>
+          </nav>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  // F1 では SKU id を固定で叩く。 F4 で UI controls + form 経由に進化。
   const { data, isLoading, error } = useQuery({
     queryKey: ['sku', 'SKU-1'],
     queryFn: () => fetchSku('SKU-1'),
@@ -59,4 +99,14 @@ function DashboardPage() {
       )}
     </div>
   );
+}
+
+const routeTree = rootRoute.addChildren([indexRoute]);
+
+export const router = createRouter({ routeTree, defaultPreload: 'intent' });
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
 }
