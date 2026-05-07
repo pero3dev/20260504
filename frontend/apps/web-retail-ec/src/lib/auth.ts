@@ -1,24 +1,21 @@
-// F1 stub: 単純な localStorage 経由の dev token。 F2 で oidc-client-ts ベースに差替え。
-//
-// 流れ(F2 想定):
-//   1. UserManager(authority = Identity Broker、 client_id = retail-ec-web)で Cognito へリダイレクト
-//   2. callback で id_token + access_token を取得
-//   3. Identity Broker の `/v1/auth/tenant-sessions` に session token を渡し tenant-scoped JWT を交換
-//   4. 取得した JWT を本 helper で取り出す
+import {
+  createAuthManager,
+  readOidcConfigFromEnv,
+  type AuthManager,
+} from '@inventory/shared/web-auth';
 
-const KEY = 'retail-ec-dev-token';
+/**
+ * web-retail-ec 用の AuthManager 単一 instance(F2 phase B)。
+ *
+ * <p>VITE_OIDC_AUTHORITY / VITE_OIDC_CLIENT_ID / VITE_OIDC_REDIRECT_URI が揃って
+ * いれば oidc-client-ts UserManager を、 そうでなければ dev fallback(sessionStorage に
+ * dummy token を入れるだけ)を使う。
+ */
+export const authManager: AuthManager = createAuthManager(
+  readOidcConfigFromEnv(import.meta.env as unknown as Record<string, unknown>),
+  'web-retail-ec-auth',
+);
 
 export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(KEY);
-}
-
-export function setAuthToken(token: string): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(KEY, token);
-}
-
-export function clearAuthToken(): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(KEY);
+  return authManager.getAccessToken();
 }

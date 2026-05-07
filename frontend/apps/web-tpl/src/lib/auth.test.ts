@@ -1,20 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { clearAuthToken, getAuthToken, setAuthToken } from './auth';
+import { authManager, getAuthToken } from './auth';
 
-describe('auth helpers', () => {
-  afterEach(() => {
-    window.localStorage.clear();
+describe('web-tpl auth (dev fallback)', () => {
+  afterEach(() => window.sessionStorage.clear());
+
+  it('initial state は未認証', () => {
+    expect(getAuthToken()).toBeNull();
+    expect(authManager.isAuthenticated()).toBe(false);
   });
 
-  it('round-trip', () => {
-    setAuthToken('tpl-jwt-1');
-    expect(getAuthToken()).toBe('tpl-jwt-1');
-  });
-
-  it('clear', () => {
-    setAuthToken('tpl-jwt-2');
-    clearAuthToken();
+  it('signIn → dev token 発行 → signOut でクリア', async () => {
+    await authManager.signIn();
+    expect(getAuthToken()).toMatch(/^dev-token-/);
+    await authManager.signOut();
     expect(getAuthToken()).toBeNull();
   });
 });

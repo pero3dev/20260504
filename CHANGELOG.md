@@ -133,6 +133,13 @@
     - `BffContext` に `user: BffUserClaims | null` を追加。 resolver は `context.user?.tenantId` 等を直接読める。 backend へは元 token を pass-through なので双方で同 claim を共有
     - test:`generateKeyPair('RS256')` でローカル鍵生成 → JWKS を `vi.stubGlobal('fetch')` で配って verify を 1 系統エンドツーエンド検証(正常 / aud 不一致 / 期限切れ / iss 不一致 / token_use=session / tenant_id 欠落)。 `buildBffAuth` 単体は 5 系統(token 有無 × verifier 有無の組合せ + verify 失敗の throw 伝播)
     - F2 残: web 側 `oidc-client-ts` 配線(login redirect / callback / token refresh / logout)+ Cognito SAML pool の CDK / Identity Broker の token exchange は phase B 以降
+- **F2 phase B web 側 OIDC 配線**(Cognito 接続前の web app 足場)— 4 web app 全てが `oidc-client-ts` を介した login / callback / logout flow を持つように:
+    - `packages/shared/src/web-auth/auth-manager.ts` 新規(subpath `@inventory/shared/web-auth` で export、 BFF 側から見えないよう分離)— `AuthManager interface { getAccessToken / isAuthenticated / signIn / signOut / handleCallback }` と factory `createAuthManager(config, devStorageKey)`。 `OidcAuthManager`(oidc-client-ts UserManager wrapper、 `response_type=code` PKCE) と `DevAuthManager`(sessionStorage に dummy `dev-token-...` を入れるだけ) の 2 実装を出し分け
+    - `readOidcConfigFromEnv()` で `VITE_OIDC_AUTHORITY` / `VITE_OIDC_CLIENT_ID` / `VITE_OIDC_REDIRECT_URI` を Vite `import.meta.env` から読む。 全項目揃えば OIDC、 1 つでも欠ければ dev fallback。 任意項目は `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` / `VITE_OIDC_SCOPE`(default `openid profile`)
+    - `packages/ui/src/components/auth-buttons.tsx` + `oidc-callback-page.tsx` 新規 — Login/Logout button 切替と `/callback` page を共通化(各 web app が `<AuthButtons authManager={..} />` と `<OidcCallbackPage authManager={..} onSuccess={..} />` を貼るだけ)。 4 web app から RootLayout の boilerplate ~25 行 × 4 を削減
+    - 各 web app `lib/auth.ts` を全面置換(stub `localStorage` → `createAuthManager(...)`)、 `router.tsx` に `/callback` route と `<AuthButtons />` を追加。 `graphql-client.ts` は `getAuthToken()` 経由で UserManager の access_token を JWT pass-through(F2 phase A の BFF verify と組合さって prod では署名検証が走る)
+    - test:`@inventory/shared/web-auth` 単体(env パース 4 系統 + dev fallback 4 系統)、 各 web app `auth.test.ts`(initial 状態 + signIn/signOut round-trip)
+    - F2 残(phase C): Cognito User Pool + SAML federation の CDK 化、 Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token、 tenant 解決込み)、 BFF の K8s ConfigMap で `JWT_JWKS_URL` を配布
 
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
@@ -213,7 +220,7 @@
 
 #### F2〜F7. Frontend follow-up(F1 + F3 から先)
 
-- **F2 phase B**(BFF JWT verify は phase A で完了)— web 側 `oidc-client-ts` 配線(login redirect / callback / silent refresh / logout)+ Cognito User Pool + SAML federation の CDK 化 + Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token)+ BFF JWT_JWKS_URL を K8s ConfigMap で配布
+- **F2 phase C**(BFF verify は phase A、 web OIDC 配線は phase B で完了)— Cognito User Pool + SAML federation の CDK 化 + Identity Broker `POST /v1/auth/exchange`(Cognito access token → IB session/access token、 tenant 解決込み)+ silent token refresh + BFF JWT_JWKS_URL を K8s ConfigMap で配布
 - **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
 - **F6 follow-up**(残 3 業態 BFF の実 backend 接続は完了)— GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活、 加えて pagination(cursor)/ filter / sort の BFF DSL 設計

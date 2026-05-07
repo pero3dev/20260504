@@ -1,21 +1,24 @@
-import { AppShell } from '@inventory/ui';
+import { AppShell, AuthButtons, OidcCallbackPage } from '@inventory/ui';
 import { useQuery } from '@tanstack/react-query';
 import {
   createRootRoute,
   createRoute,
   createRouter,
   Outlet,
+  useNavigate,
 } from '@tanstack/react-router';
 
+import { authManager } from './lib/auth';
 import { fetchInventory } from './lib/graphql-client';
 
-const rootRoute = createRootRoute({
-  component: RootLayout,
-});
+const rootRoute = createRootRoute({ component: RootLayout });
 
 function RootLayout() {
   return (
     <AppShell brand="Retail/EC" nav={[{ to: '/', label: 'ダッシュボード' }]}>
+      <div className="mb-4 flex justify-end">
+        <AuthButtons authManager={authManager} />
+      </div>
       <Outlet />
     </AppShell>
   );
@@ -27,8 +30,22 @@ const indexRoute = createRoute({
   component: DashboardPage,
 });
 
-// F6 vertical では固定 inventory id を叩いて疎通確認する。 F4 follow-up で id を入力する form +
-// SKU 横断 list を追加(inventory-read-model 側に SKU index API が要る)。
+const callbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/callback',
+  component: CallbackPage,
+});
+
+function CallbackPage() {
+  const navigate = useNavigate();
+  return (
+    <OidcCallbackPage
+      authManager={authManager}
+      onSuccess={() => void navigate({ to: '/', replace: true })}
+    />
+  );
+}
+
 const DEFAULT_INVENTORY_ID = '1';
 
 function DashboardPage() {
@@ -80,8 +97,7 @@ function DashboardPage() {
   );
 }
 
-const routeTree = rootRoute.addChildren([indexRoute]);
-
+const routeTree = rootRoute.addChildren([indexRoute, callbackRoute]);
 export const router = createRouter({ routeTree, defaultPreload: 'intent' });
 
 declare module '@tanstack/react-router' {
