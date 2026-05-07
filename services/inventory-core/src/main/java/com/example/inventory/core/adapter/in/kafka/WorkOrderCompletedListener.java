@@ -10,9 +10,13 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import com.example.inventory.commons.error.BusinessException;
 import com.example.inventory.commons.tenant.TenantContext;
 import com.example.inventory.commons.tenant.TenantId;
+import com.example.inventory.core.application.port.in.EmitWorkOrderCompletionFailedUseCase;
+import com.example.inventory.core.application.port.in.InventoryNotFoundForOrderException;
 import com.example.inventory.core.application.port.in.ReceiveFinishedGoodsUseCase;
+import com.example.inventory.core.application.port.in.UnknownSkuException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -22,8 +26,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Inventory.receive を呼ぶ。{@code WorkOrderReleasedListener}(部品消費)と対称関係にある(release で部品が消え、 complete
  * で完成品が増える)。
  *
- * <p>ADR-0017 に従い MVP では失敗時の補償は持たず、業務エラーは @Transactional ロールバック → ack されないため Spring Kafka 既定 retry
- * → DLQ で観察する(完成品 SKU の投影遅延が代表的失敗ケース)。
+ * <p>失敗時の挙動(Saga Phase 2、 ADR-0017 / ADR-0019 補償経路):
+ *
+ * <ul>
+ *   <li>{@link UnknownSkuException} / {@link InventoryNotFoundForOrderException}(投影遅延 / 未登録):
+ *       補償イベント {@code manufacturing.completion.failed.v1} を別 TX で発行 → ack
+ *   <li>その他想定外の例外: ack せず Spring Kafka 既定 retry → DLQ
+ * </ul>
+ *
+ * <p>完成品 INBOUND は WorkOrder の COMPLETED 状態(物理現実で不可逆)に対する後続処理のため、 補償は集約の状態巻き戻しではなく **観測 +
+ * 手動是正のトリガ**。 Manufacturing 側 listener は audit / 通知のみを行い、 WorkOrder 状態は触らない。
  */
 @Component
 public class WorkOrderCompletedListener {
@@ -33,11 +45,15 @@ public class WorkOrderCompletedListener {
     private static final String HEADER_EVENT_ID = "event_id";
 
     private final ReceiveFinishedGoodsUseCase receiveUseCase;
+    private final EmitWorkOrderCompletionFailedUseCase failureEmitter;
     private final ObjectMapper objectMapper;
 
     public WorkOrderCompletedListener(
-            ReceiveFinishedGoodsUseCase receiveUseCase, ObjectMapper objectMapper) {
+            ReceiveFinishedGoodsUseCase receiveUseCase,
+            EmitWorkOrderCompletionFailedUseCase failureEmitter,
+            ObjectMapper objectMapper) {
         this.receiveUseCase = receiveUseCase;
+        this.failureEmitter = failureEmitter;
         this.objectMapper = objectMapper;
     }
 
@@ -77,6 +93,22 @@ public class WorkOrderCompletedListener {
                     msg.productSkuCode(),
                     msg.completedQuantity(),
                     tenantIdValue);
+        } catch (BusinessException e) {
+            LOG.warn(
+                    "WorkOrder {} の完成品 INBOUND が業務理由で失敗、補償発行: errorCode={} reason={}",
+                    msg.code(),
+                    e.errorCode(),
+                    e.getMessage());
+            failureEmitter.emit(
+                    new EmitWorkOrderCompletionFailedUseCase.Command(
+                            msg.aggregateId(),
+                            msg.code(),
+                            e.errorCode(),
+                            e.getMessage(),
+                            msg.productSkuCode(),
+                            msg.locationId(),
+                            msg.completedQuantity()));
+            ack.acknowledge();
         } finally {
             TenantContext.clear();
         }
