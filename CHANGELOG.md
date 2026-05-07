@@ -10,7 +10,7 @@
 
 ### Highlights
 
-13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース。
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ + 承認アクション自動 step advance、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor + S3 Object Lock 二重保管)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定、 Notification SES 実 sender、 identity-broker テナント lifecycle 管理、 integration-hub S3Destination までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース。
 
 ### Added
 
@@ -93,6 +93,13 @@
 
 - **A4 audit-service S3 Object Lock 投入** — ADR-0008 の "未実装" 4 項目(S3 投入 / Merkle root S3 二重保管 / Athena / 1 年保持)を解消。 `AuditArchiveExporter` out port + AWS SDK v2 `S3Client` ベースの `S3AuditArchiveExporter` adapter を追加し、 日次 `ComputeDailyMerkleAnchorService` が anchor 計算後に同 tick で records(JSON Lines + gzip)+ anchor(JSON 単発)を S3 PUT する経路を完成。 `platform.audit.archive.enabled=true` で Bean 化、 default は無効(test/loadtest 環境で credential 無しに動く)。 export 失敗は warn ログのみで DB anchor は保持。 partition は `tenant=<id>/date=<yyyy-MM-dd>/` で Athena projection 形式に揃え、 `infra/audit-s3/{bucket-config, glue}` に Object Lock(Compliance mode + 365 days)+ Glue External Table DDL(records / anchors)+ AWS CLI ベースのデプロイランブック(Step 1〜10)を整備。 format は ADR で Parquet 想定だったが、 transitive 依存(hadoop-common 等)を避けるため MVP は JSON Lines に変更し ADR-0008 に追記。
 
+#### コードギャップ解消(A1 / A2 / A3 / A5)
+
+- **A2 Notification SES 実 sender** — `EmailSender` port は据え置きで `EmailSenderConfiguration` が `notification.email.provider={logging|ses}` を `@ConditionalOnProperty` で切替。 `SesEmailSender`(AWS SDK v2)で本番送信、 `SesException` を `EmailDeliveryException` に包んで Kafka 側 retry / DLQ に委ねる。 default は logging で従来挙動維持。 SMTP / Slack / SendGrid 等は同パターンで `@ConditionalOnProperty` を増やすだけで拡張可能。 コミット [`8de6c34`](https://github.com/pero3dev/20260504/commit/8de6c34)
+- **A5 identity-broker テナント lifecycle 管理** — Pool 方式の `tenants` テーブル(V2 migration、 pattern check + status check)+ Tenant 集約 + `TenantManagementService`(Register / Deactivate / Get / List)+ OpenAPI schema-first(`AdminTenantsApi`、 4 endpoints)+ `TenantAdminController`。 `TenantNotFoundException`(404)/ `TenantAlreadyExistsException`(409)を `BusinessException` 派生にして commons-error が RFC 7807 ProblemDetail に自動変換。 Bridge 系 schema 作成 + Cognito group + 連携 secret は `infra/tenant-provisioning/README.md` に AWS CLI ベースの Step 1〜5 + シェルスクリプト雛形 + production セキュリティ要件 + Future Work で整理。 MVP は SecurityConfig が permitAll で admin API も無認証(production deployment では SUPER_ADMIN role 必須化を別途実装)。 コミット [`17c0693`](https://github.com/pero3dev/20260504/commit/17c0693)
+- **A1 Workflow 承認アクション自動 step advance** — ApprovalFlow に対する Kafka 駆動の自動 step 進行。 `workflow.approval.action.v1` を購読し、 `ApprovalAction.{APPROVE, REJECT, SKIP}` を既存 `AdvanceWorkflowUseCase` に dispatch する `HandleApprovalActionService`。 listener は manual_immediate ack で `BusinessException`(既終端 / NotFound)は ack 続行、 RuntimeException は ack せず Kafka retry に委ねる。 これで ADR-0015「業態横断承認」の orchestration が REST に依らず Kafka 駆動で完結。 EDI ACK 待ち / WorkOrder ライフサイクル等の他 trigger は同パターンで listener を増やすだけで拡張可能(汎用 step trigger フレームワーク化は後フェーズ)。 コミット [`9657bb5`](https://github.com/pero3dev/20260504/commit/9657bb5)
+- **A3 integration-hub S3Destination 第 1 弾** — 既存 `OutboundDestination` 抽象に `default writeBatch` を追加し、 S3 のような pay-per-PUT 系で 1 注文 = 1 オブジェクトにまとめられるように。 `S3Destination`(AWS SDK v2)+ `HubProperties.AdapterConfig.type={local|s3}` の切替 + `HubConfiguration.DestinationFactory` で adapter 名 → destination を構築。 key 形式は `<prefix>/<tenantId>/<yyyy-MM-dd>/<epoch-millis>-<rand>.csv` で per-tenant 日次 partition、 取引先 export / 監査人検証を容易にする。 SFTP / AS2-EDI / 外部 EC は同パターンで後続 commit。 コミット [`1578b2d`](https://github.com/pero3dev/20260504/commit/1578b2d)
+
 ### Changed
 
 - **`inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名**(L4、ADR-0016 follow-up)。Phase 2 で命名規則が固まる前に作った共通名前空間を、業態別命名に揃える。コミット [`3cc68f3`](https://github.com/pero3dev/20260504/commit/3cc68f3)
@@ -113,7 +120,11 @@
 - **Modules**: 26(commons 10 + services 13 + 親 + e2e + commons-bom)
 - **業態 / 共通基盤**: 4/4 + 9/9 = 13/13 services
 - **Saga 配線**: 4/4 業態(Manufacturing 完成品 INBOUND 失敗補償含む)
-- **Workflow SLA**: 中央タイマで STARTED インスタンスを 30 秒間隔 scan、 ApprovalFlow 24h SLA を strict 適用
+- **Workflow**: SLA 中央タイマ + ApprovalFlow の Kafka 駆動 step advance(workflow.approval.action.v1 → APPROVE/REJECT/SKIP)
+- **Notification 実 sender**: provider 切替で logging(default)/ ses(本番)
+- **Tenant lifecycle**: identity-broker に Pool 方式の tenants テーブル + 4 admin REST + provisioning runbook
+- **Integration Hub**: 1 adapter(retail-order-csv)+ destination type 切替(local / s3)— SFTP / AS2 / 外部 EC は同パターンで後続
+- **Audit WORM 二重保管**: DB(WORM トリガ)+ S3 Object Lock(Compliance + 365 days)+ Athena projection
 - **ADR**: 21 本(ADR-0021 で Pact Broker 本番ホスティングを EKS self-host on Aurora-C に確定)
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
 - **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back + matchingRules 完備 + LambdaDsl + branch-aware selectors(ADR-0019 Phase 3 / 3.5 / 4 / 4.5 / 5 完了)
@@ -128,10 +139,12 @@
 - ArgoCD Application apply + Route53 internal alias 登録
 - GitHub Actions secret 投入(`PACT_BROKER_URL` / `_USERNAME` / `_PASSWORD`)→ `pact-broker.yml` workflow が dormant 解除
 - Phase 3 社内告知(README の告知テンプレを流用)
+- 同様に audit-service の S3 bucket 作成(`infra/audit-s3/README.md` の Step 1〜10)+ tenant 初期 onboarding(`infra/tenant-provisioning/README.md` の Step 1〜5)
 
 #### B. ビジネスフロー(残ロジック)
 
-- Workflow 自動 step handler — orchestration が必要な candidate(ADR-0015):業態横断承認、 EDI ACK 待ち、 WorkOrder ライフサイクル全体。 per-event-source カスタムロジックが必要(SLA timeout = 中央タイマは B2 で実装済、 step 推進ロジックが未実装)
+- Workflow 自動 step handler の汎用化 — A1 で ApprovalFlow specific の listener を 1 つ実装した。 EDI ACK 待ち / WorkOrder ライフサイクルなど他 definition への展開は同パターンで listener を追加するだけで対応可能だが、 多 definition × 多 step trigger になると個別 listener が肥大化する。 `WorkflowDefinition` に `stepTriggers: Map<stepNo, EventTrigger>` を持たせて中央 listener が generic dispatch する方式への進化が次フェーズ
+- Notification 他 channel(SMTP / Slack webhook / SMS / SendGrid)— A2 で SES + provider 切替の枠は出来たので、 同パターンで `@ConditionalOnProperty` を増やすだけ
 
 #### C. 監査・コンプライアンス(ADR-0008 follow-up 残)
 
@@ -140,9 +153,31 @@
 
 #### D. 外部連携(Integration Hub)
 
-- 実 adapter 拡充: S3 / SFTP / AS2-EDI / 外部 EC(現状は CSV 1 アダプタの足場のみ)
+- A3 で S3Destination は導入済。 残: **SFTP**(Apache Mina sshd で test、 JSch or commons-vfs2 で実装)/ **AS2-EDI**(Apache Camel + camel-as2)/ **外部 EC**(Shopify / 楽天 / Amazon API、 各々別 listener)/ **EDIFACT**(Smooks)/ **distribution-BMS**(in-house)
 
-#### E. テスト基盤
+#### E. テナント運用補完(A5 follow-up)
+
+- `/v1/admin/**` を JWT 必須 + SUPER_ADMIN role に絞る SecurityConfig 拡張(MVP は permitAll)
+- Bridge 系 schema 自動 provisioning Job(K8s CronJob で identity-broker の `tenants` テーブル → 各 Bridge DB の schema 整合性チェック + 不足分の自動作成)
+- `SelectTenantService` で DEACTIVATED tenant の弾き出し
+- user 管理 admin API(現状 SQL 直接、 next phase で REST 化)
+
+#### F. テスト基盤
 
 - 多重 Spring Context IT(`e2e-tests/`)の CI 復帰(技術スタック進化次第、 ADR-0014)
 - Nightly E2E — 単一 context IT + Pact + 結合動作の三層 testing 構想の最終層(ADR-0014 Future complement)
+- LocalStack による S3 / SES の integration test 整備(現状は Mockito mock のみ)
+
+#### G. 本番デプロイ(コードでは閉じない、 別 PR / 別リポジトリで管理)
+
+- AWS landing zone(Org / Control Tower / アカウント分離 prod-stg-dev)
+- VPC + subnet + NAT + SG + Route53 internal zone
+- EKS prod クラスタ + Karpenter + ArgoCD + ExternalSecretsOperator
+- Aurora 3 クラスタ(hot path / business / common)+ Flyway migration job
+- ElastiCache(Redis Cluster)+ MSK + AWS Glue Schema Registry
+- ALB + WAF + ACM + Cognito User Pool prod
+- IAM / IRSA Role per service
+- Datadog APM / logs / infra
+- Argo Rollouts + Unleash + Pact Broker 実展開
+- Load test(11.6k TPS / 1M SKU / 10K user)+ Pen-test + DR 計画 + SLO/Alert/runbook
+- Frontend(4 BFF + 4 Web UI、 別 monorepo)
