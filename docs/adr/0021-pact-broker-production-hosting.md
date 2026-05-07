@@ -59,12 +59,21 @@ ADR-0019 で Pact Consumer-driven contract testing を Phase 5(consumer version 
 
 ### 段階移行
 
-| Phase | 内容 | trigger |
-|---|---|---|
-| 0(現状)| 全 dormant、 ローカル round-trip のみ | 本 ADR commit 時点 |
-| 1 | Aurora-C に DB 切り出し + EKS Deployment + ALB + Basic Auth で立ち上げ | 本 ADR Accepted 後 1 sprint 以内 |
-| 2 | Cognito OIDC 連携で Basic Auth を SSO に置換 | identity-broker MVP 完了後 |
-| 3 | Pact Broker UI を社内エンジニア全員に公開(read-only)| Phase 1 安定運用 1 ヶ月後 |
+| Phase | 内容 | trigger | Status |
+|---|---|---|---|
+| 0 | 全 dormant、 ローカル round-trip のみ | 本 ADR commit 時点 | ✅ |
+| 1 | Aurora-C に DB 切り出し + EKS Deployment + ALB + Basic Auth で立ち上げ(manifests コミット済) | 本 ADR Accepted 後 1 sprint 以内 | ✅ manifests / 実適用は EKS プロビジョニング待ち |
+| 2 | Cognito OIDC 連携で人間 UI 経路を SSO 化(CI は Basic Auth 維持、 hostname 分離) | identity-broker MVP 完了後 | ✅ manifests |
+| 2.5(候補)| oauth2-proxy 等で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO) | Phase 2 で UX 課題が顕在化したら | 未実装 |
+| 3 | Pact Broker UI を社内エンジニア全員に read-only 公開 | Phase 1 安定運用 1 ヶ月後 | 未実装 |
+
+#### Phase 2 実装メモ(2026-05-07)
+
+- **Ingress を 2 つに分割**: `ingress-ui.yaml`(host = `pact-broker.internal.example.com`、 ALB Cognito auth)+ `ingress-api.yaml`(host = `pact-broker-api.internal.example.com`、 Basic Auth 直結)。 同一 ALB を `alb.ingress.kubernetes.io/group.name: pact-broker` で共有。
+- **Cognito ALB auth annotations** で UserPoolArn / UserPoolClientId / UserPoolDomain を指定。 placeholder のままコミット、 identity-broker から実値を取って patch する。
+- **Pact Broker 自身の Basic Auth は据え置き**: Phase 2 では Cognito SSO で組織アクセス制御 + Pact Broker Basic Auth で role 管理、 という二段構成。 ブラウザで二段認証になる UX は許容(社内ツールのため)。
+- **CI 影響なし**: `pact-broker-api.internal.example.com` 経由で Basic Auth 直結。 GitHub Actions secret は host だけ書き換え、 credential はそのまま。
+- **シームレス SSO(Cognito JWT → Basic Auth header 自動注入)** は Phase 2.5 候補で別タスク。 oauth2-proxy sidecar / ALB Lambda authorizer / Pact Broker の `PACT_BROKER_AUTH_HEADER_HEADER_NAME` 連携など複数選択肢があり、 Phase 2 の段階で決め切る必要なし。
 
 ## Consequences
 

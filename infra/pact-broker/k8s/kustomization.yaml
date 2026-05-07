@@ -15,7 +15,11 @@ resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
+  # ingress は Phase 2 で UI / API の 2 経路に分割。 同一 ALB を IngressGroup で共有。
+  # - ingress-ui.yaml  (host: pact-broker.internal.example.com、 Cognito SSO)
+  # - ingress-api.yaml (host: pact-broker-api.internal.example.com、 Basic Auth)
+  - ingress-ui.yaml
+  - ingress-api.yaml
   - hpa.yaml
   - networkpolicy.yaml
   # Secret は External Secrets Operator が生成する想定で resources に含めない。

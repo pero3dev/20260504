@@ -80,6 +80,7 @@
 - **Pact Phase 4.5 — `LambdaDsl` 全面移行** — Consumer Pact test を `PactDslJsonBody` チェーン形式から `LambdaDsl.newJsonBody(o -> {...})` ネストラムダ形式へ 5 経路すべて書き換え。 ネスト構造(`items[].*` など)がインデントで自然に表現され、中間変数の `itemTemplate` 等が消えた。 機能等価(matchingRules パス完全一致、 Folder/Broker 両経路で Provider verify 緑)、可読性向上のみ。
 - **Pact Phase 5 — Consumer version selectors の本格運用** — 各 ProviderPactBase に `@PactBrokerConsumerVersionSelectors` を追加。 `mainBranch()`(プロダクション safety net)+ `deployedOrReleased()`(後方互換 safety)+ `branch(<provider branch>)`(PR 連動)の 3 selector で Broker から Consumer pact を取得。 `pact.consumer.branch` で publish に branch metadata を付与、 `pact-broker.yml` を branch-aware に。 Pact-JVM 4.6 の `matchingBranch()` バグ(`providerVersionBranch` 未付与で 400)を `branch(System.getProperty(...))` で回避。 main / pr-N 両ケースで Broker round-trip 確認済。
 - **ADR-0021 Phase 1 — Pact Broker 本番デプロイ用 manifests** — `infra/pact-broker/k8s/`(Namespace / SA(IRSA)/ ConfigMap / Secret(External Secrets template)/ Deployment(2 replicas, RuntimeDefault seccomp, topology spread)/ Service(ClusterIP)/ Ingress(ALB internal, ACM)/ HPA(2-3, CPU 60%)/ NetworkPolicy(ALB → broker / broker → Aurora 5432 + DNS)) + `argocd/application.yaml`(GitOps)+ `db/001-create-pact-broker-db.sql`(Aurora-C 切り出し)+ README に Step 1〜8 ランブック。 ACM ARN / IRSA ARN / VPC CIDR / DB host は placeholder で、本番 PR 時に環境別値で patch する想定。 全 11 manifests が YAML parse 緑。
+- **ADR-0021 Phase 2 — Cognito SSO 連携(人間 UI 経路)** — `ingress.yaml` を `ingress-ui.yaml`(`pact-broker.internal.example.com`、 ALB Cognito auth、 8h session)+ `ingress-api.yaml`(`pact-broker-api.internal.example.com`、 Basic Auth 直結)に分割。 同一 ALB を `IngressGroup` で共有。 Pact Broker 自体の Basic Auth は据え置き(二段認証 UX を許容)。 CI は API hostname に切替えるだけで Basic Auth credential 不変。 README に Phase 2 ランブック(Cognito User Pool App Client 作成 → ingress patch → DNS 追加 → GitHub secret 更新)。 シームレス SSO(JWT → Basic Auth 注入)は Phase 2.5 候補で後送り。
 
 ### Changed
 
@@ -107,8 +108,9 @@
 
 ### Future Work
 
-- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1 完了で YAML は git に置いてあるが、 EKS / Aurora 環境への実適用は別作業)
-- ADR-0021 Phase 2 — Cognito OIDC 連携で Basic Auth を SSO に置換(identity-broker MVP 完了後)
+- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1〜2 manifests は git に置いてあるが、 EKS / Aurora / Cognito 環境への実適用は別作業)
+- ADR-0021 Phase 2.5 候補 — oauth2-proxy 等で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO)
+- ADR-0021 Phase 3 — Pact Broker UI を社内エンジニア全員に read-only 公開(Phase 1 安定運用 1 ヶ月後)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
 - Workflow 自動 step handler / SLA タイムアウト

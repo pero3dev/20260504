@@ -1,34 +1,40 @@
-# Pact Broker Ingress(ADR-0021 Phase 1)。
+# Pact Broker API ingress(ADR-0021 Phase 1〜2、 CI 用)。
 #
-# - AWS Load Balancer Controller(ALB)経由で internal-only ALB を作成。
-# - `alb.ingress.kubernetes.io/scheme: internal` で VPC 内のみアクセス可能。
-# - ACM 証明書は環境ごとの ARN を annotation で上書き。
-# - host は `pact-broker.internal.example.com`(プレースホルダ、 Phase 1 実装時に確定)。
+# CI(GitHub Actions)からの publish / verify / can-i-deploy アクセス用。
+# Cognito SSO は介在せず、 Pact Broker 自身の Basic Auth で認証する(machine-to-machine)。
+#
+# host: pact-broker-api.internal.example.com
+#
+# ALB は ingress-ui.yaml と同じ ALB を `group.name: pact-broker` で共有。
+# Cognito auth annotations は **付けない** ため、 Authorization: Basic ... が直接
+# Pact Broker に届く。
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: pact-broker
+  name: pact-broker-api
   namespace: pact-broker
   labels:
     app.kubernetes.io/name: pact-broker
     app.kubernetes.io/part-of: platform
+    pact-broker/access: api
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internal
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
-    # Phase 1 実装時に環境ごとの ACM ARN へ上書き。
+    # 同一 ALB を UI / API で共有(IngressGroup)。 CI と人間 UI で別 hostname を使うが
+    # ALB はひとつ。
+    alb.ingress.kubernetes.io/group.name: pact-broker
+    alb.ingress.kubernetes.io/group.order: "20"
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-1:ACCOUNT_ID:certificate/REPLACE_ME
     alb.ingress.kubernetes.io/healthcheck-path: /diagnostic/status/heartbeat
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
-    # GitHub Actions runner からのアクセス: PrivateLink 経由 or VPC peering で internal ALB に到達する想定。
-    # public 露出は禁止(scheme: internal)。
 spec:
   rules:
-    - host: pact-broker.internal.example.com
+    - host: pact-broker-api.internal.example.com
       http:
         paths:
           - path: /

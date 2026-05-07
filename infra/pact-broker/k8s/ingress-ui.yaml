@@ -1,0 +1,70 @@
+# Pact Broker UI ingress(ADR-0021 Phase 2、 人間用)。
+#
+# 社内エンジニアの UI 閲覧アクセス用。 ALB の Cognito 認証アクション(AWS 標準機能)で
+# Cognito User Pool 経由の SSO を強制する。 Basic Auth 個別管理を廃止し、 退職者の
+# アクセス取り消しなど ID lifecycle を identity-broker(ADR-0007)経由に集約する。
+#
+# host: pact-broker.internal.example.com
+#
+# Auth flow:
+#   1. ブラウザが GET https://pact-broker.internal.example.com/ にアクセス
+#   2. ALB が Cognito session cookie 不在を検知 → Cognito Hosted UI へリダイレクト
+#   3. ユーザが社内 IdP(SAML 連携、 ADR-0007)で認証
+#   4. Cognito から ALB へ auth code 戻し → ALB が token 交換 → session cookie 発行
+#   5. リクエストが Pact Broker pod へ転送(`X-Amzn-Oidc-Data` JWT 付き)
+#   6. Pact Broker は forwarded request をそのまま処理(Basic Auth 検証は configmap で
+#      `PACT_BROKER_PUBLIC_HEARTBEAT` 等の例外を除き UI 経路ではスキップする想定)
+#
+# CI / machine-to-machine アクセスは ingress-api.yaml(別 hostname)経由で行う。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pact-broker-ui
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/part-of: platform
+    pact-broker/access: ui
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/group.name: pact-broker
+    alb.ingress.kubernetes.io/group.order: "10"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-1:ACCOUNT_ID:certificate/REPLACE_ME
+    alb.ingress.kubernetes.io/healthcheck-path: /diagnostic/status/heartbeat
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
+
+    # Cognito 認証アクション(AWS Load Balancer Controller 標準機能)。
+    # 詳細: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.7/guide/ingress/annotations/#authentication
+    alb.ingress.kubernetes.io/auth-type: cognito
+    alb.ingress.kubernetes.io/auth-idp-cognito: |
+      {
+        "UserPoolArn": "arn:aws:cognito-idp:ap-northeast-1:ACCOUNT_ID:userpool/REPLACE_ME",
+        "UserPoolClientId": "REPLACE_ME",
+        "UserPoolDomain": "pact-broker-prod"
+      }
+    # 未認証アクセス時の動作: authenticate(Cognito へリダイレクト)。
+    # API 用の ingress-api.yaml は本 annotation を持たないため、 CI からの Basic Auth は
+    # api hostname 経由で素通しできる。
+    alb.ingress.kubernetes.io/auth-on-unauthenticated-request: authenticate
+    alb.ingress.kubernetes.io/auth-scope: openid profile email
+    alb.ingress.kubernetes.io/auth-session-cookie: AWSELBAuthSessionCookie
+    # 8 時間 = 28800 秒。 業務日 1 日相当で再認証を要求。
+    alb.ingress.kubernetes.io/auth-session-timeout: "28800"
+spec:
+  rules:
+    - host: pact-broker.internal.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pact-broker
+                port:
+                  number: 80
