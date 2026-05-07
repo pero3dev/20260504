@@ -54,12 +54,23 @@ Native ledger semantics. Rejected because QLDB is being de-emphasized in AWS's r
 - ✅ **anchor 整合性検証**: `VerifyMerkleAnchorService` + `GET /admin/audit-chain/anchor/verify`
 - ✅ **anchor 手動計算 API**: `POST /admin/audit-chain/anchor`
 
-未実装(本 ADR 対象だがインフラ寄り、別タスク):
+### 2026-05-07 update — A4 task で WORM 二次保管が完備
 
-- ⏳ S3 Object Lock (Compliance mode) への Parquet 投入(現状は audit_record に DB 保管のみ)
-- ⏳ Merkle root の S3 への二重保管(現状は audit_merkle_anchor テーブルのみ)
-- ⏳ Athena 経由のクエリ
-- ⏳ 1 年保持期限による自動失効
+S3 投入経路を実装し、 残 4 項目を解消:
+
+- ✅ **S3 Object Lock (Compliance mode) への record 投入**: 日次 `ComputeDailyMerkleAnchorService` が anchor 計算後に同期で S3 PUT(`AuditArchiveExporter` port + `S3AuditArchiveExporter` adapter)
+- ✅ **Merkle root の S3 二重保管**: 同じ scheduler tick で `exportAnchor` も実行
+- ✅ **Athena 経由のクエリ**: `infra/audit-s3/glue/*.sql` で External Table 定義(partition projection 有効)
+- ✅ **1 年保持期限**: bucket 設定で Default retention 365 days + lifecycle 365 days(`infra/audit-s3/bucket-config/object-lock-configuration.json`)
+
+**format に関する補足**:
+
+ADR では Parquet 投入を想定していたが、 MVP は **JSON Lines + gzip**(records)/ JSON(anchor)で実装した。 理由は `parquet-avro` の transitive 依存(hadoop-common 等)が重く、 audit-service の jar サイズと build 時間に大きく響くため。 Athena は JSON も外部表で読めるため J-SOX 上の要件は満たす。 列指向(scan cost 圧縮)が必要になった段階で Parquet 化に差し替える(format は port インターフェイスの内側に閉じている)。
+
+**運用への引継ぎ**:
+
+- S3 export 失敗は warn ログのみで anchor 自体の整合性は失われない設計(`ComputeDailyMerkleAnchorService.exportToArchive`)。 再投入は POST `/admin/audit-chain/anchor` で同一 (tenant, date) を再計算しようとしても DB 側の WORM トリガで弾かれるため、 **再 export だけしたい場合は手動で S3 PUT する運用ジョブが必要**(後フェーズ Future Work)。
+- 本番デプロイ手順は `infra/audit-s3/README.md` の Step 1〜10 を参照。
 
 ## References
 

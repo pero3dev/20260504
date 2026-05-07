@@ -122,6 +122,15 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- AWS SDK v2 BOM(audit-service の S3 Object Lock 投入で使用、 ADR-0008)。
+                 transitive を含めて統一バージョン。 個別 artifact(s3 等)は BOM 経由でバージョン省略可能。 -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

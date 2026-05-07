@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.inventory.audit.application.port.in.ComputeDailyMerkleAnchorUseCase;
+import com.example.inventory.audit.application.port.out.AuditArchiveExporter;
 import com.example.inventory.audit.application.port.out.AuditChainReader;
 import com.example.inventory.audit.application.port.out.MerkleAnchorRepository;
 import com.example.inventory.audit.application.port.out.MerkleTreeCalculator;
@@ -44,13 +45,21 @@ public class ComputeDailyMerkleAnchorService implements ComputeDailyMerkleAnchor
     private final MerkleAnchorRepository anchorRepository;
     private final MerkleTreeCalculator merkleCalculator;
 
+    /**
+     * S3 export は {@code platform.audit.archive.enabled=true} の時のみ Bean が存在するため Optional 注入。
+     * 無効環境(test/local default)では DB 内 anchor のみが残る挙動を維持。
+     */
+    private final Optional<AuditArchiveExporter> archiveExporter;
+
     public ComputeDailyMerkleAnchorService(
             AuditChainReader reader,
             MerkleAnchorRepository anchorRepository,
-            MerkleTreeCalculator merkleCalculator) {
+            MerkleTreeCalculator merkleCalculator,
+            Optional<AuditArchiveExporter> archiveExporter) {
         this.reader = reader;
         this.anchorRepository = anchorRepository;
         this.merkleCalculator = merkleCalculator;
+        this.archiveExporter = archiveExporter;
     }
 
     @Override
@@ -94,12 +103,34 @@ public class ComputeDailyMerkleAnchorService implements ComputeDailyMerkleAnchor
                     command.anchorDate(),
                     rootHash.value(),
                     records.size());
+            exportToArchive(anchor, records);
             return new Result(anchor, false, Optional.empty());
         } catch (DuplicateKeyException e) {
             // 並行スケジューラ等で同時 append が走った稀なケース。既存を返す。
             Optional<MerkleAnchor> raceWinner =
                     anchorRepository.find(command.tenantId(), command.anchorDate());
             return new Result(raceWinner.orElse(anchor), true, raceWinner);
+        }
+    }
+
+    /**
+     * 新規 anchor のみ S3 に export(records + anchor)。 export の失敗は anchor 自体の整合性を脅かさないので warn ログのみ。 次回手動
+     * anchor API({@code POST /admin/audit-chain/anchor})か運用 retry で再投入できる。
+     */
+    private void exportToArchive(MerkleAnchor anchor, List<AuditRecord> records) {
+        if (archiveExporter.isEmpty()) return;
+        AuditArchiveExporter exporter = archiveExporter.get();
+        try {
+            exporter.exportRecords(anchor.tenantId(), anchor.anchorDate(), records);
+            exporter.exportAnchor(anchor);
+        } catch (RuntimeException e) {
+            // S3 投入失敗は DB 側の anchor を妨げない設計(WORM 二次防衛が遅れるだけ)。
+            LOG.warn(
+                    "S3 archive export 失敗 tenant={} date={} root={}: {}",
+                    anchor.tenantId().value(),
+                    anchor.anchorDate(),
+                    anchor.rootHash().value(),
+                    e.toString());
         }
     }
 }

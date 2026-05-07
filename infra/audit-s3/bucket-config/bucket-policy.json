@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyDeleteObject",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::PLACEHOLDER_AUDIT_BUCKET/*"
+    },
+    {
+      "Sid": "DenyBucketLifecycleChange",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "s3:PutLifecycleConfiguration",
+        "s3:PutBucketObjectLockConfiguration",
+        "s3:PutBucketVersioning"
+      ],
+      "Resource": "arn:aws:s3:::PLACEHOLDER_AUDIT_BUCKET"
+    },
+    {
+      "Sid": "AllowAuditServicePut",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_AUDIT_SERVICE_IRSA_ROLE"
+      },
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::PLACEHOLDER_AUDIT_BUCKET/*"
+    },
+    {
+      "Sid": "AllowAuditorRead",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_AUDITOR_ROLE"
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::PLACEHOLDER_AUDIT_BUCKET",
+        "arn:aws:s3:::PLACEHOLDER_AUDIT_BUCKET/*"
+      ]
+    }
+  ]
+}

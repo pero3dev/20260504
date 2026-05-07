@@ -53,6 +53,9 @@
         <!-- 1.20.4 は Docker 29.x の API 1.54 と互換性問題があり /info が 400 を返す。1.21+ で修正。 -->
         <testcontainers.version>1.21.3</testcontainers.version>
         <opentelemetry.version>1.45.0</opentelemetry.version>
+        <!-- A4: audit-service の S3 Object Lock 投入(ADR-0008)で使用。
+             BOM 経由で transitive を含めて統一バージョンに固定。 -->
+        <aws.sdk.version>2.30.5</aws.sdk.version>
         <pact.version>4.6.14</pact.version>
         <!-- Pact Broker 連携(ADR-0019 Phase 3)。 default は localhost broker。
              CI / 別 environment では -D / env で上書き。 -->

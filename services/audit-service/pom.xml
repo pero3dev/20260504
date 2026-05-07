@@ -84,6 +84,12 @@
             <artifactId>commons-observability</artifactId>
         </dependency>
 
+        <!-- A4: ADR-0008 の S3 Object Lock 投入。 BOM がバージョンを管理する。 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

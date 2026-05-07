@@ -89,6 +89,10 @@
 - **B1 Manufacturing 完成品 INBOUND 失敗時の補償フロー** — `WorkOrder.complete` 後の `inventory.work_order.completed.v1` Saga で完成品 INBOUND が失敗するケースを補償。 `WorkOrderCompletionFailedEvent` を `manufacturing.completion.failed.v1` トピックへ Outbox 経由で発行する `EmitWorkOrderCompletionFailedService`(`REQUIRES_NEW`)を `inventory-core` に追加し、 `WorkOrderCompletedListener` が補償経路を起動。 manufacturing 側 `CompletionFailedListener` + `HandleCompletionFailureService` は WorkOrder 状態を巻き戻さず audit + warn のみ(完成品の物理的不可逆性)。 部品消費失敗時のキャンセルとは非対称(ADR-0017 follow-up)。 コミット [`963a289`](https://github.com/pero3dev/20260504/commit/963a289)
 - **B2 Workflow SLA timeout(中央タイマ)** — ADR-0015 B2 の中央タイマ実体。 各 `WorkflowDefinition.instanceSla()` を見て `now - startedAt > sla` の STARTED インスタンスを 30 秒間隔で FAILED に強制遷移させ `workflow.instance.completed.v1` を発行する。 `WorkflowInstance.expireIfOverdue` で集約内遷移 + イベント発行、 `ExpireOverdueWorkflowsService` は per-instance 独立 TX(`TransactionTemplate`、 self-invocation の `@Transactional` 不発を回避)で 1 件失敗が他に波及しない。 `WorkflowSlaScheduler` は `@ConditionalOnProperty(platform.workflow.sla.enabled)` で test/loadtest profile では無効化可能。 `ApprovalFlow` は 24h SLA。 イベント駆動の Workflow 自動 step handler は別タスク(per-event-source カスタムロジック規模)として保留。 コミット [`43fc896`](https://github.com/pero3dev/20260504/commit/43fc896)
 
+#### 監査ハードニング Phase 2(A4、ADR-0008 follow-up)
+
+- **A4 audit-service S3 Object Lock 投入** — ADR-0008 の "未実装" 4 項目(S3 投入 / Merkle root S3 二重保管 / Athena / 1 年保持)を解消。 `AuditArchiveExporter` out port + AWS SDK v2 `S3Client` ベースの `S3AuditArchiveExporter` adapter を追加し、 日次 `ComputeDailyMerkleAnchorService` が anchor 計算後に同 tick で records(JSON Lines + gzip)+ anchor(JSON 単発)を S3 PUT する経路を完成。 `platform.audit.archive.enabled=true` で Bean 化、 default は無効(test/loadtest 環境で credential 無しに動く)。 export 失敗は warn ログのみで DB anchor は保持。 partition は `tenant=<id>/date=<yyyy-MM-dd>/` で Athena projection 形式に揃え、 `infra/audit-s3/{bucket-config, glue}` に Object Lock(Compliance mode + 365 days)+ Glue External Table DDL(records / anchors)+ AWS CLI ベースのデプロイランブック(Step 1〜10)を整備。 format は ADR で Parquet 想定だったが、 transitive 依存(hadoop-common 等)を避けるため MVP は JSON Lines に変更し ADR-0008 に追記。
+
 ### Changed
 
 - **`inventory.reservation.failed.v1` → `retail.reservation.failed.v1` 改名**(L4、ADR-0016 follow-up)。Phase 2 で命名規則が固まる前に作った共通名前空間を、業態別命名に揃える。コミット [`3cc68f3`](https://github.com/pero3dev/20260504/commit/3cc68f3)
@@ -129,12 +133,10 @@
 
 - Workflow 自動 step handler — orchestration が必要な candidate(ADR-0015):業態横断承認、 EDI ACK 待ち、 WorkOrder ライフサイクル全体。 per-event-source カスタムロジックが必要(SLA timeout = 中央タイマは B2 で実装済、 step 推進ロジックが未実装)
 
-#### C. 監査・コンプライアンス(ADR-0008 未実装)
+#### C. 監査・コンプライアンス(ADR-0008 follow-up 残)
 
-- audit-service S3 Object Lock(Compliance mode)への Parquet 投入(現状は DB 内 anchor のみ)
-- Merkle root の S3 二重保管(現状は `audit_merkle_anchor` テーブルのみ)
-- Athena 経由のクエリ
-- 1 年保持期限による自動失効
+- format を MVP の JSON Lines + gzip から **Parquet 化**(scan cost 圧縮、 hadoop-common transitive を許容するか別 export pipeline に切り出すか要決定)
+- 既存 anchor 日付の records 再 export 用の運用ジョブ(現状 export 失敗時は手動 S3 PUT が必要)
 
 #### D. 外部連携(Integration Hub)
 

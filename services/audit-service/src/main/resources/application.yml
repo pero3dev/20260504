@@ -46,5 +46,19 @@ server:
 application:
   env: ${APP_ENV:local}
 
+# ADR-0008 A4: 監査レコード + Merkle anchor の S3 Object Lock(Compliance mode)二重保管。
+# デフォルトは無効。 本番では platform.audit.archive.enabled=true + bucket を指定する。
+# bucket 側で Object Lock + 1 年 retention を強制(infra/audit-s3 参照)。
+platform:
+  audit:
+    archive:
+      enabled: ${PLATFORM_AUDIT_ARCHIVE_ENABLED:false}
+      bucket: ${PLATFORM_AUDIT_ARCHIVE_BUCKET:}
+      region: ${PLATFORM_AUDIT_ARCHIVE_REGION:ap-northeast-1}
+      # LocalStack / MinIO 用。 本番では空。
+      endpoint-override: ${PLATFORM_AUDIT_ARCHIVE_ENDPOINT_OVERRIDE:}
+      records-prefix: ${PLATFORM_AUDIT_ARCHIVE_RECORDS_PREFIX:audit-records}
+      anchors-prefix: ${PLATFORM_AUDIT_ARCHIVE_ANCHORS_PREFIX:audit-anchors}
+
 logging:
   config: classpath:logback-spring.xml
