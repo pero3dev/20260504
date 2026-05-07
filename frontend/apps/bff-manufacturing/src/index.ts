@@ -3,6 +3,7 @@ import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastif
 import {
   buildBffAuth,
   createJwtVerifier,
+  createRemoteJwks,
   JwtVerificationError,
   type JwtVerifier,
 } from '@inventory/shared';
@@ -23,7 +24,11 @@ function buildJwtVerifier(): JwtVerifier | null {
   const jwksUrl = process.env.JWT_JWKS_URL;
   const issuer = process.env.JWT_ISSUER;
   if (!jwksUrl || !issuer) return null;
-  return createJwtVerifier({ jwksUrl, issuer, audience: process.env.JWT_AUDIENCE });
+  return createJwtVerifier({
+    jwks: createRemoteJwks(jwksUrl),
+    issuer,
+    audience: process.env.JWT_AUDIENCE,
+  });
 }
 
 async function main() {

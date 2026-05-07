@@ -1,4 +1,10 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import {
+  createLocalJWKSet,
+  createRemoteJWKSet,
+  jwtVerify,
+  type JWTPayload,
+  type JWTVerifyGetKey,
+} from 'jose';
 
 /**
  * BFF が verify 後に context として持つ user 情報。 Identity Broker (`NimbusJwtTokenIssuer`)
@@ -22,8 +28,11 @@ export interface BffUserClaims {
 }
 
 export interface JwtVerifierOptions {
-  /** Identity Broker の JWKS URL(例: `http://identity-broker:8081/.well-known/jwks.json`) */
-  jwksUrl: string;
+  /**
+   * JWKS 取得関数。 prod は `createRemoteJwks(url)` を、 test は `createLocalJwks(jwks)` を渡す。
+   * URL 渡しでなく関数 inject 形式にすることで、 単体テストはネットワーク無しで完結する。
+   */
+  jwks: JWTVerifyGetKey;
   /** 期待する `iss`(`platform.identity.issuer` と一致させる) */
   issuer: string;
   /**
@@ -45,16 +54,11 @@ export class JwtVerificationError extends Error {
 }
 
 /**
- * Identity Broker の RS256 アクセストークンを verify する verifier を返す。
- *
- * <p>JWKS は `jose.createRemoteJWKSet` がメモリにキャッシュし、 鍵 rotation 時のみ再取得する
- * (default cooldown 30s)。 BFF が cold start 時に identity-broker へ 1 回だけ HTTP し、
- * 以降は in-process 検証で完結する。
+ * 与えられた {@link JWTVerifyGetKey} で Identity Broker の RS256 アクセストークンを検証する
+ * verifier を返す。 鍵取得方法(remote JWKS / local JWKS / 任意 callback)は呼出側責務。
  */
 export function createJwtVerifier(options: JwtVerifierOptions): JwtVerifier {
-  const { jwksUrl, issuer, audience, clockToleranceSeconds = 30 } = options;
-  const jwks = createRemoteJWKSet(new URL(jwksUrl));
-
+  const { jwks, issuer, audience, clockToleranceSeconds = 30 } = options;
   return async (token: string): Promise<BffUserClaims> => {
     try {
       const { payload } = await jwtVerify(token, jwks, {
@@ -72,6 +76,21 @@ export function createJwtVerifier(options: JwtVerifierOptions): JwtVerifier {
       );
     }
   };
+}
+
+/**
+ * Remote JWKS endpoint(`http(s)://.../.well-known/jwks.json`)から鍵を引く。
+ * jose の `createRemoteJWKSet` は cooldown(default 30s)付きで in-process キャッシュする。
+ */
+export function createRemoteJwks(jwksUrl: string): JWTVerifyGetKey {
+  return createRemoteJWKSet(new URL(jwksUrl));
+}
+
+/**
+ * 既知の JWK 集合から鍵を引く(主に test 用、 鍵 rotation の無い専用 issuer でも有用)。
+ */
+export function createLocalJwks(jwks: Parameters<typeof createLocalJWKSet>[0]): JWTVerifyGetKey {
+  return createLocalJWKSet(jwks);
 }
 
 function mapClaimsOrThrow(payload: JWTPayload): BffUserClaims {

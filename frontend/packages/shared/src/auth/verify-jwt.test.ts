@@ -1,7 +1,11 @@
 import { exportJWK, generateKeyPair, SignJWT, type KeyLike } from 'jose';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createJwtVerifier, JwtVerificationError } from './verify-jwt.js';
+import {
+  createJwtVerifier,
+  createLocalJwks,
+  JwtVerificationError,
+} from './verify-jwt.js';
 
 interface SignOpts {
   iss?: string;
@@ -18,7 +22,6 @@ interface SignOpts {
 
 const ISSUER = 'https://idp.example.test/';
 const AUDIENCE = 'tenant-acme';
-const JWKS_URL = 'https://idp.example.test/.well-known/jwks.json';
 
 let privateKey: KeyLike;
 let publicJwk: Record<string, unknown>;
@@ -50,27 +53,17 @@ async function sign(opts: SignOpts = {}): Promise<string> {
   return builder.sign(privateKey);
 }
 
-function stubJwksFetch() {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string | URL) => {
-      if (String(url) !== JWKS_URL) {
-        return new Response('not found', { status: 404 });
-      }
-      return new Response(JSON.stringify({ keys: [publicJwk] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }),
-  );
+function buildVerifier(audience?: string) {
+  // 引数有無で audience option を切り替え(exactOptionalPropertyTypes 適合)。
+  const jwks = createLocalJwks({ keys: [publicJwk] });
+  return audience === undefined
+    ? createJwtVerifier({ jwks, issuer: ISSUER })
+    : createJwtVerifier({ jwks, issuer: ISSUER, audience });
 }
 
 describe('createJwtVerifier', () => {
-  afterEach(() => vi.restoreAllMocks());
-
   it('正常系: token_use=access + tenant_id + roles + scopes を mapping する', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({ jwksUrl: JWKS_URL, issuer: ISSUER });
+    const verify = buildVerifier();
     const token = await sign({
       sub: '42',
       tenantId: 'tenant-acme',
@@ -89,41 +82,31 @@ describe('createJwtVerifier', () => {
   });
 
   it('audience option を渡すと一致しないトークンは reject', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({
-      jwksUrl: JWKS_URL,
-      issuer: ISSUER,
-      audience: AUDIENCE,
-    });
+    const verify = buildVerifier(AUDIENCE);
     const wrong = await sign({ aud: 'other-tenant' });
     await expect(verify(wrong)).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
   it('期限切れは reject', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({ jwksUrl: JWKS_URL, issuer: ISSUER });
+    const verify = buildVerifier();
     const expired = await sign({ expSecondsFromNow: -120 });
     await expect(verify(expired)).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
   it('iss が違うと reject', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({ jwksUrl: JWKS_URL, issuer: ISSUER });
+    const verify = buildVerifier();
     const wrongIss = await sign({ iss: 'https://other-idp.example/' });
     await expect(verify(wrongIss)).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
   it('token_use=session(セッショントークン)は reject', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({ jwksUrl: JWKS_URL, issuer: ISSUER });
+    const verify = buildVerifier();
     const session = await sign({ tokenUse: 'session' });
     await expect(verify(session)).rejects.toThrow(/token_use/);
   });
 
   it('tenant_id 欠落は reject', async () => {
-    stubJwksFetch();
-    const verify = createJwtVerifier({ jwksUrl: JWKS_URL, issuer: ISSUER });
-    // tenant_id をわざと undefined のまま payload を組む
+    const verify = buildVerifier();
     const token = await new SignJWT({
       token_use: 'access',
       roles: ['ROLE_USER'],
