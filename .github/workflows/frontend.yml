@@ -54,12 +54,13 @@ jobs:
         with:
           version: 9.15.0
 
+      # cache: pnpm を有効にするには cache-dependency-path に lockfile が必要。 初回 commit
+      # 時点では lockfile が無いため cache を一時無効化。 lockfile commit 後に
+      # `cache: pnpm` + `cache-dependency-path: frontend/pnpm-lock.yaml` を追加する。
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
 
       # 初回 commit 時点では lockfile が無いため frozen-lockfile を外す。
       # 1 度 CI が走って lockfile が生成 / commit されたら本ステップを `pnpm install --frozen-lockfile`
