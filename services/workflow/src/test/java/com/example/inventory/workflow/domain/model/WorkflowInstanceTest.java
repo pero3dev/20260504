@@ -3,6 +3,8 @@ package com.example.inventory.workflow.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -104,6 +106,56 @@ class WorkflowInstanceTest {
         instance.failCurrentStep("err");
 
         assertThatThrownBy(instance::completeCurrentStep).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void expireIfOverdue_は_SLA_未満なら_状態を変えず_false() {
+        WorkflowInstance instance = newStarted();
+        boolean expired = instance.expireIfOverdue(Duration.ofHours(1), Instant.now());
+
+        assertThat(expired).isFalse();
+        assertThat(instance.status()).isEqualTo(WorkflowStatus.STARTED);
+        assertThat(instance.pendingEvents()).isEmpty();
+    }
+
+    @Test
+    void expireIfOverdue_は_SLA_超過なら_FAILED_遷移して_イベント発行() {
+        WorkflowInstance instance = newStarted();
+        Instant farFuture = instance.startedAt().plus(Duration.ofDays(2));
+        boolean expired = instance.expireIfOverdue(Duration.ofHours(24), farFuture);
+
+        assertThat(expired).isTrue();
+        assertThat(instance.status()).isEqualTo(WorkflowStatus.FAILED);
+        assertThat(instance.steps().get(0).status()).isEqualTo(StepStatus.FAILED);
+        assertThat(instance.error()).contains("SLA timeout");
+        assertThat(instance.pendingEvents()).hasSize(1);
+        assertThat(((WorkflowInstanceCompletedEvent) instance.pendingEvents().get(0)).finalStatus())
+                .isEqualTo(WorkflowStatus.FAILED);
+    }
+
+    @Test
+    void expireIfOverdue_は_SLA_ZERO_なら_no_op() {
+        WorkflowInstance instance = newStarted();
+        Instant farFuture = instance.startedAt().plus(Duration.ofDays(365));
+        boolean expired = instance.expireIfOverdue(Duration.ZERO, farFuture);
+
+        assertThat(expired).isFalse();
+        assertThat(instance.status()).isEqualTo(WorkflowStatus.STARTED);
+    }
+
+    @Test
+    void expireIfOverdue_は_既に_COMPLETED_状態なら_no_op() {
+        WorkflowInstance instance = newStarted();
+        instance.completeCurrentStep();
+        instance.completeCurrentStep();
+        instance.completeCurrentStep(); // → COMPLETED
+        instance.clearPendingEvents();
+
+        Instant farFuture = instance.startedAt().plus(Duration.ofDays(365));
+        boolean expired = instance.expireIfOverdue(Duration.ofHours(1), farFuture);
+
+        assertThat(expired).isFalse();
+        assertThat(instance.status()).isEqualTo(WorkflowStatus.COMPLETED);
     }
 
     @Test

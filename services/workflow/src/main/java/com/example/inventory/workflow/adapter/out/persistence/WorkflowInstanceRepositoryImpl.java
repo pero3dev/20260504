@@ -1,5 +1,6 @@
 package com.example.inventory.workflow.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -99,6 +100,13 @@ public class WorkflowInstanceRepositoryImpl implements WorkflowInstanceRepositor
         }
         aggregate.clearPendingEvents();
         return aggregate;
+    }
+
+    @Override
+    public List<WorkflowInstanceId> findStartedInstanceIdsOlderThan(Instant cutoff, int limit) {
+        return mapper.findStartedIdsOlderThan(cutoff, limit).stream()
+                .map(WorkflowInstanceId::new)
+                .collect(Collectors.toList());
     }
 
     @Override

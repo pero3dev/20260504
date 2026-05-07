@@ -103,4 +103,14 @@
         DELETE FROM workflow_step WHERE instance_id = #{instanceId}
     </delete>
 
+    <!-- B2 SLA scheduler 用。 system-level scan(tenant 横断)で id だけ取得 → 呼出側で findById 再 load する流れ。 -->
+    <select id="findStartedIdsOlderThan" resultType="java.lang.Long">
+        SELECT id
+        FROM workflow_instance
+        WHERE status = 'STARTED'
+          AND started_at &lt; #{cutoff}
+        ORDER BY started_at
+        LIMIT #{limit}
+    </select>
+
 </mapper>

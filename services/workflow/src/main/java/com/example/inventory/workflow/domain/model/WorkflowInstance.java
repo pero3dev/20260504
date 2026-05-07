@@ -1,5 +1,6 @@
 package com.example.inventory.workflow.domain.model;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -165,6 +166,40 @@ public final class WorkflowInstance {
         this.error = reason;
         this.completedAt = now;
         emitCompleted(now);
+    }
+
+    /**
+     * インスタンス全体の SLA(definition.instanceSla)を超過していれば現ステップを FAILED に遷移させて全体も FAILED にし、 {@link
+     * WorkflowInstanceCompletedEvent} を発行する。 ADR-0015 で例示した「中央タイマ」の実体(B2)。
+     *
+     * <ul>
+     *   <li>{@code sla} が ZERO ならば SLA 無効、 何もしない(冪等)
+     *   <li>STARTED 以外の状態(既に終端済)は何もしない(冪等)
+     *   <li>{@code now - startedAt < sla} ならばまだ余裕あり、 何もしない
+     * </ul>
+     *
+     * @return SLA 超過で状態遷移したら true、 そうでなければ false
+     */
+    public boolean expireIfOverdue(Duration sla, Instant now) {
+        if (sla == null || sla.isZero() || sla.isNegative()) {
+            return false;
+        }
+        if (status != WorkflowStatus.STARTED) {
+            return false;
+        }
+        Instant deadline = startedAt.plus(sla);
+        if (!now.isAfter(deadline)) {
+            return false;
+        }
+        WorkflowStep current = stepAt(currentStep);
+        if (current.status() == StepStatus.RUNNING) {
+            replaceStep(current.markFailed(now, "SLA timeout"));
+        }
+        this.status = WorkflowStatus.FAILED;
+        this.error = "SLA timeout (deadline=" + deadline + ")";
+        this.completedAt = now;
+        emitCompleted(now);
+        return true;
     }
 
     /** 進行中インスタンスを CANCELLED にする。RUNNING 中のステップは FAILED として閉じる。 */
