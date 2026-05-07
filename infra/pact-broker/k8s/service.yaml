@@ -1,0 +1,19 @@
+# Pact Broker Service(ADR-0021 Phase 1)。
+# ClusterIP で Ingress 経由のみ公開。 NodePort / LoadBalancer は使わない(internal-only 方針)。
+apiVersion: v1
+kind: Service
+metadata:
+  name: pact-broker
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/part-of: platform
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: pact-broker

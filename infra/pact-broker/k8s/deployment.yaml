@@ -1,0 +1,93 @@
+# Pact Broker Deployment(ADR-0021 Phase 1)。
+#
+# - 2 replicas で SPOF 排除。 HPA で 3 まで scale(burst verify 対策)。
+# - resource は (256MB, 250m CPU) 程度の軽量サービス。 Aurora-C への接続だけが重い。
+# - readinessProbe / livenessProbe は Pact Broker 公式の `/diagnostic/status/heartbeat`。
+# - `pactfoundation/pact-broker:latest` ではなく特定タグを pin(infra/pact-broker/docker-compose と一致)。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pact-broker
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/version: "2.138.0-pactbroker2.119.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pact-broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pact-broker
+        app.kubernetes.io/part-of: platform
+    spec:
+      serviceAccountName: pact-broker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pact-broker
+          image: pactfoundation/pact-broker:2.138.0-pactbroker2.119.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9292
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: pact-broker
+            - secretRef:
+                name: pact-broker
+          readinessProbe:
+            httpGet:
+              path: /diagnostic/status/heartbeat
+              port: http
+              httpHeaders:
+                - name: Authorization
+                  value: Basic UkVQTEFDRV9NRTpSRVBMQUNFX01F
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /diagnostic/status/heartbeat
+              port: http
+              httpHeaders:
+                - name: Authorization
+                  value: Basic UkVQTEFDRV9NRTpSRVBMQUNFX01F
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Pact Broker は /tmp に書き込む
+            capabilities:
+              drop:
+                - ALL
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pact-broker

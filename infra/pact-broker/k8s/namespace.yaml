@@ -1,0 +1,11 @@
+# Pact Broker namespace(ADR-0021 Phase 1)。
+# ADR-0013 の「namespace per service」原則に準拠。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/part-of: platform
+    # NetworkPolicy で他 namespace との通信を絞るための識別子。
+    pact-broker/access: restricted

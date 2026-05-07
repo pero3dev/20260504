@@ -1,0 +1,27 @@
+# Pact Broker base kustomization(ADR-0021 Phase 1)。
+#
+# 環境ごとの値(ACM ARN / IRSA Role ARN / VPC CIDR / DB host)は overlays で
+# patch する想定。 本ファイルは「全環境共通の base」を定義する。
+#
+# kustomize build でレンダリング → kubectl apply or ArgoCD で同期。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pact-broker
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - networkpolicy.yaml
+  # Secret は External Secrets Operator が生成する想定で resources に含めない。
+  # ローカル dev で apply するときは secret.example.yaml を別途 apply。
+
+commonLabels:
+  app.kubernetes.io/name: pact-broker
+  app.kubernetes.io/part-of: platform
+  app.kubernetes.io/managed-by: argocd

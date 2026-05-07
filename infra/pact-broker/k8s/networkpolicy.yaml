@@ -1,0 +1,46 @@
+# Pact Broker NetworkPolicy(ADR-0021 Phase 1 / ADR-0013 の NetworkPolicy 原則)。
+#
+# Pact Broker は他 namespace と通信しない:
+#   - ingress: ALB 経由のみ
+#   - egress: Aurora-C(common-base RDS)への TCP/5432 のみ
+# DNS は kube-dns に許可(DB host name 解決のため)。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pact-broker
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pact-broker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # ALB 経由のトラフィック(ALB は VPC 内 ENI で targetType: ip)。
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # VPC CIDR(環境ごとに上書き)
+      ports:
+        - port: 9292
+          protocol: TCP
+  egress:
+    # DNS resolution.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Aurora-C への TCP/5432。 Aurora endpoint は VPC 内のみ accessible。
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # VPC CIDR(環境ごとに上書き)
+      ports:
+        - port: 5432
+          protocol: TCP

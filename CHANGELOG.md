@@ -79,6 +79,7 @@
 - **Pact Phase 4 — matching rule strict 一致を緩和** — Consumer Pact test を `expectsToReceiveMessageInteraction(name, i -> i.withContents(c -> c.withContent(payload)))` の V4 native API へ全 5 経路で書き換え。 これで `PactDslJsonBody` 上の `numberType / stringType / integerType / minArrayLike / stringMatcher` がすべて pact JSON の `matchingRules.body` に propagate される。 旧 `with(Map.of("message.contents", payload))` 経路は matching rule を **黙って捨てる** 落とし穴で、 ADR-0019 の "Known Limitation" として記録していたが Phase 4 で根治。 manufacturing Provider を 2 components 返却に戻す副作用付き。
 - **Pact Phase 4.5 — `LambdaDsl` 全面移行** — Consumer Pact test を `PactDslJsonBody` チェーン形式から `LambdaDsl.newJsonBody(o -> {...})` ネストラムダ形式へ 5 経路すべて書き換え。 ネスト構造(`items[].*` など)がインデントで自然に表現され、中間変数の `itemTemplate` 等が消えた。 機能等価(matchingRules パス完全一致、 Folder/Broker 両経路で Provider verify 緑)、可読性向上のみ。
 - **Pact Phase 5 — Consumer version selectors の本格運用** — 各 ProviderPactBase に `@PactBrokerConsumerVersionSelectors` を追加。 `mainBranch()`(プロダクション safety net)+ `deployedOrReleased()`(後方互換 safety)+ `branch(<provider branch>)`(PR 連動)の 3 selector で Broker から Consumer pact を取得。 `pact.consumer.branch` で publish に branch metadata を付与、 `pact-broker.yml` を branch-aware に。 Pact-JVM 4.6 の `matchingBranch()` バグ(`providerVersionBranch` 未付与で 400)を `branch(System.getProperty(...))` で回避。 main / pr-N 両ケースで Broker round-trip 確認済。
+- **ADR-0021 Phase 1 — Pact Broker 本番デプロイ用 manifests** — `infra/pact-broker/k8s/`(Namespace / SA(IRSA)/ ConfigMap / Secret(External Secrets template)/ Deployment(2 replicas, RuntimeDefault seccomp, topology spread)/ Service(ClusterIP)/ Ingress(ALB internal, ACM)/ HPA(2-3, CPU 60%)/ NetworkPolicy(ALB → broker / broker → Aurora 5432 + DNS)) + `argocd/application.yaml`(GitOps)+ `db/001-create-pact-broker-db.sql`(Aurora-C 切り出し)+ README に Step 1〜8 ランブック。 ACM ARN / IRSA ARN / VPC CIDR / DB host は placeholder で、本番 PR 時に環境別値で patch する想定。 全 11 manifests が YAML parse 緑。
 
 ### Changed
 
@@ -106,7 +107,8 @@
 
 ### Future Work
 
-- Pact Broker 本番展開(ADR-0021 Phase 1 — Aurora-C `pact_broker` DB 切り出し + EKS Deployment + ALB internal-only)
+- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1 完了で YAML は git に置いてあるが、 EKS / Aurora 環境への実適用は別作業)
+- ADR-0021 Phase 2 — Cognito OIDC 連携で Basic Auth を SSO に置換(identity-broker MVP 完了後)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
 - Workflow 自動 step handler / SLA タイムアウト

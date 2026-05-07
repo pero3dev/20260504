@@ -1,0 +1,29 @@
+# Pact Broker 環境変数の非機密部分(ADR-0021 Phase 1)。
+# 機密部分(DB password / Basic Auth credential)は Secret 側で管理。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pact-broker
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+data:
+  # DB は ADR-0005 の Aurora-C(common-base)内の専用 DB。host は環境ごと。
+  PACT_BROKER_DATABASE_ADAPTER: postgres
+  PACT_BROKER_DATABASE_HOST: aurora-c-cluster.internal.example.com
+  PACT_BROKER_DATABASE_PORT: "5432"
+  PACT_BROKER_DATABASE_NAME: pact_broker
+  PACT_BROKER_DATABASE_USERNAME: pact_broker
+
+  # 公開エンドポイント。 `/diagnostic/status/heartbeat` は内部 health check。
+  PACT_BROKER_BASE_URL: https://pact-broker.internal.example.com
+  PACT_BROKER_PORT: "9292"
+  PACT_BROKER_LOG_LEVEL: WARN
+  PACT_BROKER_PUBLIC_HEARTBEAT: "true"
+
+  # webhook / matrix 計算で外部 API call が走らないよう、 SMTP / webhook 機能は無効化。
+  PACT_BROKER_WEBHOOK_HTTP_METHOD_WHITELIST: "POST"
+  PACT_BROKER_WEBHOOK_SCHEME_WHITELIST: "https"
+
+  # Phase 2 で OIDC を有効化するため変数 placeholder を残しておく(現状は Basic Auth)。
+  PACT_BROKER_USE_HAL_BROWSER: "true"

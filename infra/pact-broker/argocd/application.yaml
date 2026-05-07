@@ -1,0 +1,43 @@
+# ArgoCD Application(ADR-0013 GitOps + ADR-0021 Phase 1)。
+#
+# 各環境(dev / staging / prod)で本マニフェストを 1 つずつ作る:
+# `kubectl apply -f application.yaml` を ArgoCD admin namespace で実行する想定。
+# 環境ごとの違いは destination.namespace / destination.name(cluster)+ ACM ARN 等の
+# overlay 値だけなので、 本ファイルは prod の代表として置く。 dev/staging は patch を当てる。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pact-broker
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/pero3dev/20260504.git
+    targetRevision: HEAD
+    path: infra/pact-broker/k8s
+    # kustomize build で manifests を生成。 環境別 overlay を当てる場合は path を
+    # `infra/pact-broker/k8s/overlays/prod` 等に変更する(現状は base のみ)。
+  destination:
+    # prod cluster(ADR-0013 で one cluster per environment)。
+    server: https://kubernetes.default.svc
+    namespace: pact-broker
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false  # namespace.yaml を resources に含めているので Argo 側で作らない
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  # Pact Broker は CI 専用の管理サービスで、 在庫サービス本体への影響なし(ADR-0021 SLA 99% 目標)。
+  # canary rollout(Argo Rollouts)は不要、 通常の Deployment rolling update で十分。
