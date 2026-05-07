@@ -109,7 +109,6 @@ class OidcAuthManager implements AuthManager {
       this.cachedAccessToken = null;
     });
     this.um.events.addSilentRenewError((err) => {
-      // eslint-disable-next-line no-console
       console.warn('OIDC silent renew failed:', err);
       this.cachedAccessToken = null;
     });
