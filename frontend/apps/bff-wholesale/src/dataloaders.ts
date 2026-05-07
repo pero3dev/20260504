@@ -1,24 +1,21 @@
 import DataLoader from 'dataloader';
 
-export interface SalesOrderSnapshot {
-  salesOrderId: string;
-  partnerId: string;
-  status: 'PLACED' | 'RESERVED' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
-  totalAmountJpy: number;
-  placedAt: string;
-  shippedAt: string | null;
-}
+import { WholesaleClient, type SalesOrderDto } from './clients/wholesale-client.js';
 
-export function createSalesOrderLoader() {
-  return new DataLoader<string, SalesOrderSnapshot>(async (ids) => {
-    return ids.map((id) => ({
-      salesOrderId: id,
-      partnerId: 'PTNR-1',
-      status: 'PLACED' as const,
-      totalAmountJpy: 120_000,
-      placedAt: new Date().toISOString(),
-      shippedAt: null,
-    }));
+/**
+ * SalesOrder id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても
+ * wholesale service へは 1 回だけ叩く(CLAUDE.md ルール)。
+ */
+export function createSalesOrderLoader(
+  client: WholesaleClient,
+  authToken: string | null,
+) {
+  return new DataLoader<string, SalesOrderDto | null>(async (ids) => {
+    const numericIds = ids.map((id) => Number(id));
+    const results = await Promise.all(
+      numericIds.map((id) => client.getSalesOrder(id, authToken)),
+    );
+    return results;
   });
 }
 
@@ -26,8 +23,11 @@ export interface DataLoaderContext {
   salesOrderById: ReturnType<typeof createSalesOrderLoader>;
 }
 
-export function createLoaders(): DataLoaderContext {
+export function createLoaders(
+  client: WholesaleClient,
+  authToken: string | null,
+): DataLoaderContext {
   return {
-    salesOrderById: createSalesOrderLoader(),
+    salesOrderById: createSalesOrderLoader(client, authToken),
   };
 }

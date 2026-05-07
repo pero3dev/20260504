@@ -18,31 +18,49 @@ export const client = new GraphQLClient(endpoint, {
 });
 
 const SALES_ORDER_QUERY = gql`
-  query SalesOrder($salesOrderId: ID!) {
-    salesOrder(salesOrderId: $salesOrderId) {
-      salesOrderId
-      partnerId
+  query SalesOrder($orderId: ID!) {
+    salesOrder(orderId: $orderId) {
+      id
+      code
+      partnerCode
       status
-      totalAmountJpy
-      placedAt
-      shippedAt
+      currency
+      totalAmount
+      requestedDeliveryDate
+      items {
+        skuCode
+        locationId
+        quantity
+        unitPrice
+      }
+      version
     }
   }
 `;
 
+export interface SalesOrderLineQueryResult {
+  skuCode: string;
+  locationId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 export interface SalesOrderQueryResult {
   salesOrder: {
-    salesOrderId: string;
-    partnerId: string;
-    status: string;
-    totalAmountJpy: number;
-    placedAt: string;
-    shippedAt: string | null;
+    id: string;
+    code: string;
+    partnerCode: string;
+    status: 'PLACED' | 'SHIPPED' | 'CANCELLED';
+    currency: string;
+    totalAmount: number;
+    requestedDeliveryDate: string | null;
+    items: SalesOrderLineQueryResult[];
+    version: number;
   } | null;
 }
 
 export async function fetchSalesOrder(
-  salesOrderId: string,
+  orderId: string,
 ): Promise<SalesOrderQueryResult> {
-  return client.request<SalesOrderQueryResult>(SALES_ORDER_QUERY, { salesOrderId });
+  return client.request<SalesOrderQueryResult>(SALES_ORDER_QUERY, { orderId });
 }

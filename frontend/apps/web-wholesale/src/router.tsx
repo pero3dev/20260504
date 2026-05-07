@@ -27,8 +27,8 @@ const indexRoute = createRoute({
 
 function DashboardPage() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['salesOrder', 'SO-1'],
-    queryFn: () => fetchSalesOrder('SO-1'),
+    queryKey: ['salesOrder', '1'],
+    queryFn: () => fetchSalesOrder('1'),
   });
 
   return (
@@ -48,20 +48,38 @@ function DashboardPage() {
       )}
 
       {data?.salesOrder && (
-        <section className="space-y-3 rounded-lg border border-border p-4">
-          <h2 className="text-lg font-semibold">SalesOrder {data.salesOrder.salesOrderId}</h2>
+        <section className="space-y-4 rounded-lg border border-border p-4">
+          <header>
+            <h2 className="text-lg font-semibold">
+              SalesOrder {data.salesOrder.code} (id: {data.salesOrder.id})
+            </h2>
+          </header>
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <dt className="text-muted-foreground">取引先</dt>
-            <dd>{data.salesOrder.partnerId}</dd>
+            <dd>{data.salesOrder.partnerCode}</dd>
             <dt className="text-muted-foreground">ステータス</dt>
             <dd>{data.salesOrder.status}</dd>
-            <dt className="text-muted-foreground">金額(JPY)</dt>
-            <dd>{data.salesOrder.totalAmountJpy.toLocaleString('ja-JP')} 円</dd>
-            <dt className="text-muted-foreground">受注時刻</dt>
-            <dd>{new Date(data.salesOrder.placedAt).toLocaleString('ja-JP')}</dd>
-            <dt className="text-muted-foreground">出荷時刻</dt>
-            <dd>{data.salesOrder.shippedAt ?? '-'}</dd>
+            <dt className="text-muted-foreground">通貨</dt>
+            <dd>{data.salesOrder.currency}</dd>
+            <dt className="text-muted-foreground">合計金額</dt>
+            <dd>
+              {data.salesOrder.totalAmount.toLocaleString('ja-JP')} {data.salesOrder.currency}
+            </dd>
+            <dt className="text-muted-foreground">納期希望</dt>
+            <dd>{data.salesOrder.requestedDeliveryDate ?? '-'}</dd>
           </dl>
+
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">明細</h3>
+            <ul className="text-sm">
+              {data.salesOrder.items.map((line, idx) => (
+                <li key={`${line.skuCode}-${line.locationId}-${idx}`} className="border-t border-border py-1">
+                  {line.skuCode} @ {line.locationId} — {line.quantity} ×{' '}
+                  {line.unitPrice.toLocaleString('ja-JP')} {data.salesOrder!.currency}
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
     </div>

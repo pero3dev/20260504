@@ -27,8 +27,8 @@ const indexRoute = createRoute({
 
 function DashboardPage() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['stockMovement', 'M-1'],
-    queryFn: () => fetchStockMovement('M-1'),
+    queryKey: ['stockMovement', '1'],
+    queryFn: () => fetchStockMovement('1'),
   });
 
   return (
@@ -49,18 +49,24 @@ function DashboardPage() {
 
       {data?.stockMovement && (
         <section className="space-y-3 rounded-lg border border-border p-4">
-          <h2 className="text-lg font-semibold">Movement {data.stockMovement.movementId}</h2>
+          <h2 className="text-lg font-semibold">
+            Movement {data.stockMovement.code} (id: {data.stockMovement.id})
+          </h2>
           <dl className="grid grid-cols-2 gap-2 text-sm">
+            <dt className="text-muted-foreground">取引先</dt>
+            <dd>{data.stockMovement.partnerCode}</dd>
             <dt className="text-muted-foreground">SKU</dt>
-            <dd>{data.stockMovement.skuId}</dd>
+            <dd>{data.stockMovement.skuCode}</dd>
             <dt className="text-muted-foreground">Location</dt>
             <dd>{data.stockMovement.locationId}</dd>
-            <dt className="text-muted-foreground">方向</dt>
-            <dd>{data.stockMovement.direction}</dd>
+            <dt className="text-muted-foreground">種別</dt>
+            <dd>{data.stockMovement.movementType}</dd>
             <dt className="text-muted-foreground">数量</dt>
-            <dd>{data.stockMovement.quantity}</dd>
-            <dt className="text-muted-foreground">発生時刻</dt>
-            <dd>{new Date(data.stockMovement.occurredAt).toLocaleString('ja-JP')}</dd>
+            <dd>{data.stockMovement.quantity.toLocaleString()}</dd>
+            <dt className="text-muted-foreground">ステータス</dt>
+            <dd>{data.stockMovement.status}</dd>
+            <dt className="text-muted-foreground">参照コード</dt>
+            <dd>{data.stockMovement.referenceCode ?? '-'}</dd>
           </dl>
         </section>
       )}

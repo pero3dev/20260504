@@ -1,20 +1,30 @@
-# 3PL BFF GraphQL schema(F3 vertical)。 倉庫オペレータ向け UI が
-# 入出庫履歴を 1 画面で取れるようにする。
-
-scalar DateTime
+# 3PL BFF GraphQL schema(F6 phase 2)。 倉庫オペレータ向け UI が
+# 入出庫計画を 1 画面で取れるようにする。 backing service: services/tpl REST。
 
 type StockMovement {
-  movementId: ID!
-  skuId: ID!
+  id: ID!
+  code: String!
+  partnerCode: String!
+  skuCode: ID!
   locationId: ID!
-  direction: MovementDirection!
+  movementType: MovementType!
   quantity: Int!
-  occurredAt: DateTime!
+  status: MovementStatus!
+  referenceCode: String
+  version: Int!
 }
 
-enum MovementDirection {
-  IN
-  OUT
+enum MovementType {
+  INBOUND
+  OUTBOUND
+  ADJUSTMENT
+}
+
+enum MovementStatus {
+  PLANNED
+  RECEIVED
+  DISPATCHED
+  CANCELLED
 }
 
 type Query {

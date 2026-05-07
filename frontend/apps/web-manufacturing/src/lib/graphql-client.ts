@@ -20,22 +20,28 @@ export const client = new GraphQLClient(endpoint, {
 const WORK_ORDER_QUERY = gql`
   query WorkOrder($workOrderId: ID!) {
     workOrder(workOrderId: $workOrderId) {
-      workOrderId
-      productSkuId
+      id
+      code
+      productSkuCode
+      locationId
+      plannedQuantity
       status
-      startedAt
-      completedAt
+      plannedStartDate
+      version
     }
   }
 `;
 
 export interface WorkOrderQueryResult {
   workOrder: {
-    workOrderId: string;
-    productSkuId: string;
-    status: string;
-    startedAt: string;
-    completedAt: string | null;
+    id: string;
+    code: string;
+    productSkuCode: string;
+    locationId: string;
+    plannedQuantity: number;
+    status: 'PLANNED' | 'RELEASED' | 'COMPLETED' | 'CANCELLED';
+    plannedStartDate: string | null;
+    version: number;
   } | null;
 }
 

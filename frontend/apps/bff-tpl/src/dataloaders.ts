@@ -1,24 +1,21 @@
 import DataLoader from 'dataloader';
 
-export interface StockMovementSnapshot {
-  movementId: string;
-  skuId: string;
-  locationId: string;
-  direction: 'IN' | 'OUT';
-  quantity: number;
-  occurredAt: string;
-}
+import { TplClient, type StockMovementDto } from './clients/tpl-client.js';
 
-export function createStockMovementLoader() {
-  return new DataLoader<string, StockMovementSnapshot>(async (ids) => {
-    return ids.map((id) => ({
-      movementId: id,
-      skuId: 'SKU-A',
-      locationId: 'tokyo-warehouse',
-      direction: 'IN' as const,
-      quantity: 50,
-      occurredAt: new Date().toISOString(),
-    }));
+/**
+ * StockMovement id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても
+ * tpl service へは 1 回だけ叩く(CLAUDE.md ルール)。
+ */
+export function createStockMovementLoader(
+  client: TplClient,
+  authToken: string | null,
+) {
+  return new DataLoader<string, StockMovementDto | null>(async (ids) => {
+    const numericIds = ids.map((id) => Number(id));
+    const results = await Promise.all(
+      numericIds.map((id) => client.getStockMovement(id, authToken)),
+    );
+    return results;
   });
 }
 
@@ -26,8 +23,11 @@ export interface DataLoaderContext {
   movementById: ReturnType<typeof createStockMovementLoader>;
 }
 
-export function createLoaders(): DataLoaderContext {
+export function createLoaders(
+  client: TplClient,
+  authToken: string | null,
+): DataLoaderContext {
   return {
-    movementById: createStockMovementLoader(),
+    movementById: createStockMovementLoader(client, authToken),
   };
 }

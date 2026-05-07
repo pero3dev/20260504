@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
+import { TplClient } from './clients/tpl-client.js';
 import { createLoaders } from './dataloaders.js';
 import { resolvers, type BffContext } from './resolvers.js';
 
@@ -13,6 +14,9 @@ const typeDefs = readFileSync(resolve(__dirname, '../src/schema.graphql'), 'utf8
 
 async function main() {
   const fastify = Fastify({ logger: true });
+  const backendUrl = process.env.TPL_URL ?? 'http://localhost:8086';
+  const client = new TplClient(backendUrl);
+
   const apollo = new ApolloServer<BffContext>({
     typeDefs,
     resolvers,
@@ -26,7 +30,7 @@ async function main() {
       const authToken = authHeader?.startsWith('Bearer ')
         ? authHeader.slice('Bearer '.length)
         : null;
-      return { loaders: createLoaders(), authToken };
+      return { loaders: createLoaders(client, authToken), authToken };
     },
   });
 
@@ -34,7 +38,7 @@ async function main() {
 
   const port = Number(process.env.PORT ?? 4003);
   await fastify.listen({ port, host: '0.0.0.0' });
-  console.info(`bff-tpl listening on :${port}/graphql`);
+  console.info(`bff-tpl listening on :${port}/graphql (tpl: ${backendUrl})`);
 }
 
 main().catch((err) => {

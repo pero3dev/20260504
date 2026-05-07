@@ -1,26 +1,21 @@
 import DataLoader from 'dataloader';
 
-export interface WorkOrderSnapshot {
-  workOrderId: string;
-  productSkuId: string;
-  status: 'STARTED' | 'RELEASED' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-  startedAt: string;
-  completedAt: string | null;
-}
+import { ManufacturingClient, type WorkOrderDto } from './clients/manufacturing-client.js';
 
 /**
- * WorkOrder id → snapshot の DataLoader(F3 mock 実装)。 F6 で実 manufacturing
- * service への HTTP 呼出に差替える。
+ * WorkOrder id → snapshot の DataLoader(F6 phase 2)。 同 id が 1 リクエスト内で複数参照されても
+ * manufacturing service へは 1 回だけ叩く(CLAUDE.md ルール)。
  */
-export function createWorkOrderLoader() {
-  return new DataLoader<string, WorkOrderSnapshot>(async (ids) => {
-    return ids.map((id) => ({
-      workOrderId: id,
-      productSkuId: 'SKU-FINISHED-1',
-      status: 'STARTED' as const,
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-    }));
+export function createWorkOrderLoader(
+  client: ManufacturingClient,
+  authToken: string | null,
+) {
+  return new DataLoader<string, WorkOrderDto | null>(async (ids) => {
+    const numericIds = ids.map((id) => Number(id));
+    const results = await Promise.all(
+      numericIds.map((id) => client.getWorkOrder(id, authToken)),
+    );
+    return results;
   });
 }
 
@@ -28,8 +23,11 @@ export interface DataLoaderContext {
   workOrderById: ReturnType<typeof createWorkOrderLoader>;
 }
 
-export function createLoaders(): DataLoaderContext {
+export function createLoaders(
+  client: ManufacturingClient,
+  authToken: string | null,
+): DataLoaderContext {
   return {
-    workOrderById: createWorkOrderLoader(),
+    workOrderById: createWorkOrderLoader(client, authToken),
   };
 }

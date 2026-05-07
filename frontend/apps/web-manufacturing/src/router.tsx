@@ -27,8 +27,8 @@ const indexRoute = createRoute({
 
 function DashboardPage() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['workOrder', 'WO-1'],
-    queryFn: () => fetchWorkOrder('WO-1'),
+    queryKey: ['workOrder', '1'],
+    queryFn: () => fetchWorkOrder('1'),
   });
 
   return (
@@ -49,16 +49,20 @@ function DashboardPage() {
 
       {data?.workOrder && (
         <section className="space-y-3 rounded-lg border border-border p-4">
-          <h2 className="text-lg font-semibold">WorkOrder {data.workOrder.workOrderId}</h2>
+          <h2 className="text-lg font-semibold">
+            WorkOrder {data.workOrder.code} (id: {data.workOrder.id})
+          </h2>
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <dt className="text-muted-foreground">完成品 SKU</dt>
-            <dd>{data.workOrder.productSkuId}</dd>
+            <dd>{data.workOrder.productSkuCode}</dd>
+            <dt className="text-muted-foreground">拠点</dt>
+            <dd>{data.workOrder.locationId}</dd>
+            <dt className="text-muted-foreground">計画数量</dt>
+            <dd>{data.workOrder.plannedQuantity.toLocaleString()}</dd>
             <dt className="text-muted-foreground">ステータス</dt>
             <dd>{data.workOrder.status}</dd>
-            <dt className="text-muted-foreground">開始時刻</dt>
-            <dd>{new Date(data.workOrder.startedAt).toLocaleString('ja-JP')}</dd>
-            <dt className="text-muted-foreground">完了時刻</dt>
-            <dd>{data.workOrder.completedAt ?? '-'}</dd>
+            <dt className="text-muted-foreground">計画開始日</dt>
+            <dd>{data.workOrder.plannedStartDate ?? '-'}</dd>
           </dl>
         </section>
       )}

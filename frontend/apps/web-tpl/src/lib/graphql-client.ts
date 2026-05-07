@@ -20,24 +20,32 @@ export const client = new GraphQLClient(endpoint, {
 const STOCK_MOVEMENT_QUERY = gql`
   query StockMovement($movementId: ID!) {
     stockMovement(movementId: $movementId) {
-      movementId
-      skuId
+      id
+      code
+      partnerCode
+      skuCode
       locationId
-      direction
+      movementType
       quantity
-      occurredAt
+      status
+      referenceCode
+      version
     }
   }
 `;
 
 export interface StockMovementQueryResult {
   stockMovement: {
-    movementId: string;
-    skuId: string;
+    id: string;
+    code: string;
+    partnerCode: string;
+    skuCode: string;
     locationId: string;
-    direction: string;
+    movementType: 'INBOUND' | 'OUTBOUND' | 'ADJUSTMENT';
     quantity: number;
-    occurredAt: string;
+    status: 'PLANNED' | 'RECEIVED' | 'DISPATCHED' | 'CANCELLED';
+    referenceCode: string | null;
+    version: number;
   } | null;
 }
 

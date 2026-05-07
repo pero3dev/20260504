@@ -1,27 +1,36 @@
-# Wholesale BFF GraphQL schema(F3 vertical)。 卸取引向け UI が
+# Wholesale BFF GraphQL schema(F6 phase 2)。 卸取引向け UI が
 # 受注の状態 + 取引先別契約価格 + 出荷確定の状況を 1 画面で見られるようにする。
+# backing service: services/wholesale REST。
 
-scalar DateTime
+scalar Date
 
 type SalesOrder {
-  salesOrderId: ID!
-  partnerId: ID!
+  id: ID!
+  code: String!
+  partnerCode: String!
   status: SalesOrderStatus!
-  totalAmountJpy: Int!
-  placedAt: DateTime!
-  shippedAt: DateTime
+  currency: String!
+  totalAmount: Float!
+  requestedDeliveryDate: Date
+  items: [SalesOrderLine!]!
+  version: Int!
+}
+
+type SalesOrderLine {
+  skuCode: ID!
+  locationId: ID!
+  quantity: Int!
+  unitPrice: Float!
 }
 
 enum SalesOrderStatus {
   PLACED
-  RESERVED
   SHIPPED
-  COMPLETED
   CANCELLED
 }
 
 type Query {
-  salesOrder(salesOrderId: ID!): SalesOrder
+  salesOrder(orderId: ID!): SalesOrder
 
   health: String!
 }

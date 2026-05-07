@@ -10,7 +10,7 @@
 
 ### Highlights
 
-13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ + 承認アクション自動 step advance、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor + S3 Object Lock 二重保管)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定、 Notification SES 実 sender、 identity-broker テナント lifecycle 管理、 integration-hub S3Destination、 Frontend monorepo(Turborepo + 全 4 業態 BFF + Web スケルトン + CI 緑化)までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース + Frontend 全 4 業態スケルトン(BFF + Web 各 4)。
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路 + Manufacturing 完成品 INBOUND 失敗時補償、業態 OUTBOUND/Cancel フローの完成、Workflow SLA 中央タイマ + 承認アクション自動 step advance、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor + S3 Object Lock 二重保管)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定、 Notification SES 実 sender、 identity-broker テナント lifecycle 管理、 integration-hub S3Destination、 Frontend monorepo(Turborepo + 全 4 業態 BFF + Web スケルトン + CI 緑化)+ 全 4 業態 BFF が実 service REST に接続(F6 phase 1 + 2)までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース + Frontend 全 4 業態(BFF + Web 各 4、 mock 完全解消)。
 
 ### Added
 
@@ -119,6 +119,13 @@
     - test:client 単体(200 / 404 / 500)+ resolver の Mock client 経由 1 系統。 vi.stubGlobal で fetch を差替え
     - `apps/web-retail-ec` を新 schema に合わせ、 dashboard で固定 `inventoryId=1` を取りに行く構成に。 「該当無し」 / 「BFF 取得失敗」 をそれぞれ表示分岐
     - 残 3 業態(Manufacturing / 3PL / Wholesale)は同パターンで後続 commit。 各々の REST(`services/{manufacturing,tpl,wholesale}`)を確認しながら順次
+- **F6 第 2 弾 残 3 業態 BFF を実 backend に接続** — F6 phase 1 と同 pattern で Manufacturing / 3PL / Wholesale を mock 解消し、全業態 BFF が実 service REST に繋がった状態に揃える:
+    - `apps/bff-manufacturing/src/clients/manufacturing-client.ts` 新規 — `GET /v1/work-orders/{workOrderId}` を `fetch`、 404→null / 5xx→Error。 `MANUFACTURING_URL` env(default `http://localhost:8088`)。 schema は `WorkOrder { id, code, productSkuCode, locationId, plannedQuantity, status: WorkOrderStatus, plannedStartDate(scalar Date), version }` に置換、 enum を `PLANNED|RELEASED|COMPLETED|CANCELLED`(backend OpenAPI と一致)に揃える。 web-manufacturing dashboard も新 schema へ
+    - `apps/bff-tpl/src/clients/tpl-client.ts` 新規 — `GET /v1/stock-movements/{movementId}`(`TPL_URL` default `http://localhost:8086`)。 schema は `StockMovement { id, code, partnerCode, skuCode, locationId, movementType: MovementType(INBOUND|OUTBOUND|ADJUSTMENT), quantity, status: MovementStatus(PLANNED|RECEIVED|DISPATCHED|CANCELLED), referenceCode, version }`。 phase 1 で曖昧だった `direction` を OpenAPI と整合する `movementType` + 状態機械(`status`)に明確化。 web-tpl dashboard も追従
+    - `apps/bff-wholesale/src/clients/wholesale-client.ts` 新規 — `GET /v1/sales-orders/{orderId}`(`WHOLESALE_URL` default `http://localhost:8087`)。 schema は `SalesOrder { id, code, partnerCode, status: SalesOrderStatus(PLACED|SHIPPED|CANCELLED), currency, totalAmount(Float), requestedDeliveryDate(scalar Date), items: [SalesOrderLine { skuCode, locationId, quantity, unitPrice }], version }`。 backend で server resolved の `unitPrice`(取引先別契約価格)が UI まで透過。 web-wholesale dashboard は明細 list を表示
+    - 各 BFF とも DataLoader は `xxxById` に集約し 1 リクエスト 1 client、 JWT は `Authorization: Bearer ...` を BFF→backend へ pass-through(F2 で BFF 側 verify を追加予定)
+    - test:各 client 単体(200 / 404 / 500、 `vi.stubGlobal` で fetch 差替)+ resolver Mock client 経由(`vi.spyOn(client, 'getXxx')`)。 phase 1 で確立した pattern を 3 業態に一気に展開
+    - これにより全 4 業態 BFF が mock 完全解消、 F2(Cognito SAML 実配線)+ F7(ADR-0022 Frontend 構造文書化)に進む準備完了
 
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
@@ -202,7 +209,7 @@
 - **F2** Cognito SAML 実配線 + Identity Broker token 交換 + BFF 側 JWT verify(jwks 取得 + verify + tenant 取出 + downstream への pass-through)
 - **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
-- **F6 follow-up** 残 3 業態 BFF を実 backend に接続:`bff-manufacturing` → `services/manufacturing` REST、 `bff-tpl` → `services/tpl` REST、 `bff-wholesale` → `services/wholesale` REST。 加えて GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活
+- **F6 follow-up**(残 3 業態 BFF の実 backend 接続は完了)— GraphQL Code Generator で typed client 生成 + `__generated__/` を消費する経路に進化、 inventory-read-model 側に SKU 横断 index API を追加して BFF schema に `inventories(skuId)` リスト query を復活、 加えて pagination(cursor)/ filter / sort の BFF DSL 設計
 - **F7** **ADR-0022** で Frontend 構造を明文化。 i18n(react-intl or i18next)、 a11y(WCAG 2.1 AA)、 design token、 form validation(zod + react-hook-form)、 chart(recharts or visx)等の方針を決める
 - CI: `pnpm-lock.yaml` を `frontend/` に commit して `--frozen-lockfile` に切替え(現状は CI で都度 install で生成)
 
