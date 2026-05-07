@@ -13,14 +13,13 @@
   },
   "dependencies": {
     "@inventory/shared": "workspace:*",
+    "@inventory/ui": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.95.0",
-    "clsx": "^2.1.1",
     "graphql": "^16.10.0",
     "graphql-request": "^7.1.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.5.5"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

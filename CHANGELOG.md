@@ -111,6 +111,13 @@
     - `apps/bff-{manufacturing,tpl,wholesale}` — 各 BFF が独自 schema を持つ:Manufacturing は `workOrder(workOrderId)` + WorkOrderStatus enum、 3PL は `stockMovement(movementId)` + MovementDirection enum、 Wholesale は `salesOrder(salesOrderId)` + SalesOrderStatus enum + 取引先別契約金額。 各々別 port(4002 / 4003 / 4004)で並走可能、 F6 で実 backend(`services/manufacturing` / `services/tpl` / `services/wholesale`)に繋ぐ
     - `apps/web-{manufacturing,tpl,wholesale}` — それぞれ port 5174 / 5175 / 5176 で起動し対応 BFF に proxy。 dashboard page は per-business のドメイン語彙(WorkOrder / StockMovement / SalesOrder)で表示、 stub auth は per-business localStorage key で隔離
     - CI 整理: `frontend.yml` の per-app step + `continue-on-error` を **`turbo run typecheck/lint/build/test` に統合**。 全業態で緑化したため soft-fail を解除
+- **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
+    - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
+    - `packages/ui/src/components/{button,app-shell,data-table}.tsx` — Button(primary / secondary / ghost)、 AppShell(brand + nav の構造化、 TanStack Router `Link` 内蔵)、 DataTable(generic な table)
+    - `packages/ui/src/styles.css` — Tailwind directives + shadcn semantic CSS 変数(`--background` / `--primary` / `--muted` / `--border` / `--radius`)
+    - `packages/ui/src/tailwind-preset.ts` — 色 token を CSS 変数経由で `theme.extend.colors` に揃える preset
+    - 各 web app:`tailwind.config.ts` を `presets: [preset]` で簡潔化、 `index.css` を削除して `main.tsx` から `@inventory/ui/styles.css` を import、 `router.tsx` の独自 Header を AppShell で置換、 `web-retail-ec` は SKU 在庫表を DataTable で書き直し
+    - 重複削減: 4 web app から `index.css`(計 24 行 × 4)+ tailwind config の color/border-radius 定義(計 18 行 × 4)+ Header JSX(計 17 行 × 4)が消え、 後続 F5(Storybook)で `packages/ui` 単体を doc 化できる足場が出来た
 
 ### Changed
 
@@ -137,7 +144,7 @@
 - **Tenant lifecycle**: identity-broker に Pool 方式の tenants テーブル + 4 admin REST + provisioning runbook
 - **Integration Hub**: 1 adapter(retail-order-csv)+ destination type 切替(local / s3)— SFTP / AS2 / 外部 EC は同パターンで後続
 - **Audit WORM 二重保管**: DB(WORM トリガ)+ S3 Object Lock(Compliance + 365 days)+ Athena projection
-- **Frontend**: `frontend/`(Turborepo + pnpm workspace)+ 全 4 業態 vertical(`bff-{retail-ec,manufacturing,tpl,wholesale}` + `web-{retail-ec,manufacturing,tpl,wholesale}`)+ `packages/shared` + `frontend.yml` CI(turbo run typecheck/lint/build/test)
+- **Frontend**: `frontend/`(Turborepo + pnpm workspace)+ 全 4 業態 vertical(`bff-{retail-ec,manufacturing,tpl,wholesale}` + `web-{retail-ec,manufacturing,tpl,wholesale}`)+ `packages/{shared,ui}`(共通 design system: AppShell / Button / DataTable + tailwind preset + shadcn CSS 変数)+ `frontend.yml` CI(turbo run typecheck/lint/build/test)
 - **ADR**: 21 本(ADR-0021 で Pact Broker 本番ホスティングを EKS self-host on Aurora-C に確定)
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
 - **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back + matchingRules 完備 + LambdaDsl + branch-aware selectors(ADR-0019 Phase 3 / 3.5 / 4 / 4.5 / 5 完了)
@@ -184,7 +191,7 @@
 #### F2〜F7. Frontend follow-up(F1 + F3 から先)
 
 - **F2** Cognito SAML 実配線 + Identity Broker token 交換 + BFF 側 JWT verify(jwks 取得 + verify + tenant 取出 + downstream への pass-through)
-- **F4** `packages/ui/` に共通 design system(Button / Form / Table / Pagination / Toast 等)を切り出し。 shadcn/ui を base に owned-code 化(現状は各 web app が tailwind config と CSS 変数を独自に持つ重複あり)
+- **F4 follow-up** `packages/ui` の component 拡充(Form / Pagination / Toast / Dialog / Select 等)+ dark mode CSS 変数 + size variant
 - **F5** Storybook(per `packages/ui` + per app)+ Playwright E2E(BFF mock + 認証 flow)
 - **F6** BFF resolver を本物の backend(`inventory-read-model` / `inventory-core` / 業態 service / `master-data`)に繋ぐ。 GraphQL Code Generator で typed client 生成、 `__generated__/` を消費
 - **F7** **ADR-0022** で Frontend 構造を明文化。 i18n(react-intl or i18next)、 a11y(WCAG 2.1 AA)、 design token、 form validation(zod + react-hook-form)、 chart(recharts or visx)等の方針を決める

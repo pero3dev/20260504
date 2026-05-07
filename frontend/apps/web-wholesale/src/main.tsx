@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 import { router } from './router';
 
-import './index.css';
+import '@inventory/ui/styles.css';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

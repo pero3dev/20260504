@@ -1,3 +1,8 @@
+/*
+ * 共通 Tailwind ベース + shadcn semantic CSS 変数。 4 web app の各 main.tsx で
+ *   import '@inventory/ui/styles.css';
+ * で読み込まれる。 dark mode 用変数は F5 で別 selector に追加する想定。
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
