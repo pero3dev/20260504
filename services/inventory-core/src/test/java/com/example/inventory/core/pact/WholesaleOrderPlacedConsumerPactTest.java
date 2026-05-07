@@ -9,8 +9,9 @@ import com.example.inventory.core.adapter.in.kafka.WholesaleOrderPlacedMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.LambdaDsl;
 import au.com.dius.pact.consumer.dsl.PactBuilder;
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.consumer.junit5.ProviderType;
@@ -47,27 +48,29 @@ class WholesaleOrderPlacedConsumerPactTest {
 
     @Pact(consumer = "inventory-core")
     public V4Pact wholesaleOrderPlacedV1(PactBuilder builder) {
-        PactDslJsonBody itemTemplate =
-                new PactDslJsonBody()
-                        .integerType("lineNo", 1)
-                        .stringType("skuCode", "SKU-A")
-                        .stringType("locationId", "LOC-1")
-                        .integerType("quantity", 3);
+        // ADR-0019 Phase 4.5: LambdaDsl 形式でネスト構造を表現。 PactDslJsonBody チェーン形式と機能等価だが、
+        // items[].* のネスト関係がインデントで自然に読める。
+        DslPart payload =
+                LambdaDsl.newJsonBody(
+                                o -> {
+                                    o.numberType("aggregateId", 5001L);
+                                    o.stringType("code", "SO-2026-0001");
+                                    o.minArrayLike(
+                                            "items",
+                                            1,
+                                            item -> {
+                                                item.integerType("lineNo", 1);
+                                                item.stringType("skuCode", "SKU-A");
+                                                item.stringType("locationId", "LOC-1");
+                                                item.integerType("quantity", 3);
+                                            });
+                                    o.stringMatcher(
+                                            "occurredAt",
+                                            "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z",
+                                            "2026-05-06T10:00:00Z");
+                                })
+                        .build();
 
-        PactDslJsonBody payload =
-                new PactDslJsonBody()
-                        .numberType("aggregateId", 5001L)
-                        .stringType("code", "SO-2026-0001")
-                        .minArrayLike("items", 1, itemTemplate)
-                        .stringMatcher(
-                                "occurredAt",
-                                "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z",
-                                "2026-05-06T10:00:00Z");
-
-        // V4 native API: expectsToReceiveMessageInteraction(name, lambda) でないと
-        // PactDslJsonBody が宣言した matching rule が pact JSON に propagate されない
-        // (ADR-0019 Phase 4)。 Map.of("message.contents", payload) 経路は example 値しか
-        // 残らないため、 Provider verify が strict 一致になる落とし穴があった。
         return builder.expectsToReceiveMessageInteraction(
                         "a wholesale order placed event",
                         i -> i.withContents(c -> c.withContent(payload)))

@@ -130,7 +130,44 @@ provider-verify: 全 5 interaction 緑、 verify 結果 publish back 成功
 matrix API: deployable=true, success=4, failed=0, unknown=0
 ```
 
-**残課題**: `LambdaDsl` 完全移行(現状は `PactDslJsonBody` のまま)は **本フェーズ範囲外**。 V4 native API + V3 DSL の組合せで matching rule が動くため、 LambdaDsl への置き換えは「ネスト構造の可読性向上」というスタイル課題。 別タスク化。
+**残課題**: `LambdaDsl` 完全移行 → **Phase 4.5 で実施**。
+
+### Phase 4.5(2026-05-07 実施分)— `LambdaDsl` 全面移行
+
+`PactDslJsonBody` のメソッドチェーン形式から `LambdaDsl.newJsonBody(o -> { ... })` のネストラムダ形式へ 5 経路すべて書き換えた。
+
+**Before(V3 DSL チェーン形式)**:
+
+```java
+PactDslJsonBody itemTemplate = new PactDslJsonBody()
+    .integerType("lineNo", 1)
+    .stringType("skuCode", "SKU-A");
+
+PactDslJsonBody payload = new PactDslJsonBody()
+    .numberType("aggregateId", 5001L)
+    .minArrayLike("items", 1, itemTemplate);
+```
+
+**After(LambdaDsl ネスト形式)**:
+
+```java
+DslPart payload = LambdaDsl.newJsonBody(o -> {
+    o.numberType("aggregateId", 5001L);
+    o.minArrayLike("items", 1, item -> {
+        item.integerType("lineNo", 1);
+        item.stringType("skuCode", "SKU-A");
+    });
+}).build();
+```
+
+**意図**:
+
+- ネスト構造(items[].* など)が **インデントで自然に表現** され読みやすい。
+- 中間変数(`itemTemplate` 等)が消え、 1 つのリテラルで契約全体が宣言できる。
+- Pact-JVM の生成 JSON は不変(機能等価)。 全 5 interaction の `matchingRules.body` パスは Phase 4 と同一。
+- Folder / Broker 両経路で Provider verify 緑(再確認済)。
+
+**機能差**: なし。可読性向上のみのリファクタリング。
 
 ### スコープ外
 
@@ -234,6 +271,6 @@ E2E IT で実際にメッセージを流して動作確認しているので、P
 - ✅ Phase 2.3 = Phase 3: Pact Broker 導入(完了)
 - ✅ Phase 3.5: Provider verify の Broker 化 + verify 結果 publish back(完了)
 - ✅ Phase 4: matching rule strict 一致を緩和(V4 native API へ移行で完了)
-- Phase 4.5 候補: `LambdaDsl` 全面移行(可読性向上のスタイル課題、必須ではない)
-- Phase 4.5 候補: consumer version selectors の本格運用(現状は branch=main / pr-N の単純取得)
+- ✅ Phase 4.5: `LambdaDsl` 全面移行(完了、可読性向上のみ)
+- Phase 5 候補: consumer version selectors の本格運用(現状は branch=main / pr-N の単純取得)
 - 別 ADR: Pact Broker のホスティング先確定(EKS namespace / Pactflow SaaS、 HA / 認証 / バックアップ)

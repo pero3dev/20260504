@@ -9,8 +9,9 @@ import com.example.inventory.core.adapter.in.kafka.SalesOrderShippedMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.LambdaDsl;
 import au.com.dius.pact.consumer.dsl.PactBuilder;
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.consumer.junit5.ProviderType;
@@ -35,18 +36,22 @@ class SalesOrderShippedConsumerPactTest {
 
     @Pact(consumer = "inventory-core")
     public V4Pact salesOrderShippedV1(PactBuilder builder) {
-        PactDslJsonBody itemTemplate =
-                new PactDslJsonBody()
-                        .integerType("lineNo", 1)
-                        .stringType("skuCode", "SKU-A")
-                        .stringType("locationId", "LOC-1")
-                        .integerType("quantity", 3);
-
-        PactDslJsonBody payload =
-                new PactDslJsonBody()
-                        .numberType("aggregateId", 5001L)
-                        .stringType("code", "SO-2026-0001")
-                        .minArrayLike("items", 1, itemTemplate);
+        DslPart payload =
+                LambdaDsl.newJsonBody(
+                                o -> {
+                                    o.numberType("aggregateId", 5001L);
+                                    o.stringType("code", "SO-2026-0001");
+                                    o.minArrayLike(
+                                            "items",
+                                            1,
+                                            item -> {
+                                                item.integerType("lineNo", 1);
+                                                item.stringType("skuCode", "SKU-A");
+                                                item.stringType("locationId", "LOC-1");
+                                                item.integerType("quantity", 3);
+                                            });
+                                })
+                        .build();
 
         return builder.expectsToReceiveMessageInteraction(
                         "a wholesale sales order shipped event",

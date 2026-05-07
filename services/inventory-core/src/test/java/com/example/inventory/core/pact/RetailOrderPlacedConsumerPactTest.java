@@ -9,8 +9,9 @@ import com.example.inventory.core.adapter.in.kafka.OrderPlacedMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.LambdaDsl;
 import au.com.dius.pact.consumer.dsl.PactBuilder;
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.consumer.junit5.ProviderType;
@@ -37,22 +38,26 @@ class RetailOrderPlacedConsumerPactTest {
 
     @Pact(consumer = "inventory-core")
     public V4Pact retailOrderPlacedV1(PactBuilder builder) {
-        PactDslJsonBody itemTemplate =
-                new PactDslJsonBody()
-                        .integerType("lineNo", 1)
-                        .stringType("skuCode", "SKU-A")
-                        .stringType("locationId", "LOC-1")
-                        .integerType("quantity", 2);
-
-        PactDslJsonBody payload =
-                new PactDslJsonBody()
-                        .numberType("aggregateId", 6001L)
-                        .stringType("code", "ORD-2026-0001")
-                        .minArrayLike("items", 1, itemTemplate)
-                        .stringMatcher(
-                                "occurredAt",
-                                "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z",
-                                "2026-05-06T10:00:00Z");
+        DslPart payload =
+                LambdaDsl.newJsonBody(
+                                o -> {
+                                    o.numberType("aggregateId", 6001L);
+                                    o.stringType("code", "ORD-2026-0001");
+                                    o.minArrayLike(
+                                            "items",
+                                            1,
+                                            item -> {
+                                                item.integerType("lineNo", 1);
+                                                item.stringType("skuCode", "SKU-A");
+                                                item.stringType("locationId", "LOC-1");
+                                                item.integerType("quantity", 2);
+                                            });
+                                    o.stringMatcher(
+                                            "occurredAt",
+                                            "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z",
+                                            "2026-05-06T10:00:00Z");
+                                })
+                        .build();
 
         return builder.expectsToReceiveMessageInteraction(
                         "a retail order placed event",

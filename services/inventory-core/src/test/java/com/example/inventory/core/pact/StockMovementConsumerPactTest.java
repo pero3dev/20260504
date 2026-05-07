@@ -8,8 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import com.example.inventory.core.adapter.in.kafka.StockMovementMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.LambdaDsl;
 import au.com.dius.pact.consumer.dsl.PactBuilder;
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.consumer.junit5.ProviderType;
@@ -38,13 +39,19 @@ class StockMovementConsumerPactTest {
 
     @Pact(consumer = "inventory-core")
     public V4Pact stockMovementV1(PactBuilder builder) {
-        PactDslJsonBody payload =
-                new PactDslJsonBody()
-                        .stringType("code", "MV-2026-0001")
-                        .stringType("skuCode", "SKU-A")
-                        .stringType("locationId", "LOC-3PL-A")
-                        .stringMatcher("movementType", "INBOUND|OUTBOUND|ADJUSTMENT", "INBOUND")
-                        .integerType("quantity", 50);
+        DslPart payload =
+                LambdaDsl.newJsonBody(
+                                o -> {
+                                    o.stringType("code", "MV-2026-0001");
+                                    o.stringType("skuCode", "SKU-A");
+                                    o.stringType("locationId", "LOC-3PL-A");
+                                    o.stringMatcher(
+                                            "movementType",
+                                            "INBOUND|OUTBOUND|ADJUSTMENT",
+                                            "INBOUND");
+                                    o.integerType("quantity", 50);
+                                })
+                        .build();
 
         return builder.expectsToReceiveMessageInteraction(
                         "a tpl stock movement event",

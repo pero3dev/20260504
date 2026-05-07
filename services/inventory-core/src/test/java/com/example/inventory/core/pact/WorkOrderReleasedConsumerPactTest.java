@@ -9,8 +9,9 @@ import com.example.inventory.core.adapter.in.kafka.WorkOrderReleasedMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.LambdaDsl;
 import au.com.dius.pact.consumer.dsl.PactBuilder;
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.consumer.junit5.ProviderType;
@@ -37,17 +38,21 @@ class WorkOrderReleasedConsumerPactTest {
 
     @Pact(consumer = "inventory-core")
     public V4Pact workOrderReleasedV1(PactBuilder builder) {
-        PactDslJsonBody componentTemplate =
-                new PactDslJsonBody()
-                        .stringType("componentSkuCode", "SKU-A")
-                        .integerType("requiredQuantity", 20);
-
-        PactDslJsonBody payload =
-                new PactDslJsonBody()
-                        .numberType("aggregateId", 7001L)
-                        .stringType("code", "WO-2026-0001")
-                        .stringType("locationId", "LOC-FACTORY-A")
-                        .minArrayLike("components", 1, componentTemplate);
+        DslPart payload =
+                LambdaDsl.newJsonBody(
+                                o -> {
+                                    o.numberType("aggregateId", 7001L);
+                                    o.stringType("code", "WO-2026-0001");
+                                    o.stringType("locationId", "LOC-FACTORY-A");
+                                    o.minArrayLike(
+                                            "components",
+                                            1,
+                                            comp -> {
+                                                comp.stringType("componentSkuCode", "SKU-A");
+                                                comp.integerType("requiredQuantity", 20);
+                                            });
+                                })
+                        .build();
 
         return builder.expectsToReceiveMessageInteraction(
                         "a manufacturing work order released event",
