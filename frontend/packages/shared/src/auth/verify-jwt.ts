@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyResult } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
 /**
  * BFF が verify 後に context として持つ user 情報。 Identity Broker (`NimbusJwtTokenIssuer`)
@@ -30,19 +30,16 @@ export interface JwtVerifierOptions {
    * 期待する `aud`(BFF は通常テナント単位で受信するわけではないため未指定可)。
    * 指定するとテナント横断トークン(token_use=session)の混入を防げる。
    */
-  audience?: string;
+  audience?: string | undefined;
   /** 許容する clock skew(秒、 default 30) */
-  clockToleranceSeconds?: number;
+  clockToleranceSeconds?: number | undefined;
 }
 
 export type JwtVerifier = (token: string) => Promise<BffUserClaims>;
 
 export class JwtVerificationError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = 'JwtVerificationError';
   }
 }
@@ -59,21 +56,21 @@ export function createJwtVerifier(options: JwtVerifierOptions): JwtVerifier {
   const jwks = createRemoteJWKSet(new URL(jwksUrl));
 
   return async (token: string): Promise<BffUserClaims> => {
-    let result: JWTVerifyResult;
     try {
-      result = await jwtVerify(token, jwks, {
+      const { payload } = await jwtVerify(token, jwks, {
         issuer,
-        audience,
         algorithms: ['RS256'],
         clockTolerance: clockToleranceSeconds,
+        ...(audience !== undefined ? { audience } : {}),
       });
+      return mapClaimsOrThrow(payload);
     } catch (err) {
+      if (err instanceof JwtVerificationError) throw err;
       throw new JwtVerificationError(
         `JWT verify に失敗: ${err instanceof Error ? err.message : String(err)}`,
         err,
       );
     }
-    return mapClaimsOrThrow(result.payload);
   };
 }
 
