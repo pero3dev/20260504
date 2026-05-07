@@ -110,10 +110,32 @@
 
 ### Future Work
 
-- Pact Broker 本番展開の manifests 適用(ADR-0021 Phase 1〜3 manifests は git に置いてあるが、 EKS / Aurora / Cognito 環境への実適用は別作業)
-- Manufacturing 補償(完成品 INBOUND 失敗時)
-- audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
-- Workflow 自動 step handler / SLA タイムアウト
-- Integration Hub 実 adapter 拡充(S3 / SFTP / AS2-EDI / 外部 EC)
-- 業態取消の業務 REST API(現状は集約メソッドのみ、API は未実装)
-- 多重 Spring Context IT(`e2e-tests/`)の CI 復帰(技術スタック進化次第)
+#### A. インフラ実展開 — Pact Broker(ADR-0021 Phase 1〜3 manifests 適用)
+
+- Aurora-C 内 `pact_broker` DB の切り出し(`infra/pact-broker/db/001-...sql`)
+- IRSA Role + ExternalSecretsOperator マニフェスト(`prod/pact-broker/*` secret 同期)
+- ALB Cognito 用 User Pool App Client 作成(identity-broker と連携)
+- ArgoCD Application apply + Route53 internal alias 登録
+- GitHub Actions secret 投入(`PACT_BROKER_URL` / `_USERNAME` / `_PASSWORD`)→ `pact-broker.yml` workflow が dormant 解除
+- Phase 3 社内告知(README の告知テンプレを流用)
+
+#### B. ビジネスフロー(残ロジック)
+
+- Manufacturing 補償フロー — 完成品 INBOUND 失敗時の `WorkOrder` ロールバック(ADR-0017 の WorkOrder 完成品 INBOUND は実装済、 失敗時補償が未実装)
+- Workflow 自動 step handler / SLA タイムアウト — orchestration が必要な candidate(ADR-0015):業態横断承認、 EDI ACK 待ち、 WorkOrder ライフサイクル全体
+
+#### C. 監査・コンプライアンス(ADR-0008 未実装)
+
+- audit-service S3 Object Lock(Compliance mode)への Parquet 投入(現状は DB 内 anchor のみ)
+- Merkle root の S3 二重保管(現状は `audit_merkle_anchor` テーブルのみ)
+- Athena 経由のクエリ
+- 1 年保持期限による自動失効
+
+#### D. 外部連携(Integration Hub)
+
+- 実 adapter 拡充: S3 / SFTP / AS2-EDI / 外部 EC(現状は CSV 1 アダプタの足場のみ)
+
+#### E. テスト基盤
+
+- 多重 Spring Context IT(`e2e-tests/`)の CI 復帰(技術スタック進化次第、 ADR-0014)
+- Nightly E2E — 単一 context IT + Pact + 結合動作の三層 testing 構想の最終層(ADR-0014 Future complement)
