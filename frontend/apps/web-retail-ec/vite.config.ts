@@ -2,7 +2,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+// vitest の test 設定を同一 config に書くため vitest/config の defineConfig を使う
+// (vite の defineConfig は test プロパティを受け付けない)。
+import { defineConfig } from 'vitest/config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
