@@ -85,6 +85,13 @@
             <artifactId>commons-observability</artifactId>
         </dependency>
 
+        <!-- A2: AWS SES 実 sender(notification.email.provider=ses で有効化)。
+             BOM がバージョンを管理する。 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ses</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

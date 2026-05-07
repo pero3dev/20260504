@@ -52,6 +52,14 @@ server:
 notification:
   inventory:
     low-stock-threshold: ${LOW_STOCK_THRESHOLD:5}
+  # A2: メール送信器の切替。 logging(default、 dev / loadtest / unit test)/ ses(本番)。
+  # ses 選択時は from(SES verified identity)を必ず指定。
+  email:
+    provider: ${NOTIFICATION_EMAIL_PROVIDER:logging}
+    from: ${NOTIFICATION_EMAIL_FROM:}
+    region: ${NOTIFICATION_EMAIL_REGION:ap-northeast-1}
+    # LocalStack 用、 本番では空。
+    endpoint-override: ${NOTIFICATION_EMAIL_ENDPOINT_OVERRIDE:}
 
 application:
   env: ${APP_ENV:local}
