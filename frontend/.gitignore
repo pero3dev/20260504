@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+.turbo/
+.cache/
+coverage/
+
+# Vite / Next
+.vite/
+.next/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Generated GraphQL artefacts
+src/__generated__/
+**/generated.ts
+**/graphql.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

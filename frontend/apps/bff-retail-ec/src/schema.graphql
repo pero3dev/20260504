@@ -1,0 +1,28 @@
+# Retail/EC BFF GraphQL schema(F1 vertical spike)。
+#
+# 第 1 弾は inventory-read-model の SKU 在庫取得を 1 query で公開。
+# 後続フェーズで master-data / retail-ec の購読履歴等を集約する。
+
+scalar DateTime
+
+type Inventory {
+  skuId: ID!
+  locationId: ID!
+  available: Int!
+  reserved: Int!
+  updatedAt: DateTime!
+}
+
+type Sku {
+  skuId: ID!
+  displayName: String!
+  inventories: [Inventory!]!
+}
+
+type Query {
+  """単一 SKU の在庫(全 location の集計)を返す。 inventories は DataLoader で N+1 を防止。"""
+  sku(skuId: ID!): Sku
+
+  """SLA confirm 用、 BFF が起動しているかを返す trivial query。"""
+  health: String!
+}
