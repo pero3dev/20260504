@@ -20,11 +20,16 @@ spec:
     - Egress
   ingress:
     # ALB 経由のトラフィック(ALB は VPC 内 ENI で targetType: ip)。
+    # Phase 3 で UI 経路は org-wide(社内エンジニア全員)に開放されるため、 VPC CIDR を
+    # そのまま許可。 アクセス制御は ALB Cognito auth(ADR-0021 Phase 2)で行う。
+    # nginx-auth-bridge sidecar(9293)も同 ALB 経由で同じ VPC source からアクセスされる。
     - from:
         - ipBlock:
             cidr: 10.0.0.0/8  # VPC CIDR(環境ごとに上書き)
       ports:
         - port: 9292
+          protocol: TCP
+        - port: 9293
           protocol: TCP
   egress:
     # DNS resolution.

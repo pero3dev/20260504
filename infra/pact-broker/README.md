@@ -6,7 +6,7 @@ ADR-0019 Phase 3 で local 用 docker-compose を導入。 ADR-0021 で本番ホ
 infra/pact-broker/
 ├── docker-compose.pact-broker.yml  # local dev 用(ADR-0019 Phase 3)
 ├── README.md                       # 本ファイル
-├── k8s/                            # 本番デプロイ manifests(ADR-0021 Phase 1〜2.5)
+├── k8s/                            # 本番デプロイ manifests(ADR-0021 Phase 1〜3)
 │   ├── kustomization.yaml
 │   ├── namespace.yaml
 │   ├── serviceaccount.yaml         # IRSA 経由
@@ -18,6 +18,7 @@ infra/pact-broker/
 │   ├── ingress-ui.yaml             # ALB internal + Cognito SSO → sidecar 9293(Phase 2/2.5)
 │   ├── ingress-api.yaml            # ALB internal + Basic Auth 直結 → 9292(Phase 1)
 │   ├── hpa.yaml                    # 2-3 replicas autoscale
+│   ├── pdb.yaml                    # PodDisruptionBudget(Phase 3、 minAvailable=1)
 │   └── networkpolicy.yaml          # ingress: ALB only / egress: Aurora + DNS
 ├── argocd/
 │   └── application.yaml            # ArgoCD Application(GitOps)
@@ -340,6 +341,78 @@ kubectl -n pact-broker logs deployment/pact-broker -c nginx-auth-bridge | head
 - **設定が tiny**(20 行の nginx.conf)で運用負担小。
 
 ALB が JWT 発行(Cognito 連携)+ session 維持、 sidecar が credential 注入、 Pact Broker は Basic Auth のまま、 という **責務分離** が綺麗に決まる。
+
+## ADR-0021 Phase 3 — UI を社内エンジニア全員に read-only 公開
+
+Phase 1〜2.5 の運用が安定した後(目安: Phase 1 適用から 1 ヶ月程度)、 UI へのアクセスを **engineering org 全員** に開放する。 Phase 2.5 で注入される credential が **read-only** 固定なので、 アクセス開放しても write 操作(契約 publish / 削除など)は CI 経路でしかできない。 安全に audience を広げられる。
+
+### Cognito アクセスポリシ
+
+ADR-0007 で identity-broker が運用する Cognito User Pool は SAML 連携で社内 IdP を信頼している。 Phase 3 で Pact Broker UI にアクセスできるユーザは:
+
+- **デフォルト**: SAML 連携で sign-in できるすべての社員(engineering 部門に限らない)
+- **絞りたい場合**: Cognito User Pool に `engineering` group を作成し、 `pact-broker-ui` App Client の `AllowedGroups` で限定
+
+絞り込みは運用判断で、 まずは **「社内全員 read-only」** で start し、 機微情報の漏洩懸念があれば後で `engineering` group に絞る。
+
+### 想定 load
+
+- 同時 UI セッション(社内全員想定): 50〜100
+- 1 セッションあたりの request rate: 数 req/min(ブラウザ閲覧)
+- HPA は最大 3 replicas で対応可能(余裕あり)
+- Aurora-C への DB query は read-only なので write 競合なし
+
+### Phase 3 デプロイ手順
+
+#### Step 1 — PDB 適用
+
+`infra/pact-broker/k8s/pdb.yaml` を ArgoCD sync で apply。 voluntary disruption(node drain / cluster autoscaler / kubectl rollout)で最低 1 replica が常時 available。
+
+#### Step 2 — Cognito User Pool の audience 拡大
+
+App Client の `AllowedGroups` を解除 or `engineering` group に設定。 必要に応じて identity-broker チームに依頼。
+
+#### Step 3 — DNS 通知 / 社内告知
+
+Route53 上の `pact-broker.internal.example.com` は既に internal hosted zone にあるので追加作業なし。 社内告知のみ。
+
+### 社内告知テンプレ(参考)
+
+> **件名**: 📢 Pact Broker UI を engineering org 全員に公開しました
+>
+> ## 概要
+>
+> サービス間 API 契約(Consumer-Driven Contract Test, ADR-0019)の中央リポジトリである **Pact Broker** の UI を、 engineering org 全員に閲覧公開しました。
+>
+> - URL: <https://pact-broker.internal.example.com/>(VPN 接続が必要)
+> - 認証: Cognito SSO(社内 IdP 経由、 サインオンは 1 回のみ)
+> - **read-only** で公開しています(契約の publish / 削除は CI 経由のみ)
+>
+> ## 何ができるか
+>
+> - 13 サービス間で交換される Kafka メッセージの **API 契約一覧** を閲覧
+> - 各契約の **verify 状態**(Provider が Consumer の期待を満たしているか)を確認
+> - **`can-i-deploy` matrix**(この PR を main にマージしてよいか)の判定根拠を確認
+> - 契約変更の **history**(過去の互換性破壊)を時系列で確認
+>
+> ## 知っておいてほしいこと
+>
+> - 契約は Consumer 起点(inventory-core が発信側)で記述されています(ADR-0019)。
+> - Provider verify が失敗すると CI が失敗するので、 PR を出した人が UI を見ることは多いはず。
+> - Schema レイヤの互換性は Glue Schema Registry(ADR-0019)が別途担当しています。
+>
+> ## 困ったら
+>
+> - `#platform-pact-broker` Slack チャンネルへ
+> - 実装の質問は ADR-0019 / ADR-0021 を参照
+> - SSO で sign-in できない場合は ADR-0007(identity-broker)関連で identity チームへ
+
+### 運用ノート
+
+- **load 急増時の対処**: HPA が 3 replicas まで scale しない場合、 `kubectl scale --replicas=5` で手動 scale。 必要なら `hpa.yaml` の maxReplicas を 5 に bump して PR。
+- **Aurora-C 負荷**: Pact Broker は read-heavy。 Aurora-C の他サービス(Identity / Notification / Workflow)の write 負荷と競合する場合、 Aurora reader endpoint を使うよう `configmap.yaml` を bump 検討。
+- **告知後 1 週間の監視ポイント**: Datadog APM の p95 latency / error rate / Cognito sign-in 失敗率。
+- **退職者アクセス**: identity-broker(Cognito User Pool 経由)で deactivate されると即座に Pact Broker への access も失効。 個別管理は不要。
 
 ## 参照
 

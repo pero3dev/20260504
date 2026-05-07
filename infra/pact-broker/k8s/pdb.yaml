@@ -1,0 +1,23 @@
+# PodDisruptionBudget(ADR-0021 Phase 3)。
+#
+# Phase 3 で UI が社内エンジニア全員に公開され、 業務時間中の同時アクセスが Phase 2 と
+# 比べて桁違いに増える。 Voluntary disruption(node drain / cluster autoscaler /
+# kubectl rollout)で 2 replicas が同時 down するシナリオを禁じ、 最低 1 replica を
+# 常時利用可能に保つ。
+#
+# Involuntary disruption(node 障害 / AZ 障害)は本 PDB の対象外で、 Aurora-C 側の
+# Multi-AZ + EKS の topology spread(Deployment 側で `topology.kubernetes.io/zone`)で
+# 対処済(ADR-0013)。
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pact-broker
+  namespace: pact-broker
+  labels:
+    app.kubernetes.io/name: pact-broker
+    app.kubernetes.io/part-of: platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pact-broker

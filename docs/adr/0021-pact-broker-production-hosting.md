@@ -65,7 +65,7 @@ ADR-0019 で Pact Consumer-driven contract testing を Phase 5(consumer version 
 | 1 | Aurora-C に DB 切り出し + EKS Deployment + ALB + Basic Auth で立ち上げ(manifests コミット済) | 本 ADR Accepted 後 1 sprint 以内 | ✅ manifests / 実適用は EKS プロビジョニング待ち |
 | 2 | Cognito OIDC 連携で人間 UI 経路を SSO 化(CI は Basic Auth 維持、 hostname 分離) | identity-broker MVP 完了後 | ✅ manifests |
 | 2.5 | nginx sidecar で Cognito JWT → Basic Auth 自動注入(完全シームレス SSO) | Phase 2 で UX 課題が顕在化したら | ✅ manifests |
-| 3 | Pact Broker UI を社内エンジニア全員に read-only 公開 | Phase 1 安定運用 1 ヶ月後 | 未実装 |
+| 3 | Pact Broker UI を社内エンジニア全員に read-only 公開 | Phase 1 安定運用 1 ヶ月後 | ✅ manifests |
 
 #### Phase 2 実装メモ(2026-05-07)
 
@@ -82,6 +82,14 @@ ADR-0019 で Pact Consumer-driven contract testing を Phase 5(consumer version 
 - **読み取り専用 credential を注入**: `PACT_BROKER_INJECT_BASIC_AUTH_B64` を Secret から読み、 nginx の `Authorization: Basic ${...}` ヘッダで upstream に渡す。 値は `PACT_BROKER_BASIC_AUTH_READ_ONLY_USERNAME:PASSWORD` の base64。 これにより UI 経路の操作は read-only に物理的に制限され、 Phase 3(社内全員 read-only 公開)とも整合。
 - **client 提供の Authorization ヘッダを尊重**: nginx config の `if ($http_authorization = "")` で分岐。 既にヘッダがあればそれを upstream へ。 デバッグ / 手動 write の escape hatch。
 - **oauth2-proxy ではなく nginx を選んだ理由**: ALB が既に Cognito auth を完了させており、 sidecar 側で OIDC handshake をやり直す必要がない。 oauth2-proxy はフル OIDC client で重い(50-100MB)。 nginx は ~5MB image / ~32MB memory で十分。
+
+#### Phase 3 実装メモ(2026-05-07)
+
+- **追加 manifest**: `pdb.yaml`(`PodDisruptionBudget`、 `minAvailable: 1`)— org-wide audience の voluntary disruption(node drain / cluster autoscaler / kubectl rollout)で 2 replicas が同時 down するのを禁止し、 最低 1 replica を常時利用可能に。 Involuntary(node 障害 / AZ)は別途 topology spread で対処。
+- **NetworkPolicy 更新**: ingress port 9293(nginx sidecar)を VPC CIDR から許可。 Phase 2.5 で sidecar を導入した際に追加し漏れていた穴を Phase 3 と同タイミングで塞いだ。
+- **Cognito access policy**: identity-broker 側で `pact-broker-ui` App Client の `AllowedGroups` 設定を解除 or `engineering` group に絞ることで audience を制御。 manifests 側に変更は無い(identity-broker 設定変更のみ)。
+- **コード変更不要 / 運用変更が中心**: Phase 3 のコアは「access の audience を engineering org 全員に開放」という運用判断と社内告知。 Pact Broker / 注入する credential は read-only 固定なので技術的な write リスクなし。
+- **README に告知テンプレ追加**: `#platform-pact-broker` Slack 等を起点とする告知文の雛形を README に置いて、 release 時に流用できるようにした。
 
 ## Consequences
 

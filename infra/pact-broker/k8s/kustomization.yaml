@@ -23,6 +23,8 @@ resources:
   - ingress-ui.yaml
   - ingress-api.yaml
   - hpa.yaml
+  # Phase 3: org-wide audience の voluntary disruption(node drain 等)で minAvailable=1。
+  - pdb.yaml
   - networkpolicy.yaml
   # Secret は External Secrets Operator が生成する想定で resources に含めない。
   # ローカル dev で apply するときは secret.example.yaml を別途 apply。
