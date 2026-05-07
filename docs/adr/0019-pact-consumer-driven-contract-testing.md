@@ -65,6 +65,31 @@ Phase 2.2 で contract が 5 件まで増えたため Phase 2.3 の re-evaluatio
 - **CI workflow `pact-broker.yml` 追加**: main push で publish、PR で can-i-deploy(`--to-environment main`)を実行。 `PACT_BROKER_URL` secret が未設定なら全 step が skip され、本番 Broker hosting が確定するまで dormant な状態で main に置ける。
 - **Provider verify の Broker 化は Phase 3.5 として後送り**: 各 Provider test に `@PactBroker` を導入する場合、 base class 抽出 + verify 結果の publish back + consumer version selectors の運用設計が必要で、 Phase 3 のコアバリュー(can-i-deploy で merge 安全性を機械判定)とは独立して進められる。 当面 Provider verify は ci.yml の `mvn verify` 経路(PactFolder)で続ける。
 
+### Phase 3.5(2026-05-07 実施分)— Provider verify の Broker 化
+
+Phase 3 で can-i-deploy のインフラはあったが、 verify 結果が Broker に流れていないと can-i-deploy は常に `unknown` 判定で機能しなかった。 Phase 3.5 でこのループを閉じる。
+
+**実装したもの**:
+
+- **各 Provider test を Folder/Broker の 2 経路に分離**: 4 Provider それぞれで abstract base class(`*ProviderPactBase`)に `@PactVerifyProvider` メソッドを抽出し、 `*ProviderPactTest`(`@PactFolder`、 `pact.providerVerifier.enabled` で gate)と `*ProviderBrokerPactTest`(`@PactBroker`、 `PACT_BROKER_URL` env で gate)が継承する構成。
+- **verify 結果の publish back**: `pact.verifier.publishResults=true` + `pact.provider.version` + `pact.provider.tag` を CI から渡す。これで Broker matrix API が「Provider X が Consumer Y バージョン Z に対して verify 緑」と判定できる。
+- **CI workflow を 3 段階 job に再構成**: `publish` → `provider-verify`(matrix で 4 Provider 並列)→ `can-i-deploy`(PR のみ)。 main push でも provider-verify が走り、 main の verify 結果が Broker に蓄積されるので、 PR の can-i-deploy が緑になる。
+- **`pact-broker.yml` の matrix strategy 採用**: 4 Provider 並列で verify することで wall time 短縮(逐次なら 4x、並列なら 1x)。
+
+**スコープに含まれなかったもの(意図的)**:
+
+- **abstract base 化は不可能**: Pact-JVM 4.6 は `@PactVerifyProvider` メソッドを呼ぶときに **declaring class を no-arg `newInstance()` する** ため、 base class を `abstract` にすると `InstantiationException` を投げる。 base class も concrete に保ち、 surefire の include パターン (`**/*Test.java`) に該当しない `*Base.java` 命名で実行されないようにしている。
+
+**確認(local Broker での round-trip)**:
+
+```
+publish: 4 pacts with tag 'local'
+provider-verify(全 4 Provider): 5 interaction 全件 OK + verify 結果 publish back
+matrix API: deployable=true, success=4, failed=0, unknown=0
+```
+
+これで「Provider が Consumer 契約を満たす」事実が Broker に永続化され、 can-i-deploy が機械判定可能な状態になった。
+
 **スコープ外(Phase 3 でも触らなかった)**:
 
 - **REST API の Pact 契約**: BFF ↔ 各サービスや、サービス間 gRPC/REST がもし生まれたとき(現状は Kafka 中心)に追加。 BFF 自体が未実装のため YAGNI。
@@ -180,6 +205,7 @@ E2E IT で実際にメッセージを流して動作確認しているので、P
 - ✅ Phase 2.1: `wholesale-service` 側で `inventory-core-wholesale.json` を verify する JUnit テスト(完了)
 - ✅ Phase 2.2: Consumer 契約の追加(retail / manufacturing / shipped / 3PL movement)(完了、 5 経路 / 4 業態)
 - ✅ Phase 2.3 = Phase 3: Pact Broker 導入(完了)
-- Phase 3.5: Provider verify の Broker 化(`@PactBroker` source + verify 結果 publish back + consumer version selectors)
+- ✅ Phase 3.5: Provider verify の Broker 化 + verify 結果 publish back(完了)
 - Phase 4 候補: `LambdaDsl` 全面移行 → matching rule 緩和(strict 一致からの脱却)
+- Phase 4 候補: consumer version selectors の本格運用(現状は branch=local 単純取得)
 - 別 ADR: Pact Broker のホスティング先確定(EKS namespace / Pactflow SaaS、 HA / 認証 / バックアップ)

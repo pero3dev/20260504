@@ -75,6 +75,7 @@
 - **Pact Phase 2.1 — Provider verify** — Wholesale 側の `SalesOrderPlacedEvent` が Consumer 契約を満たすか verify(コミット [`79c794b`](https://github.com/pero3dev/20260504/commit/79c794b))。
 - **Pact Phase 2.2 — 4 経路の契約追加** — `retail.order.placed.v1` / `wholesale.order.shipped.v1` / `manufacturing.work_order.released.v1` / `tpl.stock.movement.v1` の Consumer/Provider 契約(コミット [`ed01832`](https://github.com/pero3dev/20260504/commit/ed01832))。
 - **Pact Phase 3 — Broker + can-i-deploy** — 1) `infra/pact-broker/` に local Broker docker-compose + README、2) `inventory-core` に `pact:publish` Maven plugin、3) `.github/workflows/pact-broker.yml` で main push 時 publish + PR 時 can-i-deploy(secret 未設定時は skip)。 ADR-0019 Phase 3 セクション追加。
+- **Pact Phase 3.5 — Provider verify の Broker 化** — 各 Provider test を `*ProviderPactBase`(共通) / `*ProviderPactTest`(Folder source) / `*ProviderBrokerPactTest`(Broker source、 `PACT_BROKER_URL` env でゲート)の 3 ファイル構成に分離。 `pact.verifier.publishResults=true` で verify 結果を Broker に publish back。 `pact-broker.yml` を `publish → provider-verify(4 並列 matrix) → can-i-deploy` の 3 段 job に再構成。 local Broker で round-trip 確認済(matrix API: `deployable=true, success=4, failed=0`)。
 
 ### Changed
 
@@ -98,12 +99,12 @@
 - **Saga 配線**: 4/4 業態
 - **ADR**: 18 本
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
-- **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify) + Broker publish + can-i-deploy(ADR-0019 Phase 3 完了)
+- **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back(ADR-0019 Phase 3 / 3.5 完了)
 
 ### Future Work
 
-- Pact Phase 3.5 — Provider verify を Broker-driven 化(現状は PactFolder 経由)
 - Pact Phase 4 候補 — `LambdaDsl` 全面移行で matching rule strict 一致を緩和(ADR-0019 Known Limitation)
+- Pact Phase 4 候補 — consumer version selectors の本格運用(現状は branch=main / pr-N の 2 方向のみ)
 - Pact Broker 本番ホスティング先確定(別 ADR、 EKS namespace / Pactflow SaaS)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
