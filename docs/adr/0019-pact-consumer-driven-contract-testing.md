@@ -93,7 +93,7 @@ matrix API: deployable=true, success=4, failed=0, unknown=0
 **スコープ外(Phase 3 でも触らなかった)**:
 
 - **REST API の Pact 契約**: BFF ↔ 各サービスや、サービス間 gRPC/REST がもし生まれたとき(現状は Kafka 中心)に追加。 BFF 自体が未実装のため YAGNI。
-- **Pact Broker のホスティング先確定**: EKS の admin namespace か Pactflow SaaS か。 Phase 3 完了後に **別 ADR** で運用設計を確定する。 secret は GitHub Actions に流し込む方向だが、 Broker 自体の HA / バックアップ / 認証は別 ADR スコープ。
+- **Pact Broker のホスティング先確定**: → **ADR-0021 で確定**(EKS self-host on Aurora-C)。
 
 ### ~~Known limitation (Phase 1〜3 共通) — matching rule の strictness~~ → **Phase 4 で解消**
 
@@ -226,7 +226,7 @@ verify reason:
 
 ### スコープ外
 
-- **PactBroker 自体の運用**(管理サービス、認証、SLA 設計)— 必要時に別 ADR で扱う
+- **PactBroker 自体の運用**(管理サービス、認証、SLA 設計)— ADR-0021 で扱う
 - **Spring Cloud Contract**(Pact 代替) — 採用しない。理由は Alternative 1 参照
 - **Producer-driven contract**(Provider が契約を書く) — Consumer の知識不在で発展段階に合わない
 
@@ -328,4 +328,4 @@ E2E IT で実際にメッセージを流して動作確認しているので、P
 - ✅ Phase 4: matching rule strict 一致を緩和(V4 native API へ移行で完了)
 - ✅ Phase 4.5: `LambdaDsl` 全面移行(完了、可読性向上のみ)
 - ✅ Phase 5: consumer version selectors の本格運用(完了、 mainBranch + deployedOrReleased + 動的 branch)
-- 別 ADR: Pact Broker のホスティング先確定(EKS namespace / Pactflow SaaS、 HA / 認証 / バックアップ)
+- ✅ ADR-0021: Pact Broker のホスティング先確定(EKS self-host on Aurora-C)

@@ -10,7 +10,7 @@
 
 ### Highlights
 
-13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路、業態 OUTBOUND/Cancel フローの完成、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト MVP までを完了。13/13 サービス + 18 ADR + 8 E2E テストケース。
+13 サービス(共通基盤 9 + 業態 4)のスキャフォールディング、業態 → Inventory Core の Saga 連結 4 経路、業態 OUTBOUND/Cancel フローの完成、J-SOX 監査(WORM + ハッシュチェーン + Merkle anchor)実装、Pact 契約テスト Phase 5 + ADR-0021 で本番ホスティング決定までを完了。13/13 サービス + 21 ADR + 8 E2E テストケース。
 
 ### Added
 
@@ -100,13 +100,13 @@
 - **Modules**: 26(commons 10 + services 13 + 親 + e2e + commons-bom)
 - **業態 / 共通基盤**: 4/4 + 9/9 = 13/13 services
 - **Saga 配線**: 4/4 業態
-- **ADR**: 18 本
+- **ADR**: 21 本(ADR-0021 で Pact Broker 本番ホスティングを EKS self-host on Aurora-C に確定)
 - **E2E IT**: 8 ケース(`KafkaIntegrationE2ETest`)
 - **Contract Test**: 5 経路 / 4 業態(Pact、Consumer + Provider verify Folder + Provider verify Broker) + Broker publish + can-i-deploy + verify result publish back + matchingRules 完備 + LambdaDsl + branch-aware selectors(ADR-0019 Phase 3 / 3.5 / 4 / 4.5 / 5 完了)
 
 ### Future Work
 
-- Pact Broker 本番ホスティング先確定(別 ADR、 EKS namespace / Pactflow SaaS)
+- Pact Broker 本番展開(ADR-0021 Phase 1 — Aurora-C `pact_broker` DB 切り出し + EKS Deployment + ALB internal-only)
 - Manufacturing 補償(完成品 INBOUND 失敗時)
 - audit-service S3 Object Lock 連携(現状は DB 内 anchor のみ)
 - Workflow 自動 step handler / SLA タイムアウト
