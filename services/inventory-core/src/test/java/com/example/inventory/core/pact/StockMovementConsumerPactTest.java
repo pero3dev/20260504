@@ -2,8 +2,6 @@ package com.example.inventory.core.pact;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -48,8 +46,9 @@ class StockMovementConsumerPactTest {
                         .stringMatcher("movementType", "INBOUND|OUTBOUND|ADJUSTMENT", "INBOUND")
                         .integerType("quantity", 50);
 
-        return builder.expectsToReceive("a tpl stock movement event", "core/interaction/message")
-                .with(Map.of("message.contents", payload))
+        return builder.expectsToReceiveMessageInteraction(
+                        "a tpl stock movement event",
+                        i -> i.withContents(c -> c.withContent(payload)))
                 .toPact();
     }
 

@@ -54,10 +54,12 @@ public class ManufacturingProviderPactBase {
                         "SKU-WIDGET-X",
                         "LOC-FACTORY-A",
                         10,
-                        // Consumer は minArrayLike(min=1) を指定しているが Pact-JVM 4.6 はリスト長を
-                        // デフォルトで厳密一致させる。 Provider は 1 要素返すことで契約を満たす。
-                        // (ADR-0019 Phase 4 候補で LambdaDsl 全面移行時に matching rule を flexible 化する)
-                        List.of(new WorkOrderReleasedEvent.Component("SKU-A", 20)),
+                        // ADR-0019 Phase 4 で matching rule が pact JSON に正しく propagate されたため、
+                        // minArrayLike(min=1) の意味どおり「1 件以上の任意の長さ」を Provider は返せる。
+                        // 真の世界の WorkOrder は通常 BOM が複数あるので 2 件返してフィット度を高める。
+                        List.of(
+                                new WorkOrderReleasedEvent.Component("SKU-A", 20),
+                                new WorkOrderReleasedEvent.Component("SKU-B", 5)),
                         LocalDate.of(2026, 5, 7),
                         occurredAt);
         try {

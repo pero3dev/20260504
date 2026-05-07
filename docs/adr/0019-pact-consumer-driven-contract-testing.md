@@ -95,15 +95,42 @@ matrix API: deployable=true, success=4, failed=0, unknown=0
 - **REST API の Pact 契約**: BFF ↔ 各サービスや、サービス間 gRPC/REST がもし生まれたとき(現状は Kafka 中心)に追加。 BFF 自体が未実装のため YAGNI。
 - **Pact Broker のホスティング先確定**: EKS の admin namespace か Pactflow SaaS か。 Phase 3 完了後に **別 ADR** で運用設計を確定する。 secret は GitHub Actions に流し込む方向だが、 Broker 自体の HA / バックアップ / 認証は別 ADR スコープ。
 
-### Known limitation (Phase 1〜3 共通) — matching rule の strictness
+### ~~Known limitation (Phase 1〜3 共通) — matching rule の strictness~~ → **Phase 4 で解消**
 
-`PactBuilder` (V4) + `PactDslJsonBody` (V3 DSL) を組合せて `Map.of("message.contents", payload)` 経由で content を渡すと、 `stringType` / `numberType` / `minArrayLike` 等で宣言した **matching rule が pact JSON に propagate されない**(`target/pacts/*.json` の `matchingRules` 節が常に空)。 結果として Provider verify は example 値の **完全一致**で動作する。
+(原文を残してあるのは「過去にここで詰まった」という事実をログとして残すため)
 
-**影響**: 例えば `manufacturing.work_order.released.v1` の Consumer は `minArrayLike("components", 1, ...)` を宣言しているが Provider 側は consumer template と全く同じ `[{ componentSkuCode: "SKU-A", requiredQuantity: 20 }]` を返さないと verify が落ちる。
+~~`PactBuilder` (V4) + `PactDslJsonBody` (V3 DSL) を組合せて `Map.of("message.contents", payload)` 経由で content を渡すと、 `stringType` / `numberType` / `minArrayLike` 等で宣言した **matching rule が pact JSON に propagate されない**~~
 
-**根治策(別タスク)**: `LambdaDsl` ベースの V4-native body builder へ全面移行すれば matching rule が正しく propagate される。 Phase 4 候補(ADR-0019 範囲外で別タスク化)。
+**真の原因(Phase 4 で判明)**: 上記は `PactBuilder.with(Map.of("message.contents", payload))` が **古い経路** で、 V4 native API の `expectsToReceiveMessageInteraction(name, builder→builder)` + `MessageInteractionBuilder.withContents(c→c)` + `MessageContentsBuilder.withContent(DslPart)` が正しい経路だった。 後者を使うと matching rule は完全に propagate される。
 
-**当座の運用ルール**: Provider テストの `@PactVerifyProvider` メソッドは Consumer test の example 値と **逐字一致**するペイロードを返す。 これは `pact:verify` の意義(field 名 / 型 / 構造の検証)を保つには十分(逐字一致でなくとも保証される field rename / 型変更検出は維持されている)。
+修正後パターン:
+
+```java
+return builder.expectsToReceiveMessageInteraction(
+        "a wholesale order placed event",
+        i -> i.withContents(c -> c.withContent(payload)))  // payload = PactDslJsonBody
+    .toPact();
+```
+
+これで pact JSON の `matchingRules.body` 節に `type` / `integer` / `number` / `regex` / `min` 全 matcher が出力される。
+
+### Phase 4(2026-05-07 実施分)— matching rule の strict 一致を緩和
+
+**実装**:
+
+- 5 経路すべての Consumer Pact test を `expectsToReceiveMessageInteraction(...).withContents(c -> c.withContent(payload))` パターンへ変換(以前の `with(Map.of("message.contents", payload))` から差し替え)。
+- 結果として全 pact JSON の `matchingRules.body` が完備に: `numberType / integerType / stringType / minArrayLike / stringMatcher` が宣言したルールを 1:1 で表現。
+- `manufacturing.work_order.released.v1` の Provider が **2 components 返却** に戻った(以前は strict 一致のため 1 件固定)。これにより Provider が真に近い回答を返せるようになり、 contract のフィット度が向上。
+
+**Broker round-trip 確認(local)**:
+
+```
+publish: 4 pact ファイル全件 OK(matchingRules 節完備)
+provider-verify: 全 5 interaction 緑、 verify 結果 publish back 成功
+matrix API: deployable=true, success=4, failed=0, unknown=0
+```
+
+**残課題**: `LambdaDsl` 完全移行(現状は `PactDslJsonBody` のまま)は **本フェーズ範囲外**。 V4 native API + V3 DSL の組合せで matching rule が動くため、 LambdaDsl への置き換えは「ネスト構造の可読性向上」というスタイル課題。 別タスク化。
 
 ### スコープ外
 
@@ -206,6 +233,7 @@ E2E IT で実際にメッセージを流して動作確認しているので、P
 - ✅ Phase 2.2: Consumer 契約の追加(retail / manufacturing / shipped / 3PL movement)(完了、 5 経路 / 4 業態)
 - ✅ Phase 2.3 = Phase 3: Pact Broker 導入(完了)
 - ✅ Phase 3.5: Provider verify の Broker 化 + verify 結果 publish back(完了)
-- Phase 4 候補: `LambdaDsl` 全面移行 → matching rule 緩和(strict 一致からの脱却)
-- Phase 4 候補: consumer version selectors の本格運用(現状は branch=local 単純取得)
+- ✅ Phase 4: matching rule strict 一致を緩和(V4 native API へ移行で完了)
+- Phase 4.5 候補: `LambdaDsl` 全面移行(可読性向上のスタイル課題、必須ではない)
+- Phase 4.5 候補: consumer version selectors の本格運用(現状は branch=main / pr-N の単純取得)
 - 別 ADR: Pact Broker のホスティング先確定(EKS namespace / Pactflow SaaS、 HA / 認証 / バックアップ)

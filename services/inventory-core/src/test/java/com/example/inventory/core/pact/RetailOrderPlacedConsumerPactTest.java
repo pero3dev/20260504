@@ -2,8 +2,6 @@ package com.example.inventory.core.pact;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -56,8 +54,9 @@ class RetailOrderPlacedConsumerPactTest {
                                 "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z",
                                 "2026-05-06T10:00:00Z");
 
-        return builder.expectsToReceive("a retail order placed event", "core/interaction/message")
-                .with(Map.of("message.contents", payload))
+        return builder.expectsToReceiveMessageInteraction(
+                        "a retail order placed event",
+                        i -> i.withContents(c -> c.withContent(payload)))
                 .toPact();
     }
 
