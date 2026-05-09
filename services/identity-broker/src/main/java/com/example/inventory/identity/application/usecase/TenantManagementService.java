@@ -9,6 +9,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.inventory.commons.audit.Auditable;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.DeactivateTenantUseCase;
 import com.example.inventory.identity.application.port.in.GetTenantUseCase;
@@ -25,6 +26,10 @@ import com.example.inventory.identity.domain.model.Tenant;
  * DB に直接書き込む。 business DB 側の schema 作成は別経路(infra/tenant-provisioning runbook)。
  *
  * <p>{@link Clock} を注入しテスト可能性を確保。
+ *
+ * <p><b>監査:</b> {@code /v1/admin/tenants/*} は J-SOX 上の重要統制点(テナント追加/削除/参照)のため、 4 メソッド全てに {@link
+ * com.example.inventory.commons.audit.Auditable} を付与。 read-only な {@code get} / {@code listAll} も
+ * {@code read = true} で監査(管理者の参照行為自体が統制対象)。
  */
 @Service
 public class TenantManagementService
@@ -42,6 +47,10 @@ public class TenantManagementService
 
     @Override
     @Transactional
+    @Auditable(
+            action = "TENANT_REGISTER",
+            targetType = "Tenant",
+            targetIdExpression = "#command.tenantId")
     public Tenant register(Command command) {
         TenantId id = new TenantId(command.tenantId());
         Tenant tenant = Tenant.register(id, command.displayName(), clock.instant());
@@ -59,6 +68,10 @@ public class TenantManagementService
 
     @Override
     @Transactional
+    @Auditable(
+            action = "TENANT_DEACTIVATE",
+            targetType = "Tenant",
+            targetIdExpression = "#tenantId")
     public Tenant deactivate(String tenantId) {
         TenantId id = new TenantId(tenantId);
         Tenant tenant =
@@ -71,6 +84,11 @@ public class TenantManagementService
 
     @Override
     @Transactional(readOnly = true)
+    @Auditable(
+            action = "TENANT_GET",
+            targetType = "Tenant",
+            targetIdExpression = "#tenantId",
+            read = true)
     public Tenant get(String tenantId) {
         TenantId id = new TenantId(tenantId);
         return repository.findById(id).orElseThrow(() -> new TenantNotFoundException(tenantId));
@@ -78,6 +96,7 @@ public class TenantManagementService
 
     @Override
     @Transactional(readOnly = true)
+    @Auditable(action = "TENANT_LIST_ALL", targetType = "Tenant", read = true)
     public List<Tenant> listAll() {
         return repository.findAll();
     }

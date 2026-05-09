@@ -187,6 +187,11 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up² `TenantManagementService` 全 4 メソッドに `@Auditable` 付与**(`infra/tenant-provisioning/README.md` の セキュリティ要件 から繰上げ。 J-SOX 上テナント追加 / 削除 / 参照は重要統制点で、 admin API 呼出を audit-service が全て記録する必要がある):
+    - **write 系**: `register` → `action="TENANT_REGISTER"` + `targetIdExpression="#command.tenantId"`、 `deactivate` → `action="TENANT_DEACTIVATE"` + `targetIdExpression="#tenantId"`(`@Transactional` と並置)
+    - **read 系も `read = true` で監査**: `get` → `action="TENANT_GET"` + `targetIdExpression="#tenantId"` + `read=true`、 `listAll` → `action="TENANT_LIST_ALL"` + `read=true`(targetId 無し)。 admin の参照行為自体が J-SOX 統制対象のため read を漏らさない
+    - **AOP 経由なので unit test (`new TenantManagementService(...)` 直接 instantiate)では aspect 起動せず既存 8 ケースは無修正で全 pass**。 production runtime では Spring proxy 経由で `AuditableAspect` が `audit.log.v1` topic に発行
+    - **`infra/tenant-provisioning/README.md` のセキュリティ要件**から該当行を「付与済」に書換
 - **A5 follow-up `SelectTenantService` で DEACTIVATED tenant を弾き、 token 再発行を拒否**(`infra/tenant-provisioning/README.md` の Future Work から繰上げ。 tenant deactivation の意味的な幅を完成させる修正で、 deactivate 後でも既存 membership 経由で access token が新規発行できる security gap を閉じる):
     - **`SelectTenantService` constructor に `TenantRepository` を追加注入**、 selectTenant 内で membership 確認後に `tenantRepository.findById(tenantId)` を引いて `TenantStatus.DEACTIVATED` なら `TenantAccessDeniedException` で拒否
     - **tenant row 不在(membership 有るのに tenants テーブル不在)の data inconsistency** も `TenantAccessDeniedException` + warn ログで安全側に倒す
