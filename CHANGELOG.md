@@ -203,6 +203,16 @@
     - **Catalog**: 4 業態 × 2 言語 = 8 ファイルに `dashboard.filter.fetch_button_pending` + `dashboard.trend.value_unit` を追加
     - effect: `取得` ボタン押下中は `取得中...` 表示で disable、 chart hover 時 Tooltip が `1,234 個` / `¥1,200,000` のように単位付き表示。 `tenant.locale` が `en` なら `Fetching...` / `1,234 pcs` に自動切替で phase 5b の i18n 切替と整合
     - phase 5 候補(残): F5 Storybook + addon-a11y(第 3 層)/ packages/ui の component 拡充(Pagination / Toast / Dialog / Select)/ F2 残(SAML JIT provisioning / Cognito Terraform-CDK / silent-renew.html)
+- **F4 follow-up `packages/ui` component 拡充(Pagination / Toast / Dialog / Select)**(F4 で骨組みを切り出した design system に、 4 web app が今後必要とする building block を投入。 Radix UI primitives ベースで a11y を default 確保):
+    - **`Pagination`**(zero-dep): cursor-based prev/next ボタン + page info(ADR の REST 規約 = page number 持たない)。 `hasPrev` / `hasNext` / `onPrev` / `onNext` / `pageInfo` / `isPending` / `prevLabel` / `nextLabel` / `ariaLabel` を受ける presentational component。 cursor 値は親が `useState` 等で管理
+    - **`Toast` + `useToast` hook**(`@radix-ui/react-toast` 背後): app root に `<ToastProvider>` を 1 つ mount すれば、 任意の component から `const { toast } = useToast(); toast({ title, description, variant })` で発火可能。 variant は `default` / `success` / `error`、 default 5 秒 auto dismiss、 swipe / × ボタン / ESC で手動 dismiss、 `aria-live` (Radix が status role 付与)で screen reader 対応
+    - **`Dialog`**(`@radix-ui/react-dialog` 背後): shadcn 標準の compound API(`Dialog` / `DialogTrigger` / `DialogContent` / `DialogTitle` / `DialogDescription` / `DialogFooter` / `DialogClose`)。 focus trap / ESC close / outside-click close / aria-modal は Radix が担保
+    - **`Select`**(`@radix-ui/react-select` 背後): native `<select>` ではなくカスタム dropdown だが、 listbox role / 矢印キー nav / type-ahead / scroll はすべて Radix。 `Select` / `SelectTrigger` / `SelectValue` / `SelectContent` / `SelectItem` / `SelectLabel` / `SelectGroup` / `SelectSeparator`
+    - **deps**: `@radix-ui/react-{dialog,select,toast}` を `@inventory/ui` の dependencies に追加(peer ではなく direct dep:Radix は web app に直接 import される ことが少ないので transitive 経由で十分)
+    - **4 web app `main.tsx` を `<ToastProvider>` ラップ**(`<QueryClientProvider>` 内側に配置で React tree の他 provider と同居)
+    - **smoke 接続(retail-ec のみ)**: dashboard で fetch 完了時に `useToast` を呼び、 成功 / 失敗 / 該当なし を i18n 化された通知として表示。 catalog ja/en に `dashboard.toast.{fetch_success_title, fetch_success_description, fetch_failed_title, not_found_title}` 追加。 残 3 業態への接続は実際の mutation が出てきた phase で配線
+    - **animation class は意図的に省略**: 当初 `data-[state=open]:animate-in fade-in` 等を入れたが `tailwindcss-animate` plugin が preset に未導入で機能しないため削除。 必要になった時 plugin 追加 + class 復元の予定。 機能としては Radix の即時 mount / unmount で動作
+    - 残作業候補: `<Combobox>`(autosuggest 必要になったら)/ Dialog から SubmitButton + Form 連動の confirm dialog ヘルパー / Toast に countdown progress bar
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料

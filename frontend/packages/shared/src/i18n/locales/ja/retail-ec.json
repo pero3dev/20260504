@@ -28,6 +28,12 @@
         "required": "Inventory ID は必須です",
         "numeric": "数値で入力してください"
       }
+    },
+    "toast": {
+      "fetch_success_title": "取得しました",
+      "fetch_success_description": "Inventory {{id}} を表示しています",
+      "fetch_failed_title": "取得に失敗しました",
+      "not_found_title": "該当データなし"
     }
   }
 }

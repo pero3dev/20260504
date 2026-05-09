@@ -7,6 +7,7 @@ import {
   FormField,
   OidcCallbackPage,
   SubmitButton,
+  useToast,
 } from '@inventory/ui';
 import { LineChart } from '@inventory/ui/charts';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +18,7 @@ import {
   Outlet,
   useNavigate,
 } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -91,6 +92,7 @@ interface FilterValues {
 function DashboardPage() {
   const { t } = useTranslation('retail-ec');
   const { t: tCommon } = useTranslation('common');
+  const { toast } = useToast();
 
   // active id は submit 時のみ更新。 keystroke ごとに fetch しない。
   const [activeId, setActiveId] = useState<string>(DEFAULT_INVENTORY_ID);
@@ -111,6 +113,32 @@ function DashboardPage() {
     queryKey: ['inventory', activeId],
     queryFn: () => fetchInventory(activeId),
   });
+
+  // smoke 用 toast: phase A の toast 配線を視認するため fetch 結果ごとに通知。
+  // useTranslation の `t` / useToast の context value はそれぞれ memoize 済で参照安定。
+  // 本格的な mutation 配線は将来 phase で(refetchOnMount 等の noise を踏まえ tuning)。
+  useEffect(() => {
+    if (isFetching) return;
+    if (error) {
+      toast({
+        title: t('dashboard.toast.fetch_failed_title'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'error',
+      });
+      return;
+    }
+    if (data?.inventory) {
+      toast({
+        title: t('dashboard.toast.fetch_success_title'),
+        description: t('dashboard.toast.fetch_success_description', {
+          id: data.inventory.id,
+        }),
+        variant: 'success',
+      });
+    } else if (data && data.inventory === null) {
+      toast({ title: t('dashboard.toast.not_found_title'), variant: 'default' });
+    }
+  }, [data, error, isFetching, t, toast]);
 
   return (
     <div className="space-y-6">

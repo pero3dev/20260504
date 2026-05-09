@@ -28,6 +28,12 @@
         "required": "Inventory ID is required",
         "numeric": "Must be a number"
       }
+    },
+    "toast": {
+      "fetch_success_title": "Inventory loaded",
+      "fetch_success_description": "Showing inventory {{id}}",
+      "fetch_failed_title": "Fetch failed",
+      "not_found_title": "No matching record"
     }
   }
 }

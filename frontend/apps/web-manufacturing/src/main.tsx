@@ -5,6 +5,7 @@ import {
   manufacturingResources,
   mergeResources,
 } from '@inventory/shared/i18n';
+import { ToastProvider } from '@inventory/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
@@ -34,7 +35,9 @@ void createI18n({
     <StrictMode>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
+          <ToastProvider>
+            <RouterProvider router={router} />
+          </ToastProvider>
         </QueryClientProvider>
       </I18nextProvider>
     </StrictMode>,
