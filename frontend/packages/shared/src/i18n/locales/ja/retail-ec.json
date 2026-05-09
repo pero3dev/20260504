@@ -15,13 +15,15 @@
     "trend": {
       "title": "直近 7 日の在庫推移(デモ)",
       "subtitle": "本格的な time-series API は未実装。 mock データで chart wrapper の疎通を確認しています。",
-      "series_available": "Available"
+      "series_available": "Available",
+      "value_unit": "{{value, number}} 個"
     },
     "filter": {
       "title": "在庫を取得",
       "inventory_id_label": "Inventory ID",
       "inventory_id_description": "数値で指定してください(例: 1)",
       "fetch_button": "取得",
+      "fetch_button_pending": "取得中...",
       "validation": {
         "required": "Inventory ID は必須です",
         "numeric": "数値で入力してください"

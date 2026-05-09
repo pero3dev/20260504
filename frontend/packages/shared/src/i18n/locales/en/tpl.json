@@ -18,6 +18,7 @@
       "movement_id_label": "Movement ID",
       "movement_id_description": "Numeric only (e.g. 1)",
       "fetch_button": "Fetch",
+      "fetch_button_pending": "Fetching...",
       "validation": {
         "required": "Movement ID is required",
         "numeric": "Must be a number"
@@ -27,7 +28,8 @@
       "title": "Last 7 days stock movement quantity (demo)",
       "subtitle": "Real aggregation API not yet implemented; using mock data to verify the chart wrapper plumbing.",
       "series_inbound": "Inbound",
-      "series_outbound": "Outbound"
+      "series_outbound": "Outbound",
+      "value_unit": "{{value, number}} pcs"
     }
   }
 }

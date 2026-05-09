@@ -1,6 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useApplyTenantLocale } from '@inventory/shared/i18n';
-import { AppShell, AuthButtons, Form, FormField, OidcCallbackPage } from '@inventory/ui';
+import {
+  AppShell,
+  AuthButtons,
+  Form,
+  FormField,
+  OidcCallbackPage,
+  SubmitButton,
+} from '@inventory/ui';
 import { LineChart } from '@inventory/ui/charts';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -100,7 +107,7 @@ function DashboardPage() {
     defaultValues: { inventoryId: DEFAULT_INVENTORY_ID },
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['inventory', activeId],
     queryFn: () => fetchInventory(activeId),
   });
@@ -135,12 +142,11 @@ function DashboardPage() {
               )}
             />
           </div>
-          <button
-            type="submit"
-            className="rounded-md bg-primary px-4 py-1 text-sm text-primary-foreground hover:opacity-90"
-          >
-            {t('dashboard.filter.fetch_button')}
-          </button>
+          <SubmitButton
+            label={t('dashboard.filter.fetch_button')}
+            pendingLabel={t('dashboard.filter.fetch_button_pending')}
+            pending={isFetching}
+          />
         </Form>
       </section>
 
@@ -189,6 +195,7 @@ function DashboardPage() {
           xKey="date"
           series={[{ dataKey: 'available', label: t('dashboard.trend.series_available') }]}
           height={240}
+          valueFormatter={(value) => t('dashboard.trend.value_unit', { value })}
         />
       </section>
     </div>

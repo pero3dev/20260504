@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import {
   Controller,
   FormProvider,
   useFormContext,
+  useFormState,
   type ControllerProps,
   type FieldPath,
   type FieldValues,
@@ -104,5 +105,62 @@ export function FormField<
         </p>
       )}
     </div>
+  );
+}
+
+export interface SubmitButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** 通常時のラベル(例: 「取得」)。 children でも可だが label を渡すと pending 表示と排他制御しやすい */
+  label?: ReactNode;
+  /** 送信中に差し替えるラベル(例: 「取得中...」)。 未指定なら label/children のまま disable のみ */
+  pendingLabel?: ReactNode;
+  /**
+   * 外部 pending(query refetch 中など)を OR で merge するための override。
+   * react-hook-form の `formState.isSubmitting` だけでは捕捉できない、 後段の useQuery
+   * fetch を待ちたいケース(submit → setState → useQuery 再 fetch)で `isLoading` を渡す。
+   */
+  pending?: boolean;
+  children?: ReactNode;
+}
+
+/**
+ * `react-hook-form` の `formState.isSubmitting` を購読する submit button。
+ * `<Form>` 内に置かれている前提で、 送信中は disabled + pendingLabel に切替。
+ *
+ * <p>使用例:
+ * <pre>{@code
+ * <SubmitButton label={t('dashboard.filter.fetch_button')}
+ *               pendingLabel={t('dashboard.filter.fetch_button_pending')}
+ *               pending={isLoading} />
+ * }</pre>
+ *
+ * <p>外部要因で disabled したい場合は `disabled` prop を併用(OR で評価)。 isSubmitting は
+ * useFormState で subscribe するため、 親 component の他の field 変更で再 render されない。
+ */
+export function SubmitButton({
+  label,
+  pendingLabel,
+  pending,
+  children,
+  className,
+  disabled,
+  type = 'submit',
+  ...rest
+}: SubmitButtonProps) {
+  const { isSubmitting } = useFormState();
+  const isPending = isSubmitting || Boolean(pending);
+  const display = isPending && pendingLabel !== undefined ? pendingLabel : (label ?? children);
+  return (
+    <button
+      type={type}
+      disabled={disabled || isPending}
+      aria-busy={isPending || undefined}
+      className={cn(
+        'inline-flex items-center justify-center rounded-md bg-primary px-4 py-1 text-sm text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50',
+        className,
+      )}
+      {...rest}
+    >
+      {display}
+    </button>
   );
 }

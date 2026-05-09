@@ -16,6 +16,7 @@
       "work_order_id_label": "WorkOrder ID",
       "work_order_id_description": "Numeric only (e.g. 1)",
       "fetch_button": "Fetch",
+      "fetch_button_pending": "Fetching...",
       "validation": {
         "required": "WorkOrder ID is required",
         "numeric": "Must be a number"
@@ -24,7 +25,8 @@
     "trend": {
       "title": "Last 7 days WorkOrder completions (demo)",
       "subtitle": "Real aggregation API not yet implemented; using mock data to verify the chart wrapper plumbing.",
-      "series_completed": "Completed"
+      "series_completed": "Completed",
+      "value_unit": "{{value, number}} orders"
     }
   }
 }

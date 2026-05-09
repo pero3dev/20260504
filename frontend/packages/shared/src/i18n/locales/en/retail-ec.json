@@ -15,13 +15,15 @@
     "trend": {
       "title": "Last 7 days inventory trend (demo)",
       "subtitle": "Real time-series API not yet implemented; using mock data to verify the chart wrapper plumbing.",
-      "series_available": "Available"
+      "series_available": "Available",
+      "value_unit": "{{value, number}} pcs"
     },
     "filter": {
       "title": "Fetch inventory",
       "inventory_id_label": "Inventory ID",
       "inventory_id_description": "Numeric only (e.g. 1)",
       "fetch_button": "Fetch",
+      "fetch_button_pending": "Fetching...",
       "validation": {
         "required": "Inventory ID is required",
         "numeric": "Must be a number"

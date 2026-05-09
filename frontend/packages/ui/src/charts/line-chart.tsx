@@ -32,6 +32,15 @@ export interface LineChartSeries {
   color?: string;
 }
 
+/**
+ * Tooltip / YAxis に流す値整形 callback。 数値だけでなく series 名と data point も渡るので
+ * 「currency なら通貨記号付き」「数量なら 件 を末尾」など unit を寄せやすい。
+ */
+export type LineChartValueFormatter<TPoint extends Record<string, unknown>> = (
+  value: number,
+  ctx: { dataKey: string; seriesLabel: string; point?: TPoint },
+) => string;
+
 export interface LineChartProps<TPoint extends Record<string, unknown>> {
   data: TPoint[];
   /** 横軸に使う key(時系列なら `date` 等) */
@@ -41,6 +50,10 @@ export interface LineChartProps<TPoint extends Record<string, unknown>> {
   height?: number;
   /** 凡例を表示するか(default true) */
   showLegend?: boolean;
+  /** Tooltip / YAxis tick 値の表示整形(default は `Number.toLocaleString()`) */
+  valueFormatter?: LineChartValueFormatter<TPoint>;
+  /** Tooltip ヘッダ(x 値)の表示整形(default はそのまま文字列化) */
+  labelFormatter?: (label: string | number) => string;
 }
 
 export function LineChart<TPoint extends Record<string, unknown>>({
@@ -49,13 +62,25 @@ export function LineChart<TPoint extends Record<string, unknown>>({
   series,
   height = 320,
   showLegend = true,
+  valueFormatter,
+  labelFormatter,
 }: LineChartProps<TPoint>) {
+  const formatValue: LineChartValueFormatter<TPoint> =
+    valueFormatter ?? ((value) => value.toLocaleString());
+  const seriesLabelByKey = new Map(series.map((s) => [s.dataKey, s.label ?? s.dataKey]));
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsLineChart data={data} margin={{ top: 12, right: 16, bottom: 12, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
         <XAxis dataKey={xKey} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+        <YAxis
+          stroke="hsl(var(--muted-foreground))"
+          fontSize={12}
+          tickFormatter={(v: number) =>
+            formatValue(v, { dataKey: '', seriesLabel: '' })
+          }
+        />
         <Tooltip
           contentStyle={{
             backgroundColor: 'hsl(var(--background))',
@@ -63,6 +88,24 @@ export function LineChart<TPoint extends Record<string, unknown>>({
             borderRadius: '0.5rem',
             fontSize: '0.875rem',
           }}
+          formatter={(value, name, item) => {
+            const numeric = typeof value === 'number' ? value : Number(value);
+            if (Number.isNaN(numeric)) {
+              return [String(value), String(name)];
+            }
+            const dataKey = String((item as { dataKey?: unknown }).dataKey ?? name);
+            const seriesLabel = seriesLabelByKey.get(dataKey) ?? String(name);
+            const point = (item as { payload?: TPoint }).payload;
+            return [
+              formatValue(numeric, { dataKey, seriesLabel, ...(point ? { point } : {}) }),
+              seriesLabel,
+            ];
+          }}
+          labelFormatter={
+            labelFormatter
+              ? (label: string | number) => labelFormatter(label)
+              : undefined
+          }
         />
         {showLegend && <Legend wrapperStyle={{ fontSize: '0.75rem' }} />}
         {series.map((s) => (

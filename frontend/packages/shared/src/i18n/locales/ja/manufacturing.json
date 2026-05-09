@@ -16,6 +16,7 @@
       "work_order_id_label": "WorkOrder ID",
       "work_order_id_description": "数値で指定してください(例: 1)",
       "fetch_button": "取得",
+      "fetch_button_pending": "取得中...",
       "validation": {
         "required": "WorkOrder ID は必須です",
         "numeric": "数値で入力してください"
@@ -24,7 +25,8 @@
     "trend": {
       "title": "直近 7 日の WorkOrder 完成数(デモ)",
       "subtitle": "本格的な集計 API は未実装。 mock データで chart wrapper の疎通を確認しています。",
-      "series_completed": "完成数"
+      "series_completed": "完成数",
+      "value_unit": "{{value, number}} 件"
     }
   }
 }
