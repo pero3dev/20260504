@@ -10,6 +10,21 @@
       "planned_quantity": "Planned quantity",
       "status": "Status",
       "planned_start_date": "Planned start date"
+    },
+    "filter": {
+      "title": "Fetch WorkOrder",
+      "work_order_id_label": "WorkOrder ID",
+      "work_order_id_description": "Numeric only (e.g. 1)",
+      "fetch_button": "Fetch",
+      "validation": {
+        "required": "WorkOrder ID is required",
+        "numeric": "Must be a number"
+      }
+    },
+    "trend": {
+      "title": "Last 7 days WorkOrder completions (demo)",
+      "subtitle": "Real aggregation API not yet implemented; using mock data to verify the chart wrapper plumbing.",
+      "series_completed": "Completed"
     }
   }
 }

@@ -12,6 +12,22 @@
       "quantity": "Quantity",
       "status": "Status",
       "reference_code": "Reference code"
+    },
+    "filter": {
+      "title": "Fetch StockMovement",
+      "movement_id_label": "Movement ID",
+      "movement_id_description": "Numeric only (e.g. 1)",
+      "fetch_button": "Fetch",
+      "validation": {
+        "required": "Movement ID is required",
+        "numeric": "Must be a number"
+      }
+    },
+    "trend": {
+      "title": "Last 7 days stock movement quantity (demo)",
+      "subtitle": "Real aggregation API not yet implemented; using mock data to verify the chart wrapper plumbing.",
+      "series_inbound": "Inbound",
+      "series_outbound": "Outbound"
     }
   }
 }

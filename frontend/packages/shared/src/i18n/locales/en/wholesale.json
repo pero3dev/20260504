@@ -13,6 +13,21 @@
     },
     "items": {
       "title": "Line items"
+    },
+    "filter": {
+      "title": "Fetch SalesOrder",
+      "order_id_label": "Order ID",
+      "order_id_description": "Numeric only (e.g. 1)",
+      "fetch_button": "Fetch",
+      "validation": {
+        "required": "Order ID is required",
+        "numeric": "Must be a number"
+      }
+    },
+    "trend": {
+      "title": "Last 7 days sales revenue (demo, JPY)",
+      "subtitle": "Real aggregation API not yet implemented; using mock data to verify the chart wrapper plumbing.",
+      "series_revenue": "Revenue"
     }
   }
 }

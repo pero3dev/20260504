@@ -171,6 +171,13 @@
     - **`@inventory/shared/dev` subpath 新設** + `startAxeDevScanner({ intervalMs?, initialDelayMs? })`(`axe-core` を dynamic import で polling scan、 default 5s 間隔、 違反は `console.warn` に流す)。 `@axe-core/react` 4.x が React 19(`react-dom.findDOMNode` 削除)非対応のため、 axe-core 単体 + polling で代替。 `@axe-core/react` の React 19 対応版が出たら本ヘルパは差替予定
     - **4 web app の main.tsx に `if (import.meta.env.DEV) void startAxeDevScanner()`**(production tree shake で axe-core は bundle に含まれない)。 a11y 4 層の第 2 層が稼働
     - phase 4 候補: `tenant.locale` claim → language 動的切替 / 残 3 業態 dashboard も filter form / chart 化 / F5 Storybook + addon-a11y(第 3 層)
+- **F7 phase 4 残 3 業態 dashboard を filter form + chart 拡張**(retail-ec パターンを 4 業態揃え、 form / chart の vertical を全業態で完成):
+    - **`web-manufacturing`**: WorkOrder ID 入力 → submit、 mock 完成数 7 日 LineChart
+    - **`web-tpl`**: Movement ID 入力 → submit、 mock 入庫 / 出庫数量 7 日 LineChart(2 series)
+    - **`web-wholesale`**: Order ID 入力 → submit、 mock 受注額 7 日 LineChart
+    - 各 web app の package.json に `@hookform/resolvers` / `react-hook-form` / `zod` / `recharts` / `react-error-boundary` を direct dep として追加(transitive 経由では pnpm が型解決に出さないため)
+    - 各業態 catalog(ja/en)に `dashboard.filter.*` + `dashboard.trend.*` を追加。 schema は render 内で `t()` 経由 error message を i18n 化、 input は `inputMode="numeric"` で a11y キーボード補助
+    - phase 5 候補: `tenant.locale` claim → language 動的切替 / Form の submit-pending state 表示 / chart に Tooltip カスタマイズ / F5 Storybook + addon-a11y(第 3 層)
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料
