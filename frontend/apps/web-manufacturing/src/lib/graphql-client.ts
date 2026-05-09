@@ -1,6 +1,12 @@
 import { GraphQLClient, gql } from 'graphql-request';
 
 import { getAuthToken } from './auth';
+import type {
+  ViewerQuery,
+  ViewerQueryVariables,
+  WorkOrderQuery,
+  WorkOrderQueryVariables,
+} from '../__generated__/graphql';
 
 const endpoint = '/graphql';
 
@@ -32,21 +38,13 @@ const WORK_ORDER_QUERY = gql`
   }
 `;
 
-export interface WorkOrderQueryResult {
-  workOrder: {
-    id: string;
-    code: string;
-    productSkuCode: string;
-    locationId: string;
-    plannedQuantity: number;
-    status: 'PLANNED' | 'RELEASED' | 'COMPLETED' | 'CANCELLED';
-    plannedStartDate: string | null;
-    version: number;
-  } | null;
-}
+/** F6 follow-up phase 2 で hand-written interface から codegen 生成型に置換。 */
+export type WorkOrderQueryResult = WorkOrderQuery;
 
 export async function fetchWorkOrder(workOrderId: string): Promise<WorkOrderQueryResult> {
-  return client.request<WorkOrderQueryResult>(WORK_ORDER_QUERY, { workOrderId });
+  return client.request<WorkOrderQuery, WorkOrderQueryVariables>(WORK_ORDER_QUERY, {
+    workOrderId,
+  });
 }
 
 const VIEWER_QUERY = gql`
@@ -62,17 +60,8 @@ const VIEWER_QUERY = gql`
   }
 `;
 
-export interface ViewerQueryResult {
-  viewer: {
-    userId: string;
-    tenantId: string;
-    roles: string[];
-    locale: string;
-    locations: string[];
-    partners: string[];
-  } | null;
-}
+export type ViewerQueryResult = ViewerQuery;
 
 export async function fetchViewer(): Promise<ViewerQueryResult> {
-  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+  return client.request<ViewerQuery, ViewerQueryVariables>(VIEWER_QUERY);
 }

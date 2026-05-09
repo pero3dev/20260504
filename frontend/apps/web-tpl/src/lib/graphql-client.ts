@@ -1,6 +1,12 @@
 import { GraphQLClient, gql } from 'graphql-request';
 
 import { getAuthToken } from './auth';
+import type {
+  StockMovementQuery,
+  StockMovementQueryVariables,
+  ViewerQuery,
+  ViewerQueryVariables,
+} from '../__generated__/graphql';
 
 const endpoint = '/graphql';
 
@@ -34,25 +40,15 @@ const STOCK_MOVEMENT_QUERY = gql`
   }
 `;
 
-export interface StockMovementQueryResult {
-  stockMovement: {
-    id: string;
-    code: string;
-    partnerCode: string;
-    skuCode: string;
-    locationId: string;
-    movementType: 'INBOUND' | 'OUTBOUND' | 'ADJUSTMENT';
-    quantity: number;
-    status: 'PLANNED' | 'RECEIVED' | 'DISPATCHED' | 'CANCELLED';
-    referenceCode: string | null;
-    version: number;
-  } | null;
-}
+/** F6 follow-up phase 2 で hand-written interface から codegen 生成型に置換。 */
+export type StockMovementQueryResult = StockMovementQuery;
 
 export async function fetchStockMovement(
   movementId: string,
 ): Promise<StockMovementQueryResult> {
-  return client.request<StockMovementQueryResult>(STOCK_MOVEMENT_QUERY, { movementId });
+  return client.request<StockMovementQuery, StockMovementQueryVariables>(STOCK_MOVEMENT_QUERY, {
+    movementId,
+  });
 }
 
 const VIEWER_QUERY = gql`
@@ -68,17 +64,8 @@ const VIEWER_QUERY = gql`
   }
 `;
 
-export interface ViewerQueryResult {
-  viewer: {
-    userId: string;
-    tenantId: string;
-    roles: string[];
-    locale: string;
-    locations: string[];
-    partners: string[];
-  } | null;
-}
+export type ViewerQueryResult = ViewerQuery;
 
 export async function fetchViewer(): Promise<ViewerQueryResult> {
-  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+  return client.request<ViewerQuery, ViewerQueryVariables>(VIEWER_QUERY);
 }

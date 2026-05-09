@@ -1,6 +1,12 @@
 import { GraphQLClient, gql } from 'graphql-request';
 
 import { getAuthToken } from './auth';
+import type {
+  SalesOrderQuery,
+  SalesOrderQueryVariables,
+  ViewerQuery,
+  ViewerQueryVariables,
+} from '../__generated__/graphql';
 
 const endpoint = '/graphql';
 
@@ -38,31 +44,19 @@ const SALES_ORDER_QUERY = gql`
   }
 `;
 
-export interface SalesOrderLineQueryResult {
-  skuCode: string;
-  locationId: string;
-  quantity: number;
-  unitPrice: number;
-}
-
-export interface SalesOrderQueryResult {
-  salesOrder: {
-    id: string;
-    code: string;
-    partnerCode: string;
-    status: 'PLACED' | 'SHIPPED' | 'CANCELLED';
-    currency: string;
-    totalAmount: number;
-    requestedDeliveryDate: string | null;
-    items: SalesOrderLineQueryResult[];
-    version: number;
-  } | null;
-}
+/**
+ * F6 follow-up phase 2 で hand-written interface から codegen 生成型に置換。
+ * 旧 `SalesOrderLineQueryResult` interface も生成型 `SalesOrderQuery['salesOrder']['items'][number]`
+ * から派生で取れるが、 既存呼出側の参照保持のため alias を残す。
+ */
+export type SalesOrderQueryResult = SalesOrderQuery;
 
 export async function fetchSalesOrder(
   orderId: string,
 ): Promise<SalesOrderQueryResult> {
-  return client.request<SalesOrderQueryResult>(SALES_ORDER_QUERY, { orderId });
+  return client.request<SalesOrderQuery, SalesOrderQueryVariables>(SALES_ORDER_QUERY, {
+    orderId,
+  });
 }
 
 const VIEWER_QUERY = gql`
@@ -78,17 +72,8 @@ const VIEWER_QUERY = gql`
   }
 `;
 
-export interface ViewerQueryResult {
-  viewer: {
-    userId: string;
-    tenantId: string;
-    roles: string[];
-    locale: string;
-    locations: string[];
-    partners: string[];
-  } | null;
-}
+export type ViewerQueryResult = ViewerQuery;
 
 export async function fetchViewer(): Promise<ViewerQueryResult> {
-  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+  return client.request<ViewerQuery, ViewerQueryVariables>(VIEWER_QUERY);
 }

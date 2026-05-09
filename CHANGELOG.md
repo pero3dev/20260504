@@ -187,6 +187,12 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **F6 follow-up phase 2 GraphQL Codegen を残 3 業態(manufacturing / tpl / wholesale)に同型展開**(phase 1 で retail-ec pilot 緑化後、 同 pattern を mechanical 適用):
+    - 各 web app に `@graphql-codegen/{cli, typescript, typescript-operations}` devDep + `pnpm codegen` script + `codegen.ts` 設定 + `src/lib/graphql-client.ts` の hand-written interface を生成型 import に置換
+    - **schema 入力**: manufacturing → `bff-manufacturing/src/schema.graphql`(`Date` scalar マップ)、 tpl → `bff-tpl/src/schema.graphql`(scalar 不要)、 wholesale → `bff-wholesale/src/schema.graphql`(`Date` マップ)
+    - **置換対象 interface**: `WorkOrderQueryResult` → `WorkOrderQuery`、 `StockMovementQueryResult` → `StockMovementQuery`、 `SalesOrderQueryResult` → `SalesOrderQuery`(+ 各 `ViewerQueryResult` → `ViewerQuery`)。 既存呼出側互換のため `type alias` は残す
+    - **client.request<T, V> generics**: 全 fetch 関数で 2 引数指定に揃え、 Variables 型も schema 駆動に
+    - effect: 4 業態すべてで GraphQL schema → TS 型の単一情報源化が完成。 BFF schema 変更時は CI codegen 段階で自動再生成され、 web app 側の使用箇所が型不整合を typecheck で検知
 - **F6 follow-up phase 1 GraphQL Codegen 導入(retail-ec pilot)**(BFF schema 駆動の TS 型生成。 4 web app で hand-written interface(`InventoryQueryResult` 等)が BFF schema からドリフトするリスクを build 時 typecheck で潰す。 retail-ec 1 業態で pilot 検証 → CI 緑化を確認後、 残 3 業態に同型展開する 2 段構え):
     - **deps**: `@graphql-codegen/cli` ^5.0.3 + `@graphql-codegen/typescript` ^4.1.2 + `@graphql-codegen/typescript-operations` ^4.4.0 を retail-ec の devDependencies に追加(pilot 期間は他 web app は無変更)
     - **`apps/web-retail-ec/codegen.ts`** 新設(TS 設定ファイル。 schema=`../bff-retail-ec/src/schema.graphql` / documents=`src/lib/graphql-client.ts` の `gql\`\`` テンプレ / 出力 `src/__generated__/graphql.ts` / config: `skipTypename: true`(現行 interface 互換)+ `useTypeImports: true` + scalars `DateTime` → `string`)
