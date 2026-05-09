@@ -18,8 +18,11 @@
     "@tanstack/react-router": "^1.95.0",
     "graphql": "^16.10.0",
     "graphql-request": "^7.1.2",
+    "i18next": "^23.16.8",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-i18next": "^15.4.0",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
