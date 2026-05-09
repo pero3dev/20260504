@@ -18,4 +18,7 @@ public interface TenantMembershipMapper {
      * param で受ける(repository impl で生成)。
      */
     void insert(@Param("id") long id, @Param("row") TenantMembershipRow row);
+
+    /** (userId, tenantId) の行を物理削除。 戻り値は影響行数(0 / 1)。 */
+    int delete(@Param("userId") long userId, @Param("tenantId") String tenantId);
 }

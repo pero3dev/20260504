@@ -14,9 +14,11 @@ import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
+import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.UserAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.UserMembershipAlreadyExistsException;
+import com.example.inventory.identity.application.port.in.UserMembershipNotFoundException;
 import com.example.inventory.identity.application.port.in.UserNotFoundException;
 import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.application.port.out.TenantRepository;
@@ -42,7 +44,10 @@ import com.example.inventory.identity.domain.model.UserId;
  */
 @Service
 public class UserManagementService
-        implements GetUserUseCase, RegisterUserUseCase, AddUserMembershipUseCase {
+        implements GetUserUseCase,
+                RegisterUserUseCase,
+                AddUserMembershipUseCase,
+                RemoveUserMembershipUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserManagementService.class);
 
@@ -189,5 +194,26 @@ public class UserManagementService
                 tenantId.value(),
                 role.value());
         return membership;
+    }
+
+    @Override
+    @Transactional
+    @Auditable(
+            action = "USER_MEMBERSHIP_REMOVE",
+            targetType = "TenantMembership",
+            targetIdExpression = "#command.userId + '/' + #command.tenantId")
+    public void removeMembership(RemoveUserMembershipUseCase.Command command) {
+        UserId userId = new UserId(command.userId());
+        TenantId tenantId = new TenantId(command.tenantId());
+
+        int deleted = membershipRepository.delete(userId, tenantId);
+        if (deleted == 0) {
+            throw new UserMembershipNotFoundException(command.userId(), command.tenantId());
+        }
+
+        LOG.info(
+                "user membership 削除 userId={} tenantId={} 既発行 access token は TTL 切れまで有効",
+                userId.value(),
+                tenantId.value());
     }
 }

@@ -45,6 +45,11 @@ public class TenantMembershipRepositoryImpl implements TenantMembershipRepositor
     }
 
     @Override
+    public int delete(UserId userId, TenantId tenantId) {
+        return mapper.delete(userId.value(), tenantId.value());
+    }
+
+    @Override
     public void add(TenantMembership membership) {
         long id = idGenerator.nextId();
         mapper.insert(

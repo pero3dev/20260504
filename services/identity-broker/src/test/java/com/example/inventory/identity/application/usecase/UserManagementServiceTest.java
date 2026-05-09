@@ -20,9 +20,11 @@ import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
+import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.UserAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.UserMembershipAlreadyExistsException;
+import com.example.inventory.identity.application.port.in.UserMembershipNotFoundException;
 import com.example.inventory.identity.application.port.in.UserNotFoundException;
 import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.application.port.out.TenantRepository;
@@ -284,6 +286,40 @@ class UserManagementServiceTest {
 
         verify(membershipRepository, never()).findByUserAndTenant(any(), any());
         verify(membershipRepository, never()).add(any());
+    }
+
+    // ---------- removeMembership ----------
+
+    @Test
+    void removeMembership_は_該当行を削除する() {
+        when(membershipRepository.delete(new UserId(900100L), new TenantId("acme"))).thenReturn(1);
+
+        service.removeMembership(new RemoveUserMembershipUseCase.Command(900100L, "acme"));
+
+        verify(membershipRepository).delete(new UserId(900100L), new TenantId("acme"));
+    }
+
+    @Test
+    void removeMembership_は_該当無しなら_UserMembershipNotFoundException() {
+        when(membershipRepository.delete(new UserId(99L), new TenantId("acme"))).thenReturn(0);
+
+        assertThatThrownBy(
+                        () ->
+                                service.removeMembership(
+                                        new RemoveUserMembershipUseCase.Command(99L, "acme")))
+                .isInstanceOf(UserMembershipNotFoundException.class);
+    }
+
+    @Test
+    void removeMembership_は_tenantId_形式不正なら_IllegalArgumentException() {
+        assertThatThrownBy(
+                        () ->
+                                service.removeMembership(
+                                        new RemoveUserMembershipUseCase.Command(
+                                                900100L, "INVALID UPPERCASE")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(membershipRepository, never()).delete(any(), any());
     }
 
     @Test

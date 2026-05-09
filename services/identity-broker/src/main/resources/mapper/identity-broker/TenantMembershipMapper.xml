@@ -55,4 +55,12 @@
         )
     </insert>
 
+    <!-- admin offboarding 経路。 該当 (userId, tenantId) の行を物理削除。
+         audit trail は audit-service 側に残るため履歴は確保される(soft delete 不要)。 -->
+    <delete id="delete">
+        DELETE FROM tenant_memberships
+        WHERE user_id = #{userId}
+          AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

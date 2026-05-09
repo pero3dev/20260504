@@ -21,6 +21,7 @@ import com.example.inventory.commons.security.PlatformSecurityAutoConfiguration;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
+import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
 import com.example.inventory.identity.config.JwtKeyConfig;
 import com.example.inventory.identity.config.SecurityConfig;
 
@@ -43,6 +44,8 @@ class AdminSecurityTest {
     @MockitoBean private RegisterUserUseCase registerUserUseCase;
 
     @MockitoBean private AddUserMembershipUseCase addUserMembershipUseCase;
+
+    @MockitoBean private RemoveUserMembershipUseCase removeUserMembershipUseCase;
 
     @Test
     void admin_endpoint_は_JWT_無しで_401() throws Exception {

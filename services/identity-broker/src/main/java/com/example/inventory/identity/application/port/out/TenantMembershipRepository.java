@@ -19,4 +19,11 @@ public interface TenantMembershipRepository {
      * 一意制約に違反した場合は SQL 例外を上げる(caller が認証失敗に丸める)。
      */
     void add(TenantMembership membership);
+
+    /**
+     * 該当 (userId, tenantId) の membership 行を物理削除する。
+     *
+     * @return 削除された行数(0 = 該当無し、 1 = 削除完了)。 caller は 0 を 404 に変換する
+     */
+    int delete(UserId userId, TenantId tenantId);
 }

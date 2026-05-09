@@ -14,6 +14,7 @@ import com.example.inventory.identity.adapter.in.rest.api.model.UserResource;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
+import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
 import com.example.inventory.identity.domain.model.TenantMembership;
 import com.example.inventory.identity.domain.model.User;
 
@@ -35,14 +36,17 @@ public class UserAdminController implements AdminUsersApi {
     private final GetUserUseCase getUser;
     private final RegisterUserUseCase registerUser;
     private final AddUserMembershipUseCase addUserMembership;
+    private final RemoveUserMembershipUseCase removeUserMembership;
 
     public UserAdminController(
             GetUserUseCase getUser,
             RegisterUserUseCase registerUser,
-            AddUserMembershipUseCase addUserMembership) {
+            AddUserMembershipUseCase addUserMembership,
+            RemoveUserMembershipUseCase removeUserMembership) {
         this.getUser = getUser;
         this.registerUser = registerUser;
         this.addUserMembership = addUserMembership;
+        this.removeUserMembership = removeUserMembership;
     }
 
     @Override
@@ -75,6 +79,13 @@ public class UserAdminController implements AdminUsersApi {
                         new AddUserMembershipUseCase.Command(
                                 userId, request.getTenantId(), request.getRoleName()));
         return ResponseEntity.status(HttpStatus.CREATED).body(toMembershipResource(membership));
+    }
+
+    @Override
+    public ResponseEntity<Void> removeUserMembership(Long userId, String tenantId) {
+        removeUserMembership.removeMembership(
+                new RemoveUserMembershipUseCase.Command(userId, tenantId));
+        return ResponseEntity.noContent().build();
     }
 
     private UserResource toResource(User user) {

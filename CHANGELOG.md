@@ -187,6 +187,17 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹⁴ membership 取消の REST API**(¹³ の addMembership と対をなす offboarding 経路。 「user X の tenant Y へのアクセスだけ取り消す」操作。 `tenantId 全体 deactivate` (follow-up¹) は全 user 影響で 範囲が広すぎる、 個別 unlinkが必要):
+    - **OpenAPI 仕様**: `DELETE /v1/admin/users/{userId}/memberships/{tenantId}` を追加(204=削除完了 / 401 / 403 / 404)。 既発行 access token は TTL 切れまで有効である事と、 audit trail は audit-service WORM chain で残ることを description に明記
+    - **port-in**: `RemoveUserMembershipUseCase` 新設 + `UserMembershipNotFoundException`(`ERR_USER_MEMBERSHIP_NOT_FOUND` / 404)
+    - **port-out**: `TenantMembershipRepository.delete(UserId, TenantId): int` を追加(影響行数を返す、 0 → 404 変換は use case 責務)
+    - **MyBatis Mapper**: `TenantMembershipMapper.delete` + XML `<delete>` 文を追加。 物理削除(soft delete 不採用、 audit trail は audit-service 側 WORM)
+    - **use case**: `UserManagementService implements RemoveUserMembershipUseCase`(4 つ目の port を 1 service に集約)。 `removeMembership` で `delete` の戻り値が 0 なら 404 throw。 `@Auditable("USER_MEMBERSHIP_REMOVE")` で `userId/tenantId` 複合キー
+    - **`UserAdminController.removeUserMembership`** が 204 No Content で返却
+    - **`UserManagementServiceTest` 拡張**(15 ケース):removeMembership 3 ケース追加(正常 / 該当無し → 404 / tenantId 形式不正 → 400)
+    - **`AdminSecurityTest`** に `@MockitoBean RemoveUserMembershipUseCase` を追加(controller の 4 つ目の依存に追従)
+    - **README** Future Work から該当行を「unlink-membership 実装済」に書換、 user 全体 deactivate (UserStatus 列追加 + 全 membership 一括無効化) は引続き次 phase
+    - **未着手 (本 phase スコープ外)**: 即時 token revocation(現状 既発行 access token は TTL 切れまで有効、 stateful revocation list が必要)
 - **A5 follow-up¹³ 既存 user に追加 tenant membership を作成する REST API**(follow-up¹² の register は新規 user + 初期 1 membership を 1 操作で作るが、 user が複数テナントに跨る運用 (例: 親会社 admin が子会社テナントにも触る) ができなかった。 cross-tenant provisioning の最後のピース):
     - **OpenAPI 仕様**: `POST /v1/admin/users/{userId}/memberships` を追加(req=`AddUserMembershipRequest{tenantId, roleName}` / 201=`MembershipResource{userId,tenantId,tenantDisplayName,tenantLocale,roles}` / 400 / 401 / 403 / 404 / 409)。 description で 「first membership は `POST /v1/admin/users` を使え」 と誘導
     - **port-in**: `AddUserMembershipUseCase` 新設 + `UserMembershipAlreadyExistsException`(`ERR_USER_MEMBERSHIP_ALREADY_EXISTS` / 409)
