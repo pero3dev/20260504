@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Silent Renew</title>
+    <meta name="robots" content="noindex,nofollow" />
+  </head>
+  <body>
+    <!-- oidc-client-ts hidden iframe からのみ読まれる空 page。 entry script が
+         signinSilentCallback() を呼んで code を parent に postMessage する。 -->
+    <script type="module" src="/src/silent-renew.ts"></script>
+  </body>
+</html>

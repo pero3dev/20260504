@@ -25,6 +25,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      // OIDC silent renew 用 hidden iframe page を separate entry として bundle。
+      // VITE_OIDC_SILENT_REDIRECT_URI が `/silent-renew.html` を指す前提。
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        silentRenew: path.resolve(__dirname, 'silent-renew.html'),
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

@@ -22,6 +22,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        silentRenew: path.resolve(__dirname, 'silent-renew.html'),
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
