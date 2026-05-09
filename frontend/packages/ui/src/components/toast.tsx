@@ -89,7 +89,9 @@ export function ToastProvider({ children, swipeDirection = 'right' }: ToastProvi
         {items.map((item) => (
           <ToastPrimitive.Root
             key={item.id}
-            duration={item.durationMs ?? undefined}
+            // exactOptionalPropertyTypes 適合のため undefined は渡さず spread で条件付与。
+            // 未指定時は Provider の duration={5000} を継承する。
+            {...(item.durationMs !== undefined ? { duration: item.durationMs } : {})}
             onOpenChange={(open) => {
               if (!open) dismiss(item.id);
             }}
