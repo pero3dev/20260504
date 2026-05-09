@@ -179,6 +179,14 @@
     - **親 `infra/cognito/README.md` 更新**:冒頭に `prod は ./terraform/ の IaC を使う` 注記追加、 構成図に `terraform/` を追加、 既知の制約から「IaC 化は後タスク」を削除、 JIT provisioning は phase E で実装済に書換
     - effect: prod 変更は全て `terraform plan` 経由で SecOps レビュー可能、 drift 検知は `terraform plan -detailed-exitcode` を CI で週次実行する想定(別タスクで wiring)。 AWS Console 直接編集は緊急時のみ
     - F2 残: SAML IdP 側(Azure AD / Okta / Google Workspace)の IaC 化 — IdP ごとに API / 管理画面が違うため Terraform 化は次フェーズ。 metadata URL / Reply URL / Entity ID / NameID format / attribute statement の手動登録が前提
+- **F2 phase F follow-up Terraform CI workflow 追加**(phase F で書いた `.tf` を CI で構文 / 設定整合性検査するため、 `infra/**/*.tf` 変更時に自動 trigger):
+    - **`.github/workflows/terraform.yml`** 新設、 2 job 構成:
+        - `fmt-check`: `terraform fmt -check -recursive infra/` で全 .tf を整形チェック(差分があれば fail、 ローカルで `terraform fmt -recursive infra/` を当てて再 push する運用)
+        - `validate-cognito`: `infra/cognito/terraform/` に cd → `terraform init -backend=false` → `terraform validate`(provider plugin の download だけで AWS credential 不要、 prod backend は触らない)
+    - **trigger 条件**: `infra/**/*.tf` / `infra/**/*.tfvars*` / 本 workflow 自身の変更で main 向け PR + main push に発火。 Java / Frontend CI とは独立(`paths-ignore` と相互排他)
+    - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
+    - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
+    - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
 - **F4 follow-up phase B Toast / Dialog / Select の animation 復元**(phase A で `tailwindcss-animate` plugin 未導入のため意図的に削除していた `data-[state=open]:animate-in` 等を、 plugin 配線後に復元):
     - **`tailwindcss-animate` ^1.0.7 を `@inventory/ui` の dependencies に追加**(本 plugin は `animate-in` / `animate-out` / `fade-in` / `fade-out` / `slide-in-from-right` / `zoom-in-95` などの utility を Tailwind に追加し、 Radix の `data-state="open|closed"` 遷移と組合せて宣言的に animation を書ける)
     - **`packages/ui/src/tailwind-preset.ts` の `plugins` に bundle**(各 web app は preset 継承で自動的に utility 利用可能)。 packages/ui 内の Storybook も同 preset を継承するため stories 上でも animation が動く

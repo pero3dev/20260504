@@ -1,0 +1,77 @@
+# Terraform CI workflow(F2 phase F follow-up)。
+#
+# `infra/**/*.tf` の変更時に format check + validate を回し、 prod デプロイ前に
+# 構文 / 設定不整合を検知する。 backend は使わず `-backend=false` で init するので
+# AWS credential は不要(provider plugin の download だけで完結)。
+#
+# 将来追加候補:
+#   - tflint(naming / unused resource / deprecated 検知)
+#   - terraform plan -detailed-exitcode による drift 検知(週次 cron + read-only AWS
+#     credential、 0 以外で Slack 通知)
+#   - checkov / tfsec(SecOps 静的解析)
+#
+# モジュールが増えたら matrix で並列化する想定。 現状 cognito 1 モジュールなので直書き。
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**/*.tf'
+      - 'infra/**/*.tfvars*'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**/*.tf'
+      - 'infra/**/*.tfvars*'
+      - '.github/workflows/terraform.yml'
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fmt-check:
+    name: Format check (terraform fmt -recursive)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      - name: terraform fmt -check -recursive infra/
+        run: terraform fmt -check -recursive infra/
+
+  validate-cognito:
+    name: Validate cognito module
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/cognito/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # backend を使わず provider plugin だけ取得する。 AWS credential 不要。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
