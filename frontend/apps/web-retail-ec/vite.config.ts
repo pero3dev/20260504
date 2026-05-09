@@ -1,10 +1,12 @@
+/// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
-// vitest の test 設定を同一 config に書くため vitest/config の defineConfig を使う
-// (vite の defineConfig は test プロパティを受け付けない)。
-import { defineConfig } from 'vitest/config';
+// vitest の test 設定を同一 config に書くために triple-slash で vitest の型 augmentation を入れ、
+// defineConfig は vite から取る(vitest 3 + vite 6 の overload 解決で `test` が
+// UserConfigExport から消えるケースを回避する canonical pattern)。
+import { defineConfig } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
