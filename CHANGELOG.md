@@ -187,6 +187,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³ admin 向け user 参照 REST API (read-only MVP) 追加**(`infra/tenant-provisioning/README.md` の Future Work から繰上げ。 現状 user 一覧/単体取得は SQL 直接しか手段が無く、 admin operator が DB 不可視な環境でも操作できるよう REST 化。 write 系は password vs. federation-only provisioning の ADR 待ちで本 phase は read のみ):
+    - **OpenAPI 仕様**: `GET /v1/admin/users`(全件)+ `GET /v1/admin/users/{userId}`(単体)+ `UserResource` schema 追加(`userId: int64` / `email` / `displayName` のみ。 password hash は admin にも露出させない)+ `admin-users` tag 追加
+    - **port-in**: `GetUserUseCase`(`get(long)` + `listAll()`) と `UserNotFoundException`(`ERR_USER_NOT_FOUND` / 404)を新設。 既存 `GetTenantUseCase` と同型で `BusinessException` 継承により GlobalExceptionHandler が RFC 7807 化
+    - **port-out**: `UserRepository.findAll()` 追加、 `UserMapper.findAll` SQL(`ORDER BY id`)を XML mapper に追加。 件数は SaaS 規模で低数千を想定し cursor pagination は将来課題として明記
+    - **use case**: `UserManagementService implements GetUserUseCase` 新設。 全 read メソッドに `@Auditable(read = true)` 付与:`USER_GET`(targetIdExpression=`#userId`)/ `USER_LIST_ALL`(targetId 無し)。 admin の参照行為自体が J-SOX 統制対象のため read を漏らさない
+    - **REST controller**: `UserAdminController implements AdminUsersApi` 新設。 `User` → `UserResource` 変換時に password hash を 明示的に 落とす(BCrypt は leak しても緩衝あるが、 設計上 admin に hash を見せる必要が無い)
+    - **`UserManagementServiceTest` 新設**(3 ケース):get 該当無し → `UserNotFoundException` / get 正常 / listAll が repository を素通し
+    - **`infra/tenant-provisioning/README.md` Future Work** から該当行を「read 系実装済 / write 系 ADR 待ち」に書換
 - **A5 follow-up² `TenantManagementService` 全 4 メソッドに `@Auditable` 付与**(`infra/tenant-provisioning/README.md` の セキュリティ要件 から繰上げ。 J-SOX 上テナント追加 / 削除 / 参照は重要統制点で、 admin API 呼出を audit-service が全て記録する必要がある):
     - **write 系**: `register` → `action="TENANT_REGISTER"` + `targetIdExpression="#command.tenantId"`、 `deactivate` → `action="TENANT_DEACTIVATE"` + `targetIdExpression="#tenantId"`(`@Transactional` と並置)
     - **read 系も `read = true` で監査**: `get` → `action="TENANT_GET"` + `targetIdExpression="#tenantId"` + `read=true`、 `listAll` → `action="TENANT_LIST_ALL"` + `read=true`(targetId 無し)。 admin の参照行為自体が J-SOX 統制対象のため read を漏らさない

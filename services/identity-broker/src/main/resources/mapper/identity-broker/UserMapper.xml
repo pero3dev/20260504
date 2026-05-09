@@ -27,6 +27,13 @@
         WHERE id = #{id}
     </select>
 
+    <!-- admin read API 用。 id 昇順で全件返却(件数は SaaS 規模で低数千以内を想定)。 -->
+    <select id="findAll" resultMap="userRow">
+        SELECT id, email, password_hash, display_name, version
+        FROM users
+        ORDER BY id
+    </select>
+
     <!-- SAML JIT provisioning 経路で新規 User を作成する。 version は 0 から開始。 -->
     <insert id="insert">
         INSERT INTO users (id, email, password_hash, display_name, version)

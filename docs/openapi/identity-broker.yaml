@@ -34,6 +34,14 @@ tags:
       Tenant lifecycle management (A5). All endpoints require a SUPER_ADMIN-scoped
       JWT. Mutations propagate to downstream services via best-effort runbook
       execution; see infra/tenant-provisioning/README.md.
+  - name: admin-users
+    description: |
+      User admin read API (A5 follow-up³). Read-only MVP — list and get user
+      records. Write operations (register / deactivate / link membership) are
+      future work pending an ADR on password vs. federation-only provisioning.
+      All endpoints require a SUPER_ADMIN-scoped JWT and are audited
+      (`read = true`) since admin viewing of user records is itself a J-SOX
+      control point.
 
 paths:
   /v1/auth/sessions:
@@ -290,6 +298,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /v1/admin/users:
+    get:
+      tags: [admin-users]
+      operationId: listUsers
+      summary: List all users
+      description: |
+        Returns all user records known to the broker. MVP returns the full list
+        (cursor-based pagination not yet wired; user count is bounded at the low
+        thousands for the SaaS scale targets). The response intentionally omits
+        the password hash and any session-scoped state.
+      security:
+        - bearerJwt: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /v1/admin/users/{userId}:
+    get:
+      tags: [admin-users]
+      operationId: getUser
+      summary: Get a user by id
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
   /.well-known/jwks.json:
     get:
       tags: [jwks]
@@ -421,6 +495,23 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    UserResource:
+      type: object
+      required: [userId, email, displayName]
+      description: |
+        Admin-facing user view. Excludes the BCrypt password hash and any
+        session-scoped state by design — admins should never see hashes.
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: Snowflake user id.
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
 
     ProblemDetail:
       type: object

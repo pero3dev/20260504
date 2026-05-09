@@ -1,5 +1,6 @@
 package com.example.inventory.identity.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.example.inventory.identity.domain.model.User;
@@ -12,6 +13,9 @@ public interface UserRepository {
     Optional<User> findByEmail(UserEmail email);
 
     Optional<User> findById(UserId id);
+
+    /** admin read API 用 — 全 user を返す。 件数は SaaS 規模上限で低数千を想定、 cursor pagination は将来課題。 */
+    List<User> findAll();
 
     /**
      * 新規 User を INSERT する。 既存 User の更新は本 phase では未サポート(SAML JIT 経路のみ呼ぶ)。

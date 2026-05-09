@@ -1,5 +1,6 @@
 package com.example.inventory.identity.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -29,6 +30,11 @@ public class UserRepositoryImpl implements UserRepository {
     public Optional<User> findById(UserId id) {
         UserRow row = mapper.findById(id.value());
         return row == null ? Optional.empty() : Optional.of(toDomain(row));
+    }
+
+    @Override
+    public List<User> findAll() {
+        return mapper.findAll().stream().map(UserRepositoryImpl::toDomain).toList();
     }
 
     @Override
