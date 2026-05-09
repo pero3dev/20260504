@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.inventory.commons.security.PlatformSecurityAutoConfiguration;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
+import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.config.JwtKeyConfig;
 import com.example.inventory.identity.config.SecurityConfig;
 
@@ -37,6 +38,8 @@ class AdminSecurityTest {
     @Autowired private MockMvc mvc;
 
     @MockitoBean private GetUserUseCase getUserUseCase;
+
+    @MockitoBean private RegisterUserUseCase registerUserUseCase;
 
     @Test
     void admin_endpoint_は_JWT_無しで_401() throws Exception {

@@ -187,6 +187,15 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹² admin 向け user 登録 REST API (federation-only) を追加**(follow-up³ で読み取り API、 ⁶ で SQL 直入れ ops 経路、 ¹¹ で SAML 連携 JIT を整えてきた user 管理経路の write 系の最初のピース。 「admin が Bob を acme テナントの INVENTORY_MANAGER として作る」 を REST 1 操作で完結させる):
+    - **OpenAPI 仕様**:`POST /v1/admin/users` を追加(req=`RegisterUserRequest{email, displayName, tenantId, roleName}` / 201=`UserResource` / 400 / 401 / 403 / 404 / 409)。 federation-only である事と、 password 経路が必要なら ops SQL を案内する事を description に明記
+    - **port-in**: `RegisterUserUseCase` 新設 + `UserAlreadyExistsException`(`ERR_USER_ALREADY_EXISTS` / 409)。 既存 `TenantNotFoundException` を tenant 不在 + DEACTIVATED の両方で再利用(admin に対しては存在/非活性を区別せずに 404 で揃え、 列挙負荷を下げる)
+    - **use case**: `UserManagementService implements RegisterUserUseCase`。 4 deps (`UserRepository` / `TenantRepository` / `TenantMembershipRepository` / `SnowflakeIdGenerator`) を取り、 1 TX で User + TenantMembership を作る。 password hash は `FEDERATED_PASSWORD_HASH_SENTINEL = "$external_federation$"` で物理的に password 認証経路を通らない
+    - **race 対策**: `findByEmail` と `save` の間で並列 INSERT が発生した場合は `DuplicateKeyException` を 409 (`UserAlreadyExistsException`) に丸める
+    - **`UserAdminController.registerUser`** が `AdminUsersApi` の生成 interface を実装、 `UserResource` で password hash を露出させずに 201 を返す
+    - **`UserManagementServiceTest` 拡張**(8 ケース):新規ユーザ作成 / email 既存 → 409 / tenant 不在 → 404 / tenant DEACTIVATED → 404 / email 形式不正 → 400(IllegalArgumentException)+ 既存の get / listAll 3 ケース。 既存 constructor 変更で test の `setUp` も 4-mock 構成に書換
+    - **`AdminSecurityTest`** に `@MockitoBean RegisterUserUseCase` を追加(controller の依存追加に追従、 既存 4 ケースは無修正で pass)
+    - **README** の Future Work から該当行を「register 系実装済」に書換、 deactivate / unlink-membership / 追加 membership は引続き次 phase
 - **A5 follow-up¹¹ federation 経路 SUPER_ADMIN provisioning に対応(IdP groups claim → role mapping)**(follow-up⁶ で SQL 直入れの ops 経路は確立済だが、 README の Future Work で「federation 経路は SAML group → role mapping 設計が必要」と明記されていた残課題を閉じる。 SAML JIT で初回ログイン時に SUPER_ADMIN を生成できるようになる):
     - **`IdpTokenVerifier.Subject` に `groups: List<String>` を追加**(後方互換の `Subject.of(value, issuer)` ファクトリで既存呼出箇所は無修正、 record 内で null/copyOf で immutable 化)
     - **`NimbusIdpTokenVerifier`** に `${platform.identity.federation.groups-claim:cognito:groups}` プロパティを追加し、 JWT claim を `List<?>` で取り出して文字列化(Cognito の `cognito:groups`、 Azure AD の `groups` 等を吸収)

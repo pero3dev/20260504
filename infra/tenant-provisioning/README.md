@@ -192,5 +192,5 @@ platform:
 
 - Bridge 系 schema 自動 provisioning Job(K8s CronJob で identity-broker の `tenants` テーブル → 各 Bridge DB の schema 整合性チェック + 不足分の自動作成)
 - ~~`SelectTenantService` で DEACTIVATED tenant の弾き出し~~ → 実装済(`SelectTenantService.selectTenant` で membership 確認後に `TenantRepository.findById` で status を見て、 `DEACTIVATED` なら `TenantAccessDeniedException` で拒否。 既発行 access token は TTL 切れまで有効、 stateless JWT を per-tenant revocation するには別 mechanism が必要)
-- user 管理 admin API(read 系 `GET /v1/admin/users`, `GET /v1/admin/users/{userId}` は実装済、 `UserManagementService` に `@Auditable read=true` 付与で参照行為も監査。 write 系 (register / deactivate / link membership) は password vs. federation-only provisioning の ADR 待ちで次 phase)
+- user 管理 admin API:read 系 `GET /v1/admin/users`, `GET /v1/admin/users/{userId}` 実装済(`@Auditable read=true`)。 write 系は federation-only register が `POST /v1/admin/users` で実装済(A5 follow-up¹²、 email + displayName + tenantId + roleName で sentinel password の user + 初期 membership を 1 操作で作成)。 deactivate / unlink-membership / 既存 user の追加 membership は次 phase
 - Cognito SAML 連携時の group 自動作成
