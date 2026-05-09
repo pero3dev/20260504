@@ -97,6 +97,10 @@ export function ToastProvider({ children, swipeDirection = 'right' }: ToastProvi
             }}
             className={cn(
               'pointer-events-auto flex w-80 items-start gap-3 rounded-lg border p-3 shadow-md',
+              // tailwindcss-animate plugin 提供の utility(`animate-in` / `animate-out` /
+              // `slide-in-from-right` / `fade-out`)で Radix の data-[state] 遷移に視覚効果を付与。
+              'data-[state=open]:animate-in data-[state=open]:slide-in-from-right',
+              'data-[state=closed]:animate-out data-[state=closed]:fade-out',
               variantClasses[item.variant ?? 'default'],
             )}
           >

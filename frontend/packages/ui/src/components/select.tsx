@@ -63,6 +63,8 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-border bg-background text-foreground shadow-md',
+          'data-[state=open]:animate-in data-[state=open]:fade-in',
+          'data-[state=closed]:animate-out data-[state=closed]:fade-out',
           className,
         )}
         {...props}

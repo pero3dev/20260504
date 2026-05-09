@@ -168,6 +168,14 @@
     - **memberships 0 件防御**:既存ユーザでも accessibleTenants が空なら `AuthenticationFailedException`(過去 batch 不整合等で User 単独 row が残るケースを安全側に倒す)
     - **test**: `ExchangeFederatedTokenServiceTest` を JIT 対応に書き直し、 9 ケース(従来 4 + JIT 5)で網羅:happy / 検証失敗 / JIT 無効 user 不在 / subject not email / **JIT 有効で provision 成功 + ArgumentCaptor で User と Membership 内容を assert** / JIT 有効 default-tenant 未設定 / default-tenant DB 不在 / default-tenant DEACTIVATED / memberships 空
     - F2 残: Cognito User Pool / SAML IdP 設定の Terraform / CDK IaC 化(現在は `infra/cognito/README.md` に AWS CLI ランブックのみ)
+- **F4 follow-up phase B Toast / Dialog / Select の animation 復元**(phase A で `tailwindcss-animate` plugin 未導入のため意図的に削除していた `data-[state=open]:animate-in` 等を、 plugin 配線後に復元):
+    - **`tailwindcss-animate` ^1.0.7 を `@inventory/ui` の dependencies に追加**(本 plugin は `animate-in` / `animate-out` / `fade-in` / `fade-out` / `slide-in-from-right` / `zoom-in-95` などの utility を Tailwind に追加し、 Radix の `data-state="open|closed"` 遷移と組合せて宣言的に animation を書ける)
+    - **`packages/ui/src/tailwind-preset.ts` の `plugins` に bundle**(各 web app は preset 継承で自動的に utility 利用可能)。 packages/ui 内の Storybook も同 preset を継承するため stories 上でも animation が動く
+    - **Toast.Root**: 開く時 `slide-in-from-right`(右端 Viewport から流入)+ 閉じる時 `fade-out`、 default duration 5 秒の auto dismiss と組合せて UX を仕上げる
+    - **DialogOverlay**: `fade-in` / `fade-out` で半透明 overlay の出現/消滅をふわっと
+    - **DialogContent**: `fade-in` + `zoom-in-95` で modal が中央から滑らかに浮上、 閉じる時は `zoom-out-95` で消失
+    - **SelectContent**: `fade-in` / `fade-out` で dropdown ぱっと/さっと(slide は不要、 trigger 直下から表示)
+    - effect: 同じ Radix primitives + 同じ design system のまま視覚的な滑らかさのみ追加。 機能差分なし、 a11y(focus / aria)挙動も既存のまま
 - **F7 phase 1 ADR-0022 skeleton install**(ADR で確定したライブラリの実装下地のみ、 既存 web app への組込みは phase 2 別 PR)— `@inventory/shared/i18n` と `@inventory/ui` 拡張を一気に投入:
     - **deps**: `i18next` ^23 + `react-i18next` ^15(shared)、 `zod` ^3 + `react-hook-form` ^7 + `@hookform/resolvers` ^3 + `recharts` ^2 + `react-error-boundary` ^4(ui peer)
     - **`@inventory/shared/i18n` subpath 新設** — `createI18n({ language?, fallbackLanguage?, resources? })` factory(react-i18next plugin 注入、 `defaultNS=common`、 fallback `ja`、 escapeValue=false)。 `defaultResources`(ja/en × common 1 NS)+ `mergeResources(...sources)` helper(言語 union + namespace 後勝ち merge)。 catalog は JSON ファイル(`locales/{ja,en}/common.json`、 `auth` / `common` / `error` 3 セクション)で TS は `with { type: 'json' }` import attributes(TS 5.3+ / Vite 6+ 対応)
