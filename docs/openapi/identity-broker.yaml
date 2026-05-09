@@ -265,6 +265,9 @@ paths:
         their TTL expires; new tenant-session issuance for this tenant fails.
         Idempotent — deactivating an already-DEACTIVATED tenant returns 200
         with the existing resource.
+
+        Reserved tenants (currently `platform`, used for SUPER_ADMIN
+        provisioning) cannot be deactivated and return 409.
       security:
         - bearerJwt: []
       parameters:
@@ -293,6 +296,12 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No tenant with this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Tenant is reserved and cannot be deactivated (e.g. `platform`)
           content:
             application/problem+json:
               schema:

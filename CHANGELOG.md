@@ -187,6 +187,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁶ SUPER_ADMIN 初回 provisioning 経路を確立**(follow-up⁴ で `/v1/admin/**` を SUPER_ADMIN role 必須にした時点で発生する chicken-and-egg 問題を閉じる。 「初回の SUPER_ADMIN をどう生成するか」が後続の admin 業務全部の前提となるため、 ロックアウト不能性を含めて runbook 化):
+    - **`V4__platform_tenant.sql`** で `platform` テナントを seed(`display_name="Platform Administration"`, `status=ACTIVE`, `locale=ja`, `ON CONFLICT DO NOTHING` で再起動冪等)
+    - **`TenantManagementService.deactivate("platform")` を `TenantProtectedException` (409) で拒否**:platform tenant を消すと admin が完全にロックアウトされるため、 repository を引かずに早期 throw。 invariant 違反として info ログを残し ops から見えるように
+    - **`TenantProtectedException`** 新設(`ERR_TENANT_PROTECTED` / 409 Conflict / `BusinessException` 継承で GlobalExceptionHandler が RFC 7807 化)
+    - **`PLATFORM_TENANT_ID = "platform"`** を `TenantManagementService` の `public static final` 定数として公開。 将来 SelectTenantService や filter 等で参照する可能性に備えるが、 今は use case 内 1 箇所参照のみ
+    - **OpenAPI 仕様**:`POST /v1/admin/tenants/{tenantId}/deactivate` の description に「予約テナント (`platform`) は 409」と記載 + `'409'` response を追加
+    - **`infra/tenant-provisioning/README.md` に SUPER_ADMIN 初回 provisioning section** を追加(BCrypt hash 生成コマンド例 / `INSERT INTO users` + `INSERT INTO tenant_memberships` SQL 雛型 / 動作確認手順)。 federation 経路の SUPER_ADMIN provisioning は SAML group → role mapping 設計が必要なため別 phase
+    - **`TenantManagementServiceTest` に新ケース** 追加(9 ケース):`deactivate("platform")` → `TenantProtectedException`、 repository は呼ばれない (`verifyNoInteractions` 相当)
 - **A5 follow-up⁵ ADR-0008 J-SOX 補完策の ArchUnit ルール `writePathsAreAuditable` を実装、 identity-broker pilot で opt-in**(CLAUDE.md と `@Auditable` Javadoc が「ArchUnit による強制が必須」と明記しながら未実装だった compliance gap を閉じる。 全サービス一斉 opt-in は projection / Kafka consumer 系の `@AuditExempt` 設計が未確定のため、 まず identity-broker のみで動かす):
     - **`HexagonalLayerRules.writePathsAreAuditable()`** 追加(クラス単位 / opt-in)。 判定:`..application.usecase..` 配下クラスがリポジトリ書込(`*Repository.{save/update/delete/insert/append/add/remove/mark*/increment*/persist}`)を呼ぶなら、 少なくとも 1 メソッドに `@Auditable` を直接付与必須
     - **クラス単位粒度を採用**(method 単位ではない):各 use case クラスは概ね 1〜2 公開メソッドで全て同一 use case ポートの実装になっており、 私的ヘルパ(例:`ExchangeFederatedTokenService.jitProvision`)に書込を分離しても 公開側 `@Auditable` で AOP が動くため

@@ -16,6 +16,7 @@ import com.example.inventory.identity.application.port.in.GetTenantUseCase;
 import com.example.inventory.identity.application.port.in.RegisterTenantUseCase;
 import com.example.inventory.identity.application.port.in.TenantAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
+import com.example.inventory.identity.application.port.in.TenantProtectedException;
 import com.example.inventory.identity.application.port.out.TenantRepository;
 import com.example.inventory.identity.domain.model.Tenant;
 
@@ -30,12 +31,19 @@ import com.example.inventory.identity.domain.model.Tenant;
  * <p><b>監査:</b> {@code /v1/admin/tenants/*} は J-SOX 上の重要統制点(テナント追加/削除/参照)のため、 4 メソッド全てに {@link
  * com.example.inventory.commons.audit.Auditable} を付与。 read-only な {@code get} / {@code listAll} も
  * {@code read = true} で監査(管理者の参照行為自体が統制対象)。
+ *
+ * <p><b>保護テナント:</b> {@value #PLATFORM_TENANT_ID} は SUPER_ADMIN provisioning 用の予約テナント (V4 migration
+ * で seed)。 deactivate すると admin が完全にロックアウトされるため、 deactivate を {@link TenantProtectedException}
+ * (409) で拒否する。
  */
 @Service
 public class TenantManagementService
         implements RegisterTenantUseCase, DeactivateTenantUseCase, GetTenantUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(TenantManagementService.class);
+
+    /** SUPER_ADMIN provisioning 用の予約テナント ID。 V4 migration で seed され、 deactivate 不可。 */
+    public static final String PLATFORM_TENANT_ID = "platform";
 
     private final TenantRepository repository;
     private final Clock clock;
@@ -73,6 +81,11 @@ public class TenantManagementService
             targetType = "Tenant",
             targetIdExpression = "#tenantId")
     public Tenant deactivate(String tenantId) {
+        if (PLATFORM_TENANT_ID.equals(tenantId)) {
+            // 列挙攻撃対策ではないので info で十分。 invariant 違反として運用が見られるよう残す。
+            LOG.info("tenant deactivate 拒否(platform tenant 保護) tenantId={}", tenantId);
+            throw new TenantProtectedException(tenantId);
+        }
         TenantId id = new TenantId(tenantId);
         Tenant tenant =
                 repository.findById(id).orElseThrow(() -> new TenantNotFoundException(tenantId));

@@ -21,6 +21,7 @@ import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.RegisterTenantUseCase;
 import com.example.inventory.identity.application.port.in.TenantAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
+import com.example.inventory.identity.application.port.in.TenantProtectedException;
 import com.example.inventory.identity.application.port.out.TenantRepository;
 import com.example.inventory.identity.domain.model.Tenant;
 import com.example.inventory.identity.domain.model.TenantStatus;
@@ -114,6 +115,16 @@ class TenantManagementServiceTest {
 
         assertThatThrownBy(() -> service.deactivate("nope"))
                 .isInstanceOf(TenantNotFoundException.class);
+        verify(repository, never()).update(Mockito.any());
+    }
+
+    @Test
+    void deactivate_は_platform_tenant_を_TenantProtectedException_で拒否() {
+        // platform は SUPER_ADMIN provisioning 用の予約テナント。 deactivate すると
+        // admin が完全にロックアウトされるため、 repository を引かずに拒否すること。
+        assertThatThrownBy(() -> service.deactivate("platform"))
+                .isInstanceOf(TenantProtectedException.class);
+        verify(repository, never()).findById(Mockito.any());
         verify(repository, never()).update(Mockito.any());
     }
 

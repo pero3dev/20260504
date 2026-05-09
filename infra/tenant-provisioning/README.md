@@ -131,6 +131,40 @@ curl -X POST "$BROKER/v1/admin/tenants/acme/deactivate" \
 
 DB 側の schema 削除は **絶対に行わない**(audit / 監査要件で履歴保全)。 必要であれば AWS account 取り消し時に S3 export + bucket 削除を運用ジョブで対応。
 
+### SUPER_ADMIN 初回 provisioning(A5 follow-up⁶)
+
+`/v1/admin/**` は SUPER_ADMIN role 必須 (follow-up⁴) のため、 初回はどう SUPER_ADMIN を生成するかの chicken-and-egg 問題が起きる。 解決策:
+
+1. **`platform` テナント** は `V4__platform_tenant.sql` で seed 済(deactivate 不可、 `TenantManagementService` でガード)。 ops は何もしなくて良い
+2. **初回 SUPER_ADMIN ユーザを ops が直接 SQL で投入**(identity-broker DB へ psql 等で接続):
+
+   ```sql
+   -- 1) BCrypt ハッシュを別ツールで生成しておく(例: htpasswd -bnBC 10 "" "<password>")
+   -- 2) Snowflake ID は仮値(production は別途採番ツール)。 安全のため十分大きい値を使う
+   INSERT INTO users (id, email, password_hash, display_name, version)
+   VALUES (
+       1,
+       'admin@example.com',
+       '$2y$10$abcdef…',  -- BCrypt 60 文字
+       'Initial Platform Admin',
+       0
+   );
+
+   -- 3) platform テナント membership に SUPER_ADMIN role を持たせる
+   INSERT INTO tenant_memberships (
+       id, user_id, tenant_id, tenant_display_name,
+       roles_json, location_scopes_json, partner_scopes_json, tenant_locale
+   )
+   VALUES (
+       2, 1, 'platform', 'Platform Administration',
+       '["SUPER_ADMIN"]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'ja'
+   );
+   ```
+
+3. **動作確認**: `POST /v1/auth/sessions` で email + password → session token → `POST /v1/auth/tenant-sessions` body=`{"tenantId":"platform"}` → access token (roles=`["SUPER_ADMIN"]`) を取得 → `GET /v1/admin/users` 等が叩ける
+
+**federation 経路の SUPER_ADMIN provisioning** は別 phase。 SAML JIT で SUPER_ADMIN role を JIT 付与するには `FederationJitProperties.defaultRole` が VIEWER 固定なため、 group → role mapping 設計が必要。
+
 ### セキュリティ要件(production)
 
 - `/v1/admin/**` を JWT 必須 + `SUPER_ADMIN` role に絞る — `SecurityConfig` の `adminFilterChain` で実装済(A5 follow-up⁴)。 SUPER_ADMIN role の provisioning は プラットフォーム管理用テナント membership 経由(運用 SQL)で行う
