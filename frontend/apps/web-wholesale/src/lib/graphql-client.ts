@@ -64,3 +64,31 @@ export async function fetchSalesOrder(
 ): Promise<SalesOrderQueryResult> {
   return client.request<SalesOrderQueryResult>(SALES_ORDER_QUERY, { orderId });
 }
+
+const VIEWER_QUERY = gql`
+  query Viewer {
+    viewer {
+      userId
+      tenantId
+      roles
+      locale
+      locations
+      partners
+    }
+  }
+`;
+
+export interface ViewerQueryResult {
+  viewer: {
+    userId: string;
+    tenantId: string;
+    roles: string[];
+    locale: string;
+    locations: string[];
+    partners: string[];
+  } | null;
+}
+
+export async function fetchViewer(): Promise<ViewerQueryResult> {
+  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+}

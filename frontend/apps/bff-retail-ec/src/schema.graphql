@@ -16,9 +16,25 @@ type Inventory {
   version: Int!
 }
 
+"""
+F7 phase 5b: BFF が verify 済みの user claim を web app に降ろすための query。
+未認証(BFF が JWT verify を skip している dev mode 等)では null。
+"""
+type Viewer {
+  userId: ID!
+  tenantId: ID!
+  roles: [String!]!
+  locale: String!
+  locations: [ID!]!
+  partners: [ID!]!
+}
+
 type Query {
   """単一 inventory を inventory-read-model から取得。 該当 id が無ければ null。"""
   inventory(inventoryId: ID!): Inventory
+
+  """現在の verify 済み user 情報。 未認証なら null。"""
+  viewer: Viewer
 
   """SLA confirm 用、 BFF が起動しているかを返す trivial query。"""
   health: String!

@@ -42,5 +42,19 @@ export const resolvers = {
       // GraphQL ID は string で渡るので number に変換。
       return context.loaders.inventoryById.load(args.inventoryId);
     },
+    viewer: (_parent: unknown, _args: unknown, context: BffContext) => {
+      return context.user ? toViewer(context.user) : null;
+    },
   },
 };
+
+function toViewer(claims: BffUserClaims) {
+  return {
+    userId: String(claims.userId),
+    tenantId: claims.tenantId,
+    roles: claims.roles,
+    locale: claims.locale,
+    locations: claims.scopes.locations,
+    partners: claims.scopes.partners,
+  };
+}

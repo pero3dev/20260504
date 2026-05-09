@@ -1,3 +1,4 @@
+import type { BffUserClaims } from '@inventory/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -49,5 +50,37 @@ describe('Query.inventory', () => {
     const result = await resolvers.Query.inventory(undefined, { inventoryId: '999' }, ctx);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('Query.viewer', () => {
+  const baseCtx = (user: BffUserClaims | null): BffContext => ({
+    loaders: createLoaders(new InventoryReadModelClient('http://stub'), null),
+    authToken: null,
+    user,
+  });
+
+  it('context.user 有り → Viewer を返す', () => {
+    const claims: BffUserClaims = {
+      userId: 42,
+      tenantId: 'tenant-acme',
+      roles: ['ROLE_USER'],
+      scopes: { locations: ['tokyo'], partners: ['p-1'] },
+      mfaStrength: 'low',
+      locale: 'en',
+    };
+    const result = resolvers.Query.viewer(undefined, undefined, baseCtx(claims));
+    expect(result).toEqual({
+      userId: '42',
+      tenantId: 'tenant-acme',
+      roles: ['ROLE_USER'],
+      locale: 'en',
+      locations: ['tokyo'],
+      partners: ['p-1'],
+    });
+  });
+
+  it('未認証(context.user=null)→ null', () => {
+    expect(resolvers.Query.viewer(undefined, undefined, baseCtx(null))).toBeNull();
   });
 });

@@ -49,3 +49,31 @@ export interface InventoryQueryResult {
 export async function fetchInventory(inventoryId: string): Promise<InventoryQueryResult> {
   return client.request<InventoryQueryResult>(INVENTORY_QUERY, { inventoryId });
 }
+
+const VIEWER_QUERY = gql`
+  query Viewer {
+    viewer {
+      userId
+      tenantId
+      roles
+      locale
+      locations
+      partners
+    }
+  }
+`;
+
+export interface ViewerQueryResult {
+  viewer: {
+    userId: string;
+    tenantId: string;
+    roles: string[];
+    locale: string;
+    locations: string[];
+    partners: string[];
+  } | null;
+}
+
+export async function fetchViewer(): Promise<ViewerQueryResult> {
+  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+}

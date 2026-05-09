@@ -1,3 +1,4 @@
+import type { BffUserClaims } from '@inventory/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ManufacturingClient, type WorkOrderDto } from './clients/manufacturing-client.js';
@@ -47,5 +48,37 @@ describe('Query.workOrder', () => {
     const result = await resolvers.Query.workOrder(undefined, { workOrderId: '999' }, ctx);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('Query.viewer', () => {
+  const baseCtx = (user: BffUserClaims | null): BffContext => ({
+    loaders: createLoaders(new ManufacturingClient('http://stub'), null),
+    authToken: null,
+    user,
+  });
+
+  it('context.user 有り → Viewer を返す', () => {
+    const claims: BffUserClaims = {
+      userId: 7,
+      tenantId: 'tenant-mfg',
+      roles: ['ROLE_OPS'],
+      scopes: { locations: ['osaka'], partners: [] },
+      mfaStrength: 'low',
+      locale: 'en',
+    };
+    const result = resolvers.Query.viewer(undefined, undefined, baseCtx(claims));
+    expect(result).toEqual({
+      userId: '7',
+      tenantId: 'tenant-mfg',
+      roles: ['ROLE_OPS'],
+      locale: 'en',
+      locations: ['osaka'],
+      partners: [],
+    });
+  });
+
+  it('未認証(context.user=null)→ null', () => {
+    expect(resolvers.Query.viewer(undefined, undefined, baseCtx(null))).toBeNull();
   });
 });

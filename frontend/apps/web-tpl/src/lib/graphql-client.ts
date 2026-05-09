@@ -54,3 +54,31 @@ export async function fetchStockMovement(
 ): Promise<StockMovementQueryResult> {
   return client.request<StockMovementQueryResult>(STOCK_MOVEMENT_QUERY, { movementId });
 }
+
+const VIEWER_QUERY = gql`
+  query Viewer {
+    viewer {
+      userId
+      tenantId
+      roles
+      locale
+      locations
+      partners
+    }
+  }
+`;
+
+export interface ViewerQueryResult {
+  viewer: {
+    userId: string;
+    tenantId: string;
+    roles: string[];
+    locale: string;
+    locations: string[];
+    partners: string[];
+  } | null;
+}
+
+export async function fetchViewer(): Promise<ViewerQueryResult> {
+  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+}

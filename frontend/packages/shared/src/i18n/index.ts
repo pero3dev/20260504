@@ -7,3 +7,4 @@
 export * from './create-i18n.js';
 export * from './resources.js';
 export * from './app-resources.js';
+export * from './use-apply-tenant-locale.js';

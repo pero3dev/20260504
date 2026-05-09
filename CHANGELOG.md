@@ -187,6 +187,14 @@
     - **`@inventory/shared/web-auth/verify-jwt.ts`** の `BffUserClaims` に `locale: string`(default `ja` fallback)、 `mapClaimsOrThrow` で抽出
     - test: 既存 IB 20 tests / shared 単体は無修正で通過、 verify-jwt 単体に「locale 明示」「locale 欠落 → ja fallback」の 2 系統を追加。 bff-context sample claim も locale 補完
     - phase 5b 候補: web 側で `BffUserClaims.locale` を取って `i18n.changeLanguage(locale)` を呼ぶ(BFF に GraphQL `Query.viewer { locale, tenantId, roles }` を追加し、 web app 起動時 fetch + apply)
+- **F7 phase 5b `tenant.locale` claim を web に適用(BFF Query.viewer + i18n 動的切替)**(phase 5a で配線した locale を実体的にユーザ体験に反映、 ADR-0022 「言語切替はテナント単位固定」を完成):
+    - **4 BFF schema(retail-ec / manufacturing / tpl / wholesale)に `Viewer` type + `viewer: Viewer` query 追加**(`userId` / `tenantId` / `roles` / `locale` / `locations` / `partners`)。 token 検証済み `BffContext.user` (= `BffUserClaims`) を resolver で `Viewer` 形に詰め替えるだけで Backend 通信 0、 GraphQL クライアントが welcome / locale 適用に再利用できる
+    - **4 BFF resolver に `Query.viewer` 追加 + `toViewer(claims)` helper**(未認証時は null 返却)、 `resolvers.test.ts` に「context.user 有り → Viewer 返却」「未認証 → null」の 2 ケース追加
+    - **`@inventory/shared/i18n` に `useApplyTenantLocale(locale)` hook 新設**(react hook、 `i18n.language === locale` なら no-op、 値が変わった時だけ `i18n.changeLanguage()` を起動)。 export を `index.ts` に追加し各 web app から subpath import 可能に
+    - **4 web app の `lib/graphql-client.ts` に `VIEWER_QUERY` + `fetchViewer()` + `ViewerQueryResult` 型追加**(既存 `fetchInventory` / `fetchWorkOrder` / `fetchStockMovement` / `fetchSalesOrder` と同じ `graphql-request` パターン、 `Authorization: Bearer ...` も既存 middleware で自動付与)
+    - **4 web app `RootLayout` を viewer fetch + apply に拡張**:`useQuery({ queryKey: ['viewer'], queryFn: fetchViewer, staleTime: Infinity, retry: false })` で初回 fetch、 `useApplyTenantLocale(viewerData?.viewer?.locale)` で `tenant.locale` を i18n に反映。 未認証(viewer = null)は initial language(= `ja`)のまま据え置きで認証前から UI 文言が日本語表示されつづける
+    - effect: テナント A の locale = `en` ならログイン後に各画面が英語に切替、 テナント B の locale = `ja` ならそのまま日本語。 ユーザ操作不要、 IB の `Tenant.locale` 変更だけで全業態 web app 一斉切替が成立
+    - phase 5 候補(残): Form の submit-pending state 表示 / chart Tooltip カスタマイズ / F5 Storybook + addon-a11y(第 3 層)/ packages/ui の component 拡充(Pagination / Toast / Dialog / Select)/ F2 残(SAML JIT provisioning / Cognito Terraform-CDK / silent-renew.html)
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料

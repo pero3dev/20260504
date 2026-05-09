@@ -48,3 +48,31 @@ export interface WorkOrderQueryResult {
 export async function fetchWorkOrder(workOrderId: string): Promise<WorkOrderQueryResult> {
   return client.request<WorkOrderQueryResult>(WORK_ORDER_QUERY, { workOrderId });
 }
+
+const VIEWER_QUERY = gql`
+  query Viewer {
+    viewer {
+      userId
+      tenantId
+      roles
+      locale
+      locations
+      partners
+    }
+  }
+`;
+
+export interface ViewerQueryResult {
+  viewer: {
+    userId: string;
+    tenantId: string;
+    roles: string[];
+    locale: string;
+    locations: string[];
+    partners: string[];
+  } | null;
+}
+
+export async function fetchViewer(): Promise<ViewerQueryResult> {
+  return client.request<ViewerQueryResult>(VIEWER_QUERY);
+}

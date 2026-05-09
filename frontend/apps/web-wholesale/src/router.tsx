@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useApplyTenantLocale } from '@inventory/shared/i18n';
 import { AppShell, AuthButtons, Form, FormField, OidcCallbackPage } from '@inventory/ui';
 import { LineChart } from '@inventory/ui/charts';
 import { useQuery } from '@tanstack/react-query';
@@ -15,11 +16,19 @@ import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 
 import { authManager } from './lib/auth';
-import { fetchSalesOrder } from './lib/graphql-client';
+import { fetchSalesOrder, fetchViewer } from './lib/graphql-client';
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
 function RootLayout() {
+  const { data: viewerData } = useQuery({
+    queryKey: ['viewer'],
+    queryFn: fetchViewer,
+    staleTime: Infinity,
+    retry: false,
+  });
+  useApplyTenantLocale(viewerData?.viewer?.locale);
+
   return (
     <AppShell brand="Wholesale" nav={[{ to: '/', label: 'ダッシュボード' }]}>
       <div className="mb-4 flex justify-end">
