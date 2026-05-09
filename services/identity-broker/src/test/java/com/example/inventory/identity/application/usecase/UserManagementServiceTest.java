@@ -390,6 +390,56 @@ class UserManagementServiceTest {
         verify(membershipRepository, never()).delete(any(), any());
     }
 
+    // ---------- revoke (admin break-glass) ----------
+
+    @Test
+    void revoke_は_既存_ACTIVE_user_の_token_を_15min_TTL_で_revoke_する() {
+        User active =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L,
+                        UserStatus.ACTIVE,
+                        null);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(active));
+
+        service.revoke(900100L, "suspected token leak from access.log entry 2026-05-09");
+
+        verify(revocationStore).revokeUser(900100L, Duration.ofMinutes(15));
+        // user 自身は touch しない(token-only operation)
+        verify(userRepository, never()).update(any());
+    }
+
+    @Test
+    void revoke_は_DEACTIVATED_user_でも_revoke_を再登録する() {
+        // defense-in-depth: 既に deactivate 済みでも、 force-revoke が来たら TTL を上書きで延長
+        User deactivated =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L,
+                        UserStatus.DEACTIVATED,
+                        NOW.minusSeconds(3600));
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(deactivated));
+
+        service.revoke(900100L, "double-check after offboarding");
+
+        verify(revocationStore).revokeUser(900100L, Duration.ofMinutes(15));
+    }
+
+    @Test
+    void revoke_は_該当無しなら_UserNotFoundException_で_revoke_を呼ばない() {
+        when(userRepository.findById(new UserId(99L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.revoke(99L, "typo"))
+                .isInstanceOf(UserNotFoundException.class);
+        verify(revocationStore, never()).revokeUser(org.mockito.ArgumentMatchers.anyLong(), any());
+    }
+
     @Test
     void addMembership_は_既存_membership_なら_UserMembershipAlreadyExistsException() {
         User existing =

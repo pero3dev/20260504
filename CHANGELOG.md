@@ -188,6 +188,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹⁹ admin break-glass 強制 revoke API**(¹⁷-¹⁸ で完成した lifecycle-driven 自動 revoke (`deactivate` / `removeMembership` / `tenant deactivate fanout`) を補完する人手 operation。 「token 漏洩 / 端末紛失疑いだが user は使い続けたい」 ケースで、 user 自身は ACTIVE 維持しつつ既発行 access token だけ即時無効化する):
+    - **OpenAPI**: `POST /v1/admin/users/{userId}/revoke-tokens`(operationId `revokeUserTokens`)を `admin-users` tag で追加。 request `{reason: 1..512 字}`(audit 必須)、 response 204 / 400 (reason 未指定) / 401 / 403 / 404
+    - **port-in**: `RevokeUserUseCase` 新設。 `void revoke(long userId, String reason)`、 該当無しは `UserNotFoundException`。 冪等(同 user に再呼出で TTL 上書き延長 = defense-in-depth)
+    - **`UserManagementService` に 6 つ目の port を実装**。 `@Transactional(readOnly=true)` (DB 確認のみ、 user 状態は touch しない) + `@Auditable("USER_REVOKE_TOKENS")` で reason を audit chain に乗せる。 user 存在確認 → `revocationStore.revokeUser(userId, 15min)` → INFO log(reason 含む)
+    - **`UserAdminController.revokeUserTokens`** 実装。 6 つ目の use case を constructor に注入。 OpenAPI generator が `RevokeUserTokensRequest` DTO を出力
+    - **テスト 3 ケース追加**(63/63、 was 60): `revoke_は_既存_ACTIVE_user_の_token_を_15min_TTL_で_revoke_する` / `revoke_は_DEACTIVATED_user_でも_revoke_を再登録する`(double-check after offboarding ケース) / `revoke_は_該当無しなら_UserNotFoundException_で_revoke_を呼ばない`(typo 防御)。 `AdminSecurityTest` に `@MockitoBean RevokeUserUseCase` 追加で controller wire 完了
+    - **DeactivateUser との使い分け**: deactivate は user 状態 (ACTIVE→DEACTIVATED) + 認証経路を弾く + 既発行 token revoke の 3 効果。 revoke-tokens は既発行 token の即時無効化のみで user は ACTIVE 維持(再 login 即時可)。 lifecycle 上の永続的な禁則と、 一時的な break-glass の二択を runbook で明示
+    - **これで ADR-0023 の運用面が完結**: lifecycle-driven 3 系統(¹⁷ user / ¹⁷ membership / ¹⁸ tenant)+ admin 強制 1 系統(¹⁹)= 4 経路。 残りは「Redis 不在時の手動 fallback runbook」 と「revocation 状態の admin 確認 API」 (read 系) で、 後者は MVP では `redis-cli GET revocation:user:<id>` で代用
 - **A5 follow-up¹⁸ tenant deactivate fanout で対象 tenant 内の全 user を一括 revoke**(¹⁷ で「次 phase 候補」 と書いた最後のピース。 ¹⁵ の user 単体 deactivate / ¹⁴ の membership 取消は per-user revoke で済むが、 tenant 全体 deactivate の場合は対象 tenant に紐付く全 membership user を一括無効化する必要がある。 これで tenant offboarding の意味的な完成度が user offboarding と対称になる):
     - **port-out**: `TenantMembershipRepository.findUserIdsByTenant(TenantId): List<UserId>` を追加。 (user_id, tenant_id) UNIQUE 制約により重複は原理的に出ない
     - **MyBatis Mapper**: `TenantMembershipMapper.findUserIdsByTenant(String): List<Long>` + XML `<select resultType="_long">SELECT user_id ... ORDER BY user_id</select>`(軽量列挙、 ORDER BY で deterministic)

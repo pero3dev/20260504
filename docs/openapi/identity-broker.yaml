@@ -536,6 +536,63 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /v1/admin/users/{userId}/revoke-tokens:
+    post:
+      tags: [admin-users]
+      operationId: revokeUserTokens
+      summary: Force-revoke all access tokens for a user (ADR-0023)
+      description: |
+        Marks the user as revoked in the per-user revocation list (Redis,
+        TTL = access token TTL). Already-issued access tokens for the user are
+        rejected by every downstream service's RevocationCheckFilter within at
+        most a few seconds, regardless of their unexpired signature.
+
+        This is a "break glass" operation distinct from deactivateUser: the
+        user record stays ACTIVE, the user can re-login and obtain fresh tokens
+        immediately. Intended for suspected token leak or device theft where
+        full account deactivation is too aggressive.
+
+        Idempotent — repeated calls extend the revocation TTL. The reason is
+        stored in the audit chain (J-SOX) but not in Redis.
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeUserTokensRequest'
+      responses:
+        '204':
+          description: Revocation registered
+        '400':
+          description: Validation error (missing or empty reason)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
   /v1/admin/users/{userId}:
     get:
       tags: [admin-users]
@@ -750,6 +807,19 @@ components:
             `VIEWER`). The broker does not validate the role against an
             enumeration here — downstream services interpret roles via the
             `roles` claim on the issued access token.
+
+    RevokeUserTokensRequest:
+      type: object
+      required: [reason]
+      description: |
+        Operator-supplied reason recorded in the audit chain. Free text
+        intended for J-SOX traceability ("suspected token leak from
+        access.log entry 2026-05-09T12:34", "device theft reported by user").
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 512
 
     AddUserMembershipRequest:
       type: object

@@ -19,6 +19,7 @@ import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
+import com.example.inventory.identity.application.port.in.RevokeUserUseCase;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.UserAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.UserMembershipAlreadyExistsException;
@@ -52,7 +53,8 @@ public class UserManagementService
                 RegisterUserUseCase,
                 AddUserMembershipUseCase,
                 RemoveUserMembershipUseCase,
-                DeactivateUserUseCase {
+                DeactivateUserUseCase,
+                RevokeUserUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserManagementService.class);
 
@@ -256,5 +258,19 @@ public class UserManagementService
                 user.id().value(),
                 user.status());
         return user;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Auditable(action = "USER_REVOKE_TOKENS", targetType = "User", targetIdExpression = "#userId")
+    public void revoke(long userId, String reason) {
+        // user 存在確認のみで DB は touch しない(token 状態は Redis 側、 user 自身は ACTIVE 維持)。
+        // typo した userId に対する revoke 登録を避けるため 404 は明示的に返す。
+        UserId id = new UserId(userId);
+        userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(userId));
+
+        revocationStore.revokeUser(id.value(), REVOCATION_TTL);
+
+        LOG.info("admin 強制 revoke userId={} reason={}(ADR-0023)", id.value(), reason);
     }
 }
