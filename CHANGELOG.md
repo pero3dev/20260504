@@ -56,7 +56,7 @@
 - **日次 Merkle anchor** + 検証 REST(`Sha256MerkleTreeCalculator` + `ComputeDailyMerkleAnchorService`)
 - **DB レベル WORM トリガ** で `audit_record` / `audit_merkle_anchor` の UPDATE/DELETE 拒否
 
-#### ADR(22 本)
+#### ADR(23 本)
 
 | # | タイトル | 状態 |
 |---|---|---|
@@ -70,6 +70,7 @@
 | [0020](docs/adr/0020-ci-parallelization-strategy.md) | CI parallelization strategy | Accepted |
 | [0021](docs/adr/0021-pact-broker-production-hosting.md) | Pact Broker 本番ホスティング | Accepted |
 | [0022](docs/adr/0022-frontend-structure-and-libraries.md) | Frontend structure and libraries(F7) | Accepted |
+| [0023](docs/adr/0023-immediate-token-revocation-via-redis.md) | Immediate token revocation via Redis(A5 follow-up¹⁶) | Accepted |
 
 #### CI / Test 強化
 
@@ -187,6 +188,12 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹⁶ ADR-0023 (即時 token revocation 設計) を accepted で追加**(¹⁴ / ¹⁵ で繰り返し「next phase」 と書いてきた即時 revocation の設計を、 実装着手前に決定。 Redis vs DB / per-user vs per-jti / fail-open vs fail-closed の各軸を rejected options まで含めて institutional memory として残す):
+    - **Decision**: per-user revocation list を Redis に置く(`revocation:user:<userId>` / TTL=15min = access token TTL / 自己消滅で GC 不要)。 12 services は `commons-security` の新 `RevocationCheckFilter` で `BearerTokenAuthenticationFilter` 後に GET 1 回(0.5ms 想定)
+    - **Granularity = per-user**: tenant deactivate は対象 tenant の全 membership user を revoke、 user deactivate / membership remove も同 user を revoke。 jti 単位は採らない(write 過大)
+    - **Failure mode = fail-open**: Redis 不達時は通す(15min TTL を最終 fallback とする defense-in-depth、 fail-closed は Redis outage = 全 login outage で過剰)
+    - **Rejected**: DB-backed list (cross-service DB 違反 + DB 飽和) / per-jti (write 11.6k/sec) / TTL を 1 min に短縮 (refresh 過剰)
+    - **次 phase 実装**: `commons-security` に `RevocationCheckFilter` + `RevocationListPublisher` を追加し、 identity-broker の `Deactivate*UseCase` / `RemoveUserMembershipUseCase` から呼び出す。 本 phase は ADR のみ
 - **A5 follow-up¹⁵ user 全体の deactivate ライフサイクルを追加**(¹⁴ の個別 unlink-membership より大きい粒度の offboarding。 `tenant deactivate` が tenant 全体を凍結するのと対称的に user 全体を凍結する。 これで user lifecycle が `register → addMembership → removeMembership → deactivate` で完結):
     - **`UserStatus` enum 新設**(ACTIVE / DEACTIVATED)+ `User` 集約に `status` / `deactivatedAt` フィールド + `deactivate(Instant now)` ドメインメソッド(`Tenant.deactivate` と同じく ACTIVE → DEACTIVATED 一方向遷移、 既に DEACTIVATED でも冪等)
     - **`User.restore` を 5-arg / 7-arg にオーバーロード**(後方互換)。 5-arg は status=ACTIVE / deactivatedAt=null で defaults
