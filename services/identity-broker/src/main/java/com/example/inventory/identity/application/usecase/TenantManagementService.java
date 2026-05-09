@@ -1,6 +1,7 @@
 package com.example.inventory.identity.application.usecase;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.inventory.commons.audit.Auditable;
+import com.example.inventory.commons.security.RevocationStore;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.DeactivateTenantUseCase;
 import com.example.inventory.identity.application.port.in.GetTenantUseCase;
@@ -17,8 +19,10 @@ import com.example.inventory.identity.application.port.in.RegisterTenantUseCase;
 import com.example.inventory.identity.application.port.in.TenantAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.TenantProtectedException;
+import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.application.port.out.TenantRepository;
 import com.example.inventory.identity.domain.model.Tenant;
+import com.example.inventory.identity.domain.model.UserId;
 
 /**
  * Tenant lifecycle のユースケース集約(A5、 ADR-0003 follow-up)。
@@ -45,12 +49,23 @@ public class TenantManagementService
     /** SUPER_ADMIN provisioning 用の予約テナント ID。 V4 migration で seed され、 deactivate 不可。 */
     public static final String PLATFORM_TENANT_ID = "platform";
 
-    private final TenantRepository repository;
-    private final Clock clock;
+    /** ADR-0023 で定義した access token TTL に揃える revocation 登録の TTL。 */
+    private static final Duration REVOCATION_TTL = Duration.ofMinutes(15);
 
-    public TenantManagementService(TenantRepository repository, Clock clock) {
+    private final TenantRepository repository;
+    private final TenantMembershipRepository membershipRepository;
+    private final Clock clock;
+    private final RevocationStore revocationStore;
+
+    public TenantManagementService(
+            TenantRepository repository,
+            TenantMembershipRepository membershipRepository,
+            Clock clock,
+            RevocationStore revocationStore) {
         this.repository = repository;
+        this.membershipRepository = membershipRepository;
         this.clock = clock;
+        this.revocationStore = revocationStore;
     }
 
     @Override
@@ -91,7 +106,20 @@ public class TenantManagementService
                 repository.findById(id).orElseThrow(() -> new TenantNotFoundException(tenantId));
         tenant.deactivate(clock.instant());
         repository.update(tenant);
-        LOG.info("tenant 非活性化 tenantId={} status={}", tenant.tenantId().value(), tenant.status());
+
+        // ADR-0023 fanout: tenant DEACTIVATED 後も既発行 access token は signature/exp だけ見る stateless
+        // 検証で TTL までアクセス継続を許す。 SelectTenantService は次回 token 発行を弾くが、 既発行分は別経路で
+        // 即時無効化する必要がある。 当該 tenant に membership を持つ全 user を per-user revoke する。
+        // (per-user 単位なので、 他テナントへの membership があるユーザは再 login で正常に新 token を取れる。)
+        List<UserId> revokedUsers = membershipRepository.findUserIdsByTenant(id);
+        for (UserId userId : revokedUsers) {
+            revocationStore.revokeUser(userId.value(), REVOCATION_TTL);
+        }
+        LOG.info(
+                "tenant 非活性化 tenantId={} status={} revoke 登録ユーザ数={}(ADR-0023)",
+                tenant.tenantId().value(),
+                tenant.status(),
+                revokedUsers.size());
         return tenant;
     }
 

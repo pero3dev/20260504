@@ -50,6 +50,11 @@ public class TenantMembershipRepositoryImpl implements TenantMembershipRepositor
     }
 
     @Override
+    public List<UserId> findUserIdsByTenant(TenantId tenantId) {
+        return mapper.findUserIdsByTenant(tenantId.value()).stream().map(UserId::new).toList();
+    }
+
+    @Override
     public void add(TenantMembership membership) {
         long id = idGenerator.nextId();
         mapper.insert(

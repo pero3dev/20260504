@@ -21,4 +21,7 @@ public interface TenantMembershipMapper {
 
     /** (userId, tenantId) の行を物理削除。 戻り値は影響行数(0 / 1)。 */
     int delete(@Param("userId") long userId, @Param("tenantId") String tenantId);
+
+    /** tenant 単位で membership を持つ user_id を列挙(tenant deactivate 時の revoke fanout 用)。 */
+    List<Long> findUserIdsByTenant(@Param("tenantId") String tenantId);
 }

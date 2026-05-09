@@ -26,4 +26,10 @@ public interface TenantMembershipRepository {
      * @return 削除された行数(0 = 該当無し、 1 = 削除完了)。 caller は 0 を 404 に変換する
      */
     int delete(UserId userId, TenantId tenantId);
+
+    /**
+     * 指定 tenant に membership を持つ全 user の ID を返す。 tenant deactivate 時に対象 tenant 内ユーザの token を一括
+     * revoke するために使う(ADR-0023 fanout)。 重複は (user_id, tenant_id) の UNIQUE 制約で原理的に発生しない。
+     */
+    List<UserId> findUserIdsByTenant(TenantId tenantId);
 }

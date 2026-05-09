@@ -63,4 +63,13 @@
           AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- ADR-0023 fanout: tenant deactivate 時に対象 tenant の全 user を revoke するため、
+         membership を持つ user_id だけを軽量列挙する。 戻り値は List<Long>。 -->
+    <select id="findUserIdsByTenant" resultType="_long">
+        SELECT user_id
+        FROM tenant_memberships
+        WHERE tenant_id = #{tenantId}
+        ORDER BY user_id
+    </select>
+
 </mapper>
