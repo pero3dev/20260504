@@ -7,14 +7,14 @@ describe('createI18n', () => {
   it('default ja で base catalog の文言を引ける', async () => {
     const i18n = await createI18n({ language: 'ja', resources: defaultResources });
     expect(i18n.t('auth.login')).toBe('ログイン');
-    expect(i18n.t('common.loading')).toBe('読み込み中...');
+    expect(i18n.t('ui.loading')).toBe('読み込み中...');
     expect(i18n.t('error.unknown')).toBe('予期しないエラーが発生しました');
   });
 
   it('en に切替えると英語の文言を引ける', async () => {
     const i18n = await createI18n({ language: 'en', resources: defaultResources });
     expect(i18n.t('auth.login')).toBe('Sign in');
-    expect(i18n.t('common.loading')).toBe('Loading...');
+    expect(i18n.t('ui.loading')).toBe('Loading...');
   });
 
   it('language 未指定時は fallback (default ja)', async () => {
@@ -24,9 +24,9 @@ describe('createI18n', () => {
 
   it('changeLanguage で実行時切替', async () => {
     const i18n = await createI18n({ language: 'ja', resources: defaultResources });
-    expect(i18n.t('common.cancel')).toBe('キャンセル');
+    expect(i18n.t('ui.cancel')).toBe('キャンセル');
     await i18n.changeLanguage('en');
-    expect(i18n.t('common.cancel')).toBe('Cancel');
+    expect(i18n.t('ui.cancel')).toBe('Cancel');
   });
 
   it('未知 key は key 自体を返す(returnNull=false)', async () => {

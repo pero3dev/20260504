@@ -25,10 +25,11 @@ export interface CreateI18nOptions {
 
 export async function createI18n(options: CreateI18nOptions = {}): Promise<i18n> {
   const instance = i18next.createInstance();
+  const namespaces = options.resources ? extractNamespaces(options.resources) : ['common'];
   await instance.use(initReactI18next).init({
     fallbackLng: options.fallbackLanguage ?? 'ja',
     defaultNS: 'common',
-    ns: ['common'],
+    ns: namespaces,
     interpolation: {
       escapeValue: false, // React は JSX 経由で XSS 防御済
     },
@@ -37,4 +38,16 @@ export async function createI18n(options: CreateI18nOptions = {}): Promise<i18n>
     ...(options.language !== undefined ? { lng: options.language } : {}),
   });
   return instance;
+}
+
+/** resources の各言語が持つ namespace key を集約。 i18next の `ns` 初期値に渡す。 */
+function extractNamespaces(resources: Resource): string[] {
+  const set = new Set<string>();
+  for (const lang of Object.values(resources)) {
+    for (const ns of Object.keys(lang as Record<string, unknown>)) set.add(ns);
+  }
+  // common を先頭に置き、 残りはアルファベット順で安定化
+  const list = [...set];
+  list.sort((a, b) => (a === 'common' ? -1 : b === 'common' ? 1 : a.localeCompare(b)));
+  return list.length > 0 ? list : ['common'];
 }

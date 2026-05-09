@@ -1,0 +1,18 @@
+{
+  "dashboard": {
+    "title": "受注ダッシュボード",
+    "description": "bff-wholesale 経由で SalesOrder を取得しています。",
+    "fetch_failed": "BFF 取得失敗: {{message}}",
+    "card_heading": "SalesOrder {{code}} (id: {{id}})",
+    "fields": {
+      "partner": "取引先",
+      "status": "ステータス",
+      "currency": "通貨",
+      "total_amount": "合計金額",
+      "requested_delivery_date": "納期希望"
+    },
+    "items": {
+      "title": "明細"
+    }
+  }
+}

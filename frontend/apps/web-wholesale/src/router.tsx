@@ -8,6 +8,8 @@ import {
   useNavigate,
 } from '@tanstack/react-router';
 
+import { useTranslation } from 'react-i18next';
+
 import { authManager } from './lib/auth';
 import { fetchSalesOrder } from './lib/graphql-client';
 
@@ -47,6 +49,8 @@ function CallbackPage() {
 }
 
 function DashboardPage() {
+  const { t } = useTranslation('wholesale');
+  const { t: tCommon } = useTranslation('common');
   const { data, isLoading, error } = useQuery({
     queryKey: ['salesOrder', '1'],
     queryFn: () => fetchSalesOrder('1'),
@@ -55,16 +59,16 @@ function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">受注ダッシュボード</h1>
-        <p className="text-sm text-muted-foreground">
-          bff-wholesale 経由で SalesOrder を取得しています。
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('dashboard.description')}</p>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">読み込み中...</p>}
+      {isLoading && <p className="text-muted-foreground">{tCommon('ui.loading')}</p>}
       {error && (
         <p className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
-          BFF 取得失敗: {error instanceof Error ? error.message : String(error)}
+          {t('dashboard.fetch_failed', {
+            message: error instanceof Error ? error.message : String(error),
+          })}
         </p>
       )}
 
@@ -72,29 +76,37 @@ function DashboardPage() {
         <section className="space-y-4 rounded-lg border border-border p-4">
           <header>
             <h2 className="text-lg font-semibold">
-              SalesOrder {data.salesOrder.code} (id: {data.salesOrder.id})
+              {t('dashboard.card_heading', {
+                code: data.salesOrder.code,
+                id: data.salesOrder.id,
+              })}
             </h2>
           </header>
           <dl className="grid grid-cols-2 gap-2 text-sm">
-            <dt className="text-muted-foreground">取引先</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.partner')}</dt>
             <dd>{data.salesOrder.partnerCode}</dd>
-            <dt className="text-muted-foreground">ステータス</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.status')}</dt>
             <dd>{data.salesOrder.status}</dd>
-            <dt className="text-muted-foreground">通貨</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.currency')}</dt>
             <dd>{data.salesOrder.currency}</dd>
-            <dt className="text-muted-foreground">合計金額</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.total_amount')}</dt>
             <dd>
               {data.salesOrder.totalAmount.toLocaleString('ja-JP')} {data.salesOrder.currency}
             </dd>
-            <dt className="text-muted-foreground">納期希望</dt>
+            <dt className="text-muted-foreground">
+              {t('dashboard.fields.requested_delivery_date')}
+            </dt>
             <dd>{data.salesOrder.requestedDeliveryDate ?? '-'}</dd>
           </dl>
 
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold">明細</h3>
+            <h3 className="text-sm font-semibold">{t('dashboard.items.title')}</h3>
             <ul className="text-sm">
               {data.salesOrder.items.map((line, idx) => (
-                <li key={`${line.skuCode}-${line.locationId}-${idx}`} className="border-t border-border py-1">
+                <li
+                  key={`${line.skuCode}-${line.locationId}-${idx}`}
+                  className="border-t border-border py-1"
+                >
                   {line.skuCode} @ {line.locationId} — {line.quantity} ×{' '}
                   {line.unitPrice.toLocaleString('ja-JP')} {data.salesOrder!.currency}
                 </li>

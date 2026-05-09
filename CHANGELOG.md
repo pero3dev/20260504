@@ -157,6 +157,14 @@
     - **shadcn semantic CSS 変数に `--destructive` / `--destructive-foreground` 追加**(form error 表示で必要)、 tailwind preset の colors にも反映
     - test:`createI18n` 5 系統(ja/en 切替、 fallback、 changeLanguage、 未知 key)+ `mergeResources` 2 系統
     - phase 2 候補: 既存 4 web app の dashboard を i18n 化(`<I18nextProvider>` + `useTranslation` で `auth.login` 等を JSX に注入)+ recharts で在庫推移 chart 1 つ追加 + a11y lint(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode)
+- **F7 phase 2 dashboard 文言を i18n + 1 chart + a11y lint 第 1 層**(phase 1 で揃えた skeleton を 4 web app に貼り込む):
+    - 4 業態の追加 catalog(`shared/src/i18n/locales/{ja,en}/{retail-ec,manufacturing,tpl,wholesale}.json`)を追加し、 `app-resources.ts` で `retailEcResources` / `manufacturingResources` / `tplResources` / `wholesaleResources` を re-export。 `common.json` の section 名 `common` → `ui` に rename(namespace 名と被って `t('common.loading')` が紛らわしいため、 `t('ui.loading')` に統一)
+    - `createI18n` を resources から namespace 自動抽出するよう改修(`extractNamespaces`、 `common` 先頭で残りはアルファベット順)。 各 web app は `useTranslation('retail-ec')` 等で業態 namespace を直接参照できる
+    - 4 web app の `main.tsx` で `<I18nextProvider i18n={i18n}>` + top-level `await createI18n({ language: 'ja', resources: mergeResources(defaultResources, ...) })`(MVP は `ja` 固定、 phase 3 で Identity Broker `tenant.locale` claim から切替予定)
+    - 4 web app の `router.tsx` の dashboard 文言(タイトル / 説明 / loading / error / フィールド label)を `useTranslation` 経由に変換。 `t('dashboard.fetch_failed', { message })` 等 interpolation も投入
+    - `web-retail-ec` に `<LineChart>`(`@inventory/ui/charts`)で「直近 7 日の在庫推移(デモ)」を追加。 mock データだが ResponsiveContainer + 凡例 + Tooltip + CSS 変数色の wiring を vertical 確認
+    - **a11y lint 第 1 層**: root `frontend/package.json` に `eslint-plugin-jsx-a11y` ^6.10 を追加、 `eslint.config.mjs` に `.tsx` 限定で `jsx-a11y` plugin + `recommended` ruleset を適用。 既存 / 新規 JSX 全てが lint pass する状態で commit
+    - phase 3 候補: `tenant.locale` claim → `language` の動的切替 / `@axe-core/react` dev mode 投入 / 残 3 業態 dashboard へ chart 拡張 / Storybook(F5)で a11y lint 第 3 層
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料

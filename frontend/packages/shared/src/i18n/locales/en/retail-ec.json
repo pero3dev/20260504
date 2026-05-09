@@ -1,0 +1,21 @@
+{
+  "dashboard": {
+    "title": "Inventory dashboard",
+    "description": "Reading actual inventory from inventory-read-model via the BFF (/graphql).",
+    "fetch_failed": "BFF request failed: {{message}}",
+    "not_found": "No inventory record matches inventoryId={{inventoryId}}.",
+    "card_heading": "Inventory {{id}}",
+    "fields": {
+      "sku": "SKU",
+      "location": "Location",
+      "available": "Available",
+      "reserved": "Reserved",
+      "version": "Version"
+    },
+    "trend": {
+      "title": "Last 7 days inventory trend (demo)",
+      "subtitle": "Real time-series API not yet implemented; using mock data to verify the chart wrapper plumbing.",
+      "series_available": "Available"
+    }
+  }
+}

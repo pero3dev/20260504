@@ -1,0 +1,21 @@
+{
+  "dashboard": {
+    "title": "在庫ダッシュボード",
+    "description": "BFF(/graphql)経由で inventory-read-model から実在庫を取得しています。",
+    "fetch_failed": "BFF 取得失敗: {{message}}",
+    "not_found": "inventoryId={{inventoryId}} に該当する在庫はありません。",
+    "card_heading": "Inventory {{id}}",
+    "fields": {
+      "sku": "SKU",
+      "location": "Location",
+      "available": "Available",
+      "reserved": "Reserved",
+      "version": "Version"
+    },
+    "trend": {
+      "title": "直近 7 日の在庫推移(デモ)",
+      "subtitle": "本格的な time-series API は未実装。 mock データで chart wrapper の疎通を確認しています。",
+      "series_available": "Available"
+    }
+  }
+}

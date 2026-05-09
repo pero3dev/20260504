@@ -1,0 +1,17 @@
+{
+  "dashboard": {
+    "title": "入出庫ダッシュボード",
+    "description": "bff-tpl 経由で StockMovement を取得しています。",
+    "fetch_failed": "BFF 取得失敗: {{message}}",
+    "card_heading": "Movement {{code}} (id: {{id}})",
+    "fields": {
+      "partner": "取引先",
+      "sku": "SKU",
+      "location": "Location",
+      "movement_type": "種別",
+      "quantity": "数量",
+      "status": "ステータス",
+      "reference_code": "参照コード"
+    }
+  }
+}

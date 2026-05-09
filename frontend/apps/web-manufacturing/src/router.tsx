@@ -7,6 +7,7 @@ import {
   Outlet,
   useNavigate,
 } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 
 import { authManager } from './lib/auth';
 import { fetchWorkOrder } from './lib/graphql-client';
@@ -47,6 +48,8 @@ function CallbackPage() {
 }
 
 function DashboardPage() {
+  const { t } = useTranslation('manufacturing');
+  const { t: tCommon } = useTranslation('common');
   const { data, isLoading, error } = useQuery({
     queryKey: ['workOrder', '1'],
     queryFn: () => fetchWorkOrder('1'),
@@ -55,34 +58,37 @@ function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">WorkOrder ダッシュボード</h1>
-        <p className="text-sm text-muted-foreground">
-          bff-manufacturing 経由で WorkOrder を取得しています。
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('dashboard.description')}</p>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">読み込み中...</p>}
+      {isLoading && <p className="text-muted-foreground">{tCommon('ui.loading')}</p>}
       {error && (
         <p className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
-          BFF 取得失敗: {error instanceof Error ? error.message : String(error)}
+          {t('dashboard.fetch_failed', {
+            message: error instanceof Error ? error.message : String(error),
+          })}
         </p>
       )}
 
       {data?.workOrder && (
         <section className="space-y-3 rounded-lg border border-border p-4">
           <h2 className="text-lg font-semibold">
-            WorkOrder {data.workOrder.code} (id: {data.workOrder.id})
+            {t('dashboard.card_heading', {
+              code: data.workOrder.code,
+              id: data.workOrder.id,
+            })}
           </h2>
           <dl className="grid grid-cols-2 gap-2 text-sm">
-            <dt className="text-muted-foreground">完成品 SKU</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.product_sku')}</dt>
             <dd>{data.workOrder.productSkuCode}</dd>
-            <dt className="text-muted-foreground">拠点</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.location')}</dt>
             <dd>{data.workOrder.locationId}</dd>
-            <dt className="text-muted-foreground">計画数量</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.planned_quantity')}</dt>
             <dd>{data.workOrder.plannedQuantity.toLocaleString()}</dd>
-            <dt className="text-muted-foreground">ステータス</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.status')}</dt>
             <dd>{data.workOrder.status}</dd>
-            <dt className="text-muted-foreground">計画開始日</dt>
+            <dt className="text-muted-foreground">{t('dashboard.fields.planned_start_date')}</dt>
             <dd>{data.workOrder.plannedStartDate ?? '-'}</dd>
           </dl>
         </section>

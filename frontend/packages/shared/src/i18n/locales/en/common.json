@@ -5,7 +5,7 @@
     "signing_in": "Signing you in...",
     "callback_failed": "OIDC callback failed"
   },
-  "common": {
+  "ui": {
     "loading": "Loading...",
     "retry": "Retry",
     "submit": "Submit",

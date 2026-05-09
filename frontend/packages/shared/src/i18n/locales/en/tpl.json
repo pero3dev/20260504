@@ -1,0 +1,17 @@
+{
+  "dashboard": {
+    "title": "Stock movement dashboard",
+    "description": "Fetching StockMovements via bff-tpl.",
+    "fetch_failed": "BFF request failed: {{message}}",
+    "card_heading": "Movement {{code}} (id: {{id}})",
+    "fields": {
+      "partner": "Partner",
+      "sku": "SKU",
+      "location": "Location",
+      "movement_type": "Type",
+      "quantity": "Quantity",
+      "status": "Status",
+      "reference_code": "Reference code"
+    }
+  }
+}

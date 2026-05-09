@@ -1,0 +1,18 @@
+{
+  "dashboard": {
+    "title": "Sales order dashboard",
+    "description": "Fetching SalesOrders via bff-wholesale.",
+    "fetch_failed": "BFF request failed: {{message}}",
+    "card_heading": "SalesOrder {{code}} (id: {{id}})",
+    "fields": {
+      "partner": "Partner",
+      "status": "Status",
+      "currency": "Currency",
+      "total_amount": "Total amount",
+      "requested_delivery_date": "Requested delivery date"
+    },
+    "items": {
+      "title": "Line items"
+    }
+  }
+}

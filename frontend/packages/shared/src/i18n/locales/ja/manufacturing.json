@@ -1,0 +1,15 @@
+{
+  "dashboard": {
+    "title": "WorkOrder ダッシュボード",
+    "description": "bff-manufacturing 経由で WorkOrder を取得しています。",
+    "fetch_failed": "BFF 取得失敗: {{message}}",
+    "card_heading": "WorkOrder {{code}} (id: {{id}})",
+    "fields": {
+      "product_sku": "完成品 SKU",
+      "location": "拠点",
+      "planned_quantity": "計画数量",
+      "status": "ステータス",
+      "planned_start_date": "計画開始日"
+    }
+  }
+}

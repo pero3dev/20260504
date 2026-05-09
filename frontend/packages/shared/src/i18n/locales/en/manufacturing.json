@@ -1,0 +1,15 @@
+{
+  "dashboard": {
+    "title": "WorkOrder dashboard",
+    "description": "Fetching WorkOrders via bff-manufacturing.",
+    "fetch_failed": "BFF request failed: {{message}}",
+    "card_heading": "WorkOrder {{code}} (id: {{id}})",
+    "fields": {
+      "product_sku": "Product SKU",
+      "location": "Site",
+      "planned_quantity": "Planned quantity",
+      "status": "Status",
+      "planned_start_date": "Planned start date"
+    }
+  }
+}
