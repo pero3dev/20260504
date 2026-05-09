@@ -187,6 +187,12 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹⁰ `writePathsAreAuditable` を残り 5 サービスに展開、 全 13 サービス完全 opt-in 達成**(CLAUDE.md と `@Auditable` Javadoc が「ArchUnit による強制が必須」と明記していた J-SOX gap が完全閉鎖。 follow-up⁵ 着手から 6 phase で全社展開):
+    - **inventory-core**: 全 write 系 (Reserve/Receive/Ship/Release/ApplyStockMovement/ConsumeWorkOrderComponents/ReceiveFinishedGoods 等) は既に `@Auditable`。 `Emit*Service` 系は `DomainEventPublisher` 経由で `*Repository` ではない、 `RegisterSkuFromMasterService` は `SkuRegistryPort.upsert` で同様に rule 対象外。 注釈追加なしで opt-in
+    - **retail-ec / wholesale / manufacturing**: 全 write 系 (Place/Ship/Cancel/Release/Complete/HandleFailure 等) は既に `@Auditable`、 Get 系は read-only。 注釈追加なしで opt-in
+    - **integration-hub**: MVP 時点で `application/usecase` 配下に use case クラスが無い (CSV 1 アダプタ adapter 直 wiring) ため対象 0 件で vacuously 合格。 use case 追加時にこのテストが自動で強制を効かせる予防保全
+    - **opt-in 進捗**: **13 / 13 = 100%**(identity-broker / audit-service / inventory-read-model / analytics / master-data / notification / workflow / tpl / inventory-core / retail-ec / wholesale / manufacturing / integration-hub)
+    - **CLAUDE.md の J-SOX gap 記述** は実装着地のため更新候補(別 phase)。 「ArchUnit must enforce `@Auditable` on all DB-mutating operations」は実体としてもはや gap ではない
 - **A5 follow-up⁹ `writePathsAreAuditable` を master-data / notification / workflow / tpl の 4 サービスに一括展開**(共通基盤系を ArchUnit 強制下に揃え、 8/13 サービス到達。 残り 5 = inventory-core / retail-ec / wholesale / manufacturing / integration-hub の業態 + write 権威の 5 で来 phase):
     - **master-data**: `CreateSku/Location/PartnerService` 3 つは既に `@Auditable` 付与済、 `Get` 系 3 つは read-only。 注釈追加なしで opt-in
     - **tpl**: `PlanStockMovementService` は既に `@Auditable`、 `GetStockMovementService` は read-only。 注釈追加なしで opt-in

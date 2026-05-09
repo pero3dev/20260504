@@ -23,6 +23,14 @@ class ArchitectureTest {
     static final ArchRule repositoryImplsLiveInAdapter =
             HexagonalLayerRules.repositoryImplsAreInAdapter();
 
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 全 write 系
+     * (Place/Release/Complete/HandleConsumption/HandleCompletion) は {@code @Auditable} 付与済、
+     * GetWorkOrderService は read-only で対象外。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
+
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();

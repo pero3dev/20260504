@@ -13,4 +13,12 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule applicationDoesNotDependOnAdapter =
             HexagonalLayerRules.applicationDoesNotDependOnAdapter();
+
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 integration-hub は MVP 時点で {@code application/usecase} 配下に use case
+     * クラスが無い (CSV 1 アダプタの adapter 直 wiring) ため、 rule は対象 0 件で vacuously 合格。 use case 追加時にこのテストが
+     * 自動で強制を効かせる。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
 }

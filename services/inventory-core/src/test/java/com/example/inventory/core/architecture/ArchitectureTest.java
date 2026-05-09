@@ -23,6 +23,16 @@ class ArchitectureTest {
     static final ArchRule repositoryImplsLiveInAdapter =
             HexagonalLayerRules.repositoryImplsAreInAdapter();
 
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 inventory-core の write 系 use case は全て {@code @Auditable} 付与済
+     * (Reserve/Receive/Ship/Release/ApplyStockMovement/ConsumeWorkOrderComponents/ReceiveFinishedGoods
+     * 等)。 Emit*Service 系は {@code DomainEventPublisher} 経由で {@code *Repository} 書込みではないため対象外、
+     * RegisterSkuFromMasterService は {@code SkuRegistryPort.upsert} で同様に対象外(Javadoc に audit
+     * 不要理由を明記)。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
+
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();
