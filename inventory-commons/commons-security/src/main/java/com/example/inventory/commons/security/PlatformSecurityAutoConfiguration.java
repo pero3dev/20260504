@@ -8,8 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -84,19 +83,6 @@ public class PlatformSecurityAutoConfiguration {
                 revocationCheckFilter);
     }
 
-    /**
-     * ADR-0023 即時 token revocation。 spring-data-redis が classpath にあり、 アプリ側で {@link
-     * RedisConnectionFactory} (= spring-boot-starter-data-redis を入れている) を Bean 化していれば Redis 実装を採用、
-     * それ以外は no-op で fallback。
-     */
-    @Bean
-    @ConditionalOnClass(StringRedisTemplate.class)
-    @ConditionalOnBean(RedisConnectionFactory.class)
-    @ConditionalOnMissingBean(RevocationStore.class)
-    public RevocationStore redisRevocationStore(StringRedisTemplate redis) {
-        return new RedisRevocationStore(redis);
-    }
-
     @Bean
     @ConditionalOnMissingBean(RevocationStore.class)
     public RevocationStore noOpRevocationStore() {
@@ -108,6 +94,29 @@ public class PlatformSecurityAutoConfiguration {
     public RevocationCheckFilter revocationCheckFilter(
             RevocationStore revocationStore, AuthenticationEntryPoint entryPoint) {
         return new RevocationCheckFilter(revocationStore, entryPoint);
+    }
+
+    /**
+     * ADR-0023 即時 token revocation の Redis 実装を提供する nested config。 {@code StringRedisTemplate} を
+     * method 引数で参照するため、 spring-data-redis を依存に持たないサービスでは {@link java.lang.NoClassDefFoundError}
+     * を避ける必要がある。 外側の auto-config クラスから分離し、 class-level {@link ConditionalOnClass} で条件不成立時には
+     * class-load 自体が起きないようにしている。
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(
+            name = {
+                "org.springframework.data.redis.core.StringRedisTemplate",
+                "org.springframework.data.redis.connection.RedisConnectionFactory"
+            })
+    static class RedisRevocationStoreConfiguration {
+
+        @Bean
+        @ConditionalOnBean(org.springframework.data.redis.connection.RedisConnectionFactory.class)
+        @ConditionalOnMissingBean(RevocationStore.class)
+        public RevocationStore redisRevocationStore(
+                org.springframework.data.redis.core.StringRedisTemplate redis) {
+            return new RedisRevocationStore(redis);
+        }
     }
 
     /** JWT の {@code roles} クレーム(配列)を {@code ROLE_*} 権限に変換する。 */
