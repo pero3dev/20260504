@@ -55,3 +55,19 @@ export {
   SelectSeparator,
   type SelectItemProps,
 } from './components/select.js';
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverAnchor,
+  PopoverContent,
+} from './components/popover.js';
+export {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from './components/command.js';
+export { Combobox, type ComboboxItem, type ComboboxProps } from './components/combobox.js';

@@ -187,6 +187,16 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **F4 follow-up phase C Popover + Command + Combobox 追加**(phase A で建てた design system に autosuggest / search palette を追加、 SKU / 取引先 / location 選択など候補多数の入力 UI に使う):
+    - **deps**: `@radix-ui/react-popover` ^1.1.4 + `cmdk` ^1.0.4 を `@inventory/ui` の dependencies に追加
+    - **`Popover`**(`@radix-ui/react-popover` 背後): `Popover` / `PopoverTrigger` / `PopoverAnchor` / `PopoverContent` の compound API。 outside-click 閉 / ESC 閉 / focus 管理は Radix 担当、 アニメ classes は phase B の `tailwindcss-animate` 利用
+    - **`Command`**(`cmdk` 背後): keyboard nav / fuzzy 部分一致 / 仮想スクロール対応の search palette。 `Command` / `CommandInput` / `CommandList` / `CommandEmpty` / `CommandGroup` / `CommandItem` / `CommandSeparator`。 単体でも検索 UI に使えるが、 主に Combobox の中身として機能
+    - **`Combobox`**(Popover + Command 合成): `value`(string | null)/`onChange` の controlled API。 `items: ComboboxItem[]`(`value` / `label` (ReactNode) / `keywords` / `disabled`)で候補を渡す。 trigger は選択値 / placeholder を表示、 押下で popover 内に検索 input + 候補リスト展開、 上下キー / Enter / ESC 全対応、 同値 select で deselect、 `aria-label` + `aria-expanded` で screen reader 対応
+    - **stories 3 件**:`Popover/Detail`(button → 詳細表示)/ `Command/SkuSearch`(SKU 5 件候補)/ `Combobox/SkuPicker`(controlled state、 disabled item 含む 5 候補)
+    - **使い分けガイド(将来の README 化候補)**:
+        - 候補 ≤ 7 件 + sort 不要 → `<Select>`(native 動作 + 単純)
+        - 候補 8〜数百 件 + 検索したい → `<Combobox>`(本 phase 追加)
+        - フリーテキスト追加 OK の autosuggest → 別 phase で `<Combobox>` に `creatable` prop を追加
 - **F4 follow-up phase B Toast / Dialog / Select の animation 復元**(phase A で `tailwindcss-animate` plugin 未導入のため意図的に削除していた `data-[state=open]:animate-in` 等を、 plugin 配線後に復元):
     - **`tailwindcss-animate` ^1.0.7 を `@inventory/ui` の dependencies に追加**(本 plugin は `animate-in` / `animate-out` / `fade-in` / `fade-out` / `slide-in-from-right` / `zoom-in-95` などの utility を Tailwind に追加し、 Radix の `data-state="open|closed"` 遷移と組合せて宣言的に animation を書ける)
     - **`packages/ui/src/tailwind-preset.ts` の `plugins` に bundle**(各 web app は preset 継承で自動的に utility 利用可能)。 packages/ui 内の Storybook も同 preset を継承するため stories 上でも animation が動く
