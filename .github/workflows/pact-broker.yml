@@ -45,7 +45,7 @@ jobs:
       branch: ${{ steps.version.outputs.branch }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Skip if Broker not configured
         id: check
@@ -74,7 +74,7 @@ jobs:
 
       - name: Set up JDK 21
         if: steps.check.outputs.broker_configured == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -114,10 +114,10 @@ jobs:
         provider: [ wholesale, retail-ec, manufacturing, tpl ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'

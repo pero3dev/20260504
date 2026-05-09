@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -44,9 +44,13 @@ jobs:
           version: 9.15.0
 
       - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
+          # setup-node@v5 は package.json の packageManager フィールド検出で auto-cache する
+          # ようになったが、 frontend/pnpm-lock.yaml はまだ未コミットで cache key が算出できず
+          # 失敗するため無効化。 lockfile を commit に含めたら cache: 'pnpm' を有効化する。
+          package-manager-cache: false
 
       # 初回 commit 時点では pnpm-lock.yaml が無いため frozen-lockfile を外す。 lockfile が
       # CI artifact 経由で frontend/pnpm-lock.yaml に commit されたら --frozen-lockfile に切替。
@@ -67,7 +71,7 @@ jobs:
 
       - name: Upload pnpm-lock.yaml
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pnpm-lock
           path: frontend/pnpm-lock.yaml
