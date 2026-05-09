@@ -12,32 +12,47 @@
             <arg column="password_hash" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
             <arg column="version" javaType="_long"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="deactivated_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
     <select id="findByEmail" resultMap="userRow">
-        SELECT id, email, password_hash, display_name, version
+        SELECT id, email, password_hash, display_name, version, status, deactivated_at
         FROM users
         WHERE email = #{email}
     </select>
 
     <select id="findById" resultMap="userRow">
-        SELECT id, email, password_hash, display_name, version
+        SELECT id, email, password_hash, display_name, version, status, deactivated_at
         FROM users
         WHERE id = #{id}
     </select>
 
     <!-- admin read API 用。 id 昇順で全件返却(件数は SaaS 規模で低数千以内を想定)。 -->
     <select id="findAll" resultMap="userRow">
-        SELECT id, email, password_hash, display_name, version
+        SELECT id, email, password_hash, display_name, version, status, deactivated_at
         FROM users
         ORDER BY id
     </select>
 
-    <!-- SAML JIT provisioning 経路で新規 User を作成する。 version は 0 から開始。 -->
+    <!-- SAML JIT provisioning 経路で新規 User を作成する。 version は 0 から開始。
+         status / deactivated_at は DB default(ACTIVE / NULL)に任せず明示で入れる(冪等性のため)。 -->
     <insert id="insert">
-        INSERT INTO users (id, email, password_hash, display_name, version)
-        VALUES (#{row.id}, #{row.email}, #{row.passwordHash}, #{row.displayName}, #{row.version})
+        INSERT INTO users (id, email, password_hash, display_name, version, status, deactivated_at)
+        VALUES (#{row.id}, #{row.email}, #{row.passwordHash}, #{row.displayName}, #{row.version},
+                #{row.status}, #{row.deactivatedAt})
     </insert>
+
+    <!-- A5 follow-up¹⁵ deactivate 経路で status / deactivated_at を更新する。
+         version は MyBatis 単純 update では使わないが、 楽観ロックを将来追加する余地を残す。 -->
+    <update id="update">
+        UPDATE users
+        SET display_name   = #{row.displayName},
+            status         = #{row.status},
+            deactivated_at = #{row.deactivatedAt},
+            updated_at     = now()
+        WHERE id = #{row.id}
+    </update>
 
 </mapper>

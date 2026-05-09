@@ -18,6 +18,7 @@ import com.example.inventory.identity.application.port.out.UserRepository;
 import com.example.inventory.identity.domain.model.TenantMembership;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 /**
  * クレデンシャル認証ユースケース。
@@ -69,6 +70,12 @@ public class AuthenticateService implements AuthenticateUseCase {
 
         if (!passwordVerifier.matches(command.password(), user.passwordHash())) {
             LOG.info("認証失敗 reason=bad-password userId={}", user.id().value());
+            throw new AuthenticationFailedException();
+        }
+
+        if (user.status() == UserStatus.DEACTIVATED) {
+            // 列挙対策のため通常の 401 と同じ例外を投げる。 server log には deactivated を残す。
+            LOG.info("認証失敗 reason=user-deactivated userId={}", user.id().value());
             throw new AuthenticationFailedException();
         }
 

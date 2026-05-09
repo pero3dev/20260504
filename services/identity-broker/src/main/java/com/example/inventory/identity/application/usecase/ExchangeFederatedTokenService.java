@@ -29,6 +29,7 @@ import com.example.inventory.identity.domain.model.TenantStatus;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
 import com.example.inventory.identity.domain.model.UserId;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 /**
  * 外部 IdP の access token を Identity Broker のセッショントークンへ交換する usecase(F2 phase C)。
@@ -98,6 +99,15 @@ public class ExchangeFederatedTokenService implements ExchangeFederatedTokenUseC
 
         UserEmail email = parseEmailOrThrow(subject);
         User user = userRepository.findByEmail(email).orElseGet(() -> jitProvision(email, subject));
+
+        if (user.status() == UserStatus.DEACTIVATED) {
+            // 列挙対策のため通常の 401 と同じ例外。 federated 経路でも DEACTIVATED 既存 user を新セッションで甦らせない。
+            LOG.info(
+                    "federated 認証失敗 reason=user-deactivated issuer={} userId={}",
+                    subject.issuer(),
+                    user.id().value());
+            throw new AuthenticationFailedException();
+        }
 
         List<TenantMembership> memberships = membershipRepository.findByUserId(user.id());
         if (memberships.isEmpty()) {

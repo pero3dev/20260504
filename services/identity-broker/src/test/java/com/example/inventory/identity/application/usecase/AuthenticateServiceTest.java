@@ -29,6 +29,7 @@ import com.example.inventory.identity.domain.model.TenantMembership;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
 import com.example.inventory.identity.domain.model.UserId;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 class AuthenticateServiceTest {
 
@@ -112,6 +113,30 @@ class AuthenticateServiceTest {
                                 service.authenticate(
                                         new AuthenticateUseCase.Command(
                                                 "alice@example.com", "wrong")))
+                .isInstanceOf(AuthenticationFailedException.class);
+
+        verify(tokens, never()).issueSessionToken(any(), any(), any());
+    }
+
+    @Test
+    void DEACTIVATED_user_はパスワード合致でも認証失敗_列挙攻撃対策() {
+        User deactivated =
+                User.restore(
+                        new UserId(100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        1L,
+                        UserStatus.DEACTIVATED,
+                        java.time.Instant.parse("2026-04-01T00:00:00Z"));
+        when(users.findByEmail(any())).thenReturn(Optional.of(deactivated));
+        when(passwords.matches(any(), any())).thenReturn(true);
+
+        assertThatThrownBy(
+                        () ->
+                                service.authenticate(
+                                        new AuthenticateUseCase.Command(
+                                                "alice@example.com", "correct-password")))
                 .isInstanceOf(AuthenticationFailedException.class);
 
         verify(tokens, never()).issueSessionToken(any(), any(), any());

@@ -10,6 +10,7 @@ import com.example.inventory.identity.domain.model.PasswordHash;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
 import com.example.inventory.identity.domain.model.UserId;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 @Repository
 public class UserRepositoryImpl implements UserRepository {
@@ -39,21 +40,35 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public void save(User user) {
-        mapper.insert(
-                new UserRow(
-                        user.id().value(),
-                        user.email().value(),
-                        user.passwordHash().value(),
-                        user.displayName(),
-                        user.version()));
+        mapper.insert(toRow(user));
+    }
+
+    @Override
+    public int update(User user) {
+        return mapper.update(toRow(user));
+    }
+
+    private static UserRow toRow(User user) {
+        return new UserRow(
+                user.id().value(),
+                user.email().value(),
+                user.passwordHash().value(),
+                user.displayName(),
+                user.version(),
+                user.status().name(),
+                user.deactivatedAt());
     }
 
     private static User toDomain(UserRow row) {
+        UserStatus status =
+                row.status() == null ? UserStatus.ACTIVE : UserStatus.valueOf(row.status());
         return User.restore(
                 new UserId(row.id()),
                 new UserEmail(row.email()),
                 new PasswordHash(row.passwordHash()),
                 row.displayName(),
-                row.version());
+                row.version(),
+                status,
+                row.deactivatedAt());
     }
 }

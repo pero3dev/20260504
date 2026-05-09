@@ -37,6 +37,7 @@ import com.example.inventory.identity.domain.model.TenantStatus;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
 import com.example.inventory.identity.domain.model.UserId;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 class ExchangeFederatedTokenServiceTest {
 
@@ -376,6 +377,34 @@ class ExchangeFederatedTokenServiceTest {
         ArgumentCaptor<TenantMembership> mCaptor = ArgumentCaptor.forClass(TenantMembership.class);
         verify(memberships).add(mCaptor.capture());
         assertThat(mCaptor.getValue().roleNames()).containsExactly("VIEWER");
+    }
+
+    @Test
+    void DEACTIVATED_既存_user_は_federated_認証失敗_列挙攻撃対策() {
+        when(verifier.verify("provider-jwt"))
+                .thenReturn(IdpTokenVerifier.Subject.of("alice@example.com", COGNITO_ISSUER));
+        User deactivated =
+                User.restore(
+                        new UserId(100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        1L,
+                        UserStatus.DEACTIVATED,
+                        Instant.parse("2026-04-01T00:00:00Z"));
+        when(users.findByEmail(new UserEmail("alice@example.com")))
+                .thenReturn(Optional.of(deactivated));
+
+        assertThatThrownBy(
+                        () ->
+                                service(jitDisabled())
+                                        .exchange(
+                                                new ExchangeFederatedTokenUseCase.Command(
+                                                        "provider-jwt")))
+                .isInstanceOf(AuthenticationFailedException.class);
+
+        verify(memberships, never()).findByUserId(any());
+        verify(tokens, never()).issueSessionToken(any(), any(), any());
     }
 
     @Test

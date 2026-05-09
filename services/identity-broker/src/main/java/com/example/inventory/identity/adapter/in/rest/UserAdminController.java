@@ -12,6 +12,7 @@ import com.example.inventory.identity.adapter.in.rest.api.model.MembershipResour
 import com.example.inventory.identity.adapter.in.rest.api.model.RegisterUserRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.UserResource;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
+import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
@@ -37,16 +38,19 @@ public class UserAdminController implements AdminUsersApi {
     private final RegisterUserUseCase registerUser;
     private final AddUserMembershipUseCase addUserMembership;
     private final RemoveUserMembershipUseCase removeUserMembership;
+    private final DeactivateUserUseCase deactivateUser;
 
     public UserAdminController(
             GetUserUseCase getUser,
             RegisterUserUseCase registerUser,
             AddUserMembershipUseCase addUserMembership,
-            RemoveUserMembershipUseCase removeUserMembership) {
+            RemoveUserMembershipUseCase removeUserMembership,
+            DeactivateUserUseCase deactivateUser) {
         this.getUser = getUser;
         this.registerUser = registerUser;
         this.addUserMembership = addUserMembership;
         this.removeUserMembership = removeUserMembership;
+        this.deactivateUser = deactivateUser;
     }
 
     @Override
@@ -86,6 +90,11 @@ public class UserAdminController implements AdminUsersApi {
         removeUserMembership.removeMembership(
                 new RemoveUserMembershipUseCase.Command(userId, tenantId));
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<UserResource> deactivateUser(Long userId) {
+        return ResponseEntity.ok(toResource(deactivateUser.deactivate(userId)));
     }
 
     private UserResource toResource(User user) {

@@ -24,4 +24,11 @@ public interface UserRepository {
      * 例外として上げる(caller は AuthenticationFailedException に丸めて 列挙攻撃対策と整合させる)。
      */
     void save(User user);
+
+    /**
+     * 既存 User の status / deactivatedAt を UPDATE する(A5 follow-up¹⁵ deactivate 経路)。
+     *
+     * @return 影響行数(0 = id 該当無し、 1 = 更新完了)
+     */
+    int update(User user);
 }

@@ -187,6 +187,18 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹⁵ user 全体の deactivate ライフサイクルを追加**(¹⁴ の個別 unlink-membership より大きい粒度の offboarding。 `tenant deactivate` が tenant 全体を凍結するのと対称的に user 全体を凍結する。 これで user lifecycle が `register → addMembership → removeMembership → deactivate` で完結):
+    - **`UserStatus` enum 新設**(ACTIVE / DEACTIVATED)+ `User` 集約に `status` / `deactivatedAt` フィールド + `deactivate(Instant now)` ドメインメソッド(`Tenant.deactivate` と同じく ACTIVE → DEACTIVATED 一方向遷移、 既に DEACTIVATED でも冪等)
+    - **`User.restore` を 5-arg / 7-arg にオーバーロード**(後方互換)。 5-arg は status=ACTIVE / deactivatedAt=null で defaults
+    - **V5 migration**: `users` に `status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK ('ACTIVE'|'DEACTIVATED')` + `deactivated_at TIMESTAMPTZ` + `users_status_idx` を追加
+    - **`UserRepository.update(User): int`** 追加 + `UserMapper` の `<update>` SQL(`status / deactivated_at / updated_at` を更新)。 `findByEmail/findById/findAll` の `SELECT` 句に新カラムを足す
+    - **port-in**: `DeactivateUserUseCase` 新設(冪等、404 のみ)
+    - **`UserManagementService` に `Clock` 注入**(deactivatedAt 採番のため)+ 5 つ目の port を実装。 `@Auditable("USER_DEACTIVATE")` を付与
+    - **`AuthenticateService` / `ExchangeFederatedTokenService` で DEACTIVATED user を 401 (`AuthenticationFailedException`) で弾く**(列挙対策のため通常の 401 と同じ例外)。 既発行 access token は TTL 切れまで有効、 即時 revocation は別 phase
+    - **OpenAPI 仕様**:`POST /v1/admin/users/{userId}/deactivate` 追加(200 で `UserResource`、 404 / 401 / 403)
+    - **`UserAdminController.deactivateUser`** 実装、 5 つ目の `@MockitoBean DeactivateUserUseCase` を `AdminSecurityTest` に追加
+    - **テスト 5 ケース追加**(18/18 + Authenticate 5/5 + ExchangeFederatedToken 12/12 = 59):`UserManagementServiceTest.deactivate` 3 ケース(正常 / 冪等 / 該当無し)、 `AuthenticateServiceTest.DEACTIVATED_user は認証失敗`、 `ExchangeFederatedTokenServiceTest.DEACTIVATED_既存_user は federated 認証失敗`
+    - **README** Future Work から該当行を「user 全体 deactivate 実装済」に書換、 即時 token revocation のみ次 phase 課題として残す
 - **A5 follow-up¹⁴ membership 取消の REST API**(¹³ の addMembership と対をなす offboarding 経路。 「user X の tenant Y へのアクセスだけ取り消す」操作。 `tenantId 全体 deactivate` (follow-up¹) は全 user 影響で 範囲が広すぎる、 個別 unlinkが必要):
     - **OpenAPI 仕様**: `DELETE /v1/admin/users/{userId}/memberships/{tenantId}` を追加(204=削除完了 / 401 / 403 / 404)。 既発行 access token は TTL 切れまで有効である事と、 audit trail は audit-service WORM chain で残ることを description に明記
     - **port-in**: `RemoveUserMembershipUseCase` 新設 + `UserMembershipNotFoundException`(`ERR_USER_MEMBERSHIP_NOT_FOUND` / 404)

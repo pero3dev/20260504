@@ -7,7 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,8 +38,11 @@ import com.example.inventory.identity.domain.model.TenantStatus;
 import com.example.inventory.identity.domain.model.User;
 import com.example.inventory.identity.domain.model.UserEmail;
 import com.example.inventory.identity.domain.model.UserId;
+import com.example.inventory.identity.domain.model.UserStatus;
 
 class UserManagementServiceTest {
+
+    private static final Instant NOW = Instant.parse("2026-05-10T12:00:00Z");
 
     private UserRepository userRepository;
     private TenantRepository tenantRepository;
@@ -51,9 +56,10 @@ class UserManagementServiceTest {
         tenantRepository = Mockito.mock(TenantRepository.class);
         membershipRepository = Mockito.mock(TenantMembershipRepository.class);
         idGenerator = Mockito.mock(SnowflakeIdGenerator.class);
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service =
                 new UserManagementService(
-                        userRepository, tenantRepository, membershipRepository, idGenerator);
+                        userRepository, tenantRepository, membershipRepository, idGenerator, clock);
     }
 
     private static Tenant activeTenant(String id) {
@@ -286,6 +292,57 @@ class UserManagementServiceTest {
 
         verify(membershipRepository, never()).findByUserAndTenant(any(), any());
         verify(membershipRepository, never()).add(any());
+    }
+
+    // ---------- deactivate (user 全体) ----------
+
+    @Test
+    void deactivate_は_既存_ACTIVE_user_を_DEACTIVATED_に遷移() {
+        User active =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(active));
+        when(userRepository.update(any())).thenReturn(1);
+
+        User result = service.deactivate(900100L);
+
+        assertThat(result.status()).isEqualTo(UserStatus.DEACTIVATED);
+        assertThat(result.deactivatedAt()).isEqualTo(NOW);
+        verify(userRepository).update(result);
+    }
+
+    @Test
+    void deactivate_は_既に_DEACTIVATED_でも_冪等で_update_は呼ぶ() {
+        User deactivated =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L,
+                        UserStatus.DEACTIVATED,
+                        NOW.minusSeconds(3600));
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(deactivated));
+        when(userRepository.update(any())).thenReturn(1);
+
+        User result = service.deactivate(900100L);
+
+        // 冪等(state 維持、 deactivatedAt は最初に立った値のまま)
+        assertThat(result.status()).isEqualTo(UserStatus.DEACTIVATED);
+        assertThat(result.deactivatedAt()).isEqualTo(NOW.minusSeconds(3600));
+        verify(userRepository).update(result);
+    }
+
+    @Test
+    void deactivate_は_該当無しなら_UserNotFoundException() {
+        when(userRepository.findById(new UserId(99L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.deactivate(99L)).isInstanceOf(UserNotFoundException.class);
+        verify(userRepository, never()).update(any());
     }
 
     // ---------- removeMembership ----------

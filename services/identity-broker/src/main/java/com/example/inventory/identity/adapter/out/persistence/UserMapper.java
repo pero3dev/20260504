@@ -15,4 +15,7 @@ public interface UserMapper {
     List<UserRow> findAll();
 
     void insert(@Param("row") UserRow row);
+
+    /** A5 follow-up¹⁵: status / deactivated_at の更新。 戻り値は影響行数(0 = 該当無し、 1 = 更新完了)。 */
+    int update(@Param("row") UserRow row);
 }

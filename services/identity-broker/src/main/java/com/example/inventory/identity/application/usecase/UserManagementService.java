@@ -1,5 +1,6 @@
 package com.example.inventory.identity.application.usecase;
 
+import java.time.Clock;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import com.example.inventory.commons.audit.Auditable;
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
+import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
@@ -47,7 +49,8 @@ public class UserManagementService
         implements GetUserUseCase,
                 RegisterUserUseCase,
                 AddUserMembershipUseCase,
-                RemoveUserMembershipUseCase {
+                RemoveUserMembershipUseCase,
+                DeactivateUserUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserManagementService.class);
 
@@ -58,16 +61,19 @@ public class UserManagementService
     private final TenantRepository tenantRepository;
     private final TenantMembershipRepository membershipRepository;
     private final SnowflakeIdGenerator idGenerator;
+    private final Clock clock;
 
     public UserManagementService(
             UserRepository userRepository,
             TenantRepository tenantRepository,
             TenantMembershipRepository membershipRepository,
-            SnowflakeIdGenerator idGenerator) {
+            SnowflakeIdGenerator idGenerator,
+            Clock clock) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.membershipRepository = membershipRepository;
         this.idGenerator = idGenerator;
+        this.clock = clock;
     }
 
     @Override
@@ -215,5 +221,22 @@ public class UserManagementService
                 "user membership 削除 userId={} tenantId={} 既発行 access token は TTL 切れまで有効",
                 userId.value(),
                 tenantId.value());
+    }
+
+    @Override
+    @Transactional
+    @Auditable(action = "USER_DEACTIVATE", targetType = "User", targetIdExpression = "#userId")
+    public User deactivate(long userId) {
+        UserId id = new UserId(userId);
+        User user =
+                userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(userId));
+        // 既に DEACTIVATED でも update 自体は idempotent に流す(deactivatedAt は domain 側で維持される)。
+        user.deactivate(clock.instant());
+        userRepository.update(user);
+        LOG.info(
+                "user 非活性化 userId={} status={} 既発行 access token は TTL 切れまで有効",
+                user.id().value(),
+                user.status());
+        return user;
     }
 }
