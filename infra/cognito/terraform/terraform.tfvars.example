@@ -1,0 +1,36 @@
+# 本ファイルは tfvars テンプレ。 実体は env ごとに `terraform.<env>.tfvars` を別管理し、
+# CI から `terraform plan -var-file=terraform.prod.tfvars` で当てる。 SAML metadata URL
+# は IdP ごとに変わるので必ず env ごとに上書きする。
+env_name                = "prod"
+user_pool_name          = "inventory-platform-prod"
+user_pool_domain_prefix = "inventory-platform-prod"
+
+# Azure AD: 「フェデレーション メタデータ XML」のダウンロード URL。
+# Okta: IdP metadata URL。
+# Google Workspace: SSO 設定画面の Metadata URL。
+saml_metadata_url = "https://login.example.com/federationmetadata.xml"
+
+# 必要に応じて attribute mapping を上書き(default は `variables.tf` 参照)。
+# saml_attribute_mapping = {
+#   email      = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+#   given_name = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+# }
+
+app_clients = {
+  "web-retail-ec" = {
+    callback_urls = ["https://retail-ec.app.example.com/callback"]
+    logout_urls   = ["https://retail-ec.app.example.com/"]
+  }
+  "web-manufacturing" = {
+    callback_urls = ["https://manufacturing.app.example.com/callback"]
+    logout_urls   = ["https://manufacturing.app.example.com/"]
+  }
+  "web-tpl" = {
+    callback_urls = ["https://tpl.app.example.com/callback"]
+    logout_urls   = ["https://tpl.app.example.com/"]
+  }
+  "web-wholesale" = {
+    callback_urls = ["https://wholesale.app.example.com/callback"]
+    logout_urls   = ["https://wholesale.app.example.com/"]
+  }
+}

@@ -168,6 +168,17 @@
     - **memberships 0 件防御**:既存ユーザでも accessibleTenants が空なら `AuthenticationFailedException`(過去 batch 不整合等で User 単独 row が残るケースを安全側に倒す)
     - **test**: `ExchangeFederatedTokenServiceTest` を JIT 対応に書き直し、 9 ケース(従来 4 + JIT 5)で網羅:happy / 検証失敗 / JIT 無効 user 不在 / subject not email / **JIT 有効で provision 成功 + ArgumentCaptor で User と Membership 内容を assert** / JIT 有効 default-tenant 未設定 / default-tenant DB 不在 / default-tenant DEACTIVATED / memberships 空
     - F2 残: Cognito User Pool / SAML IdP 設定の Terraform / CDK IaC 化(現在は `infra/cognito/README.md` に AWS CLI ランブックのみ)
+- **F2 phase F Cognito User Pool + SAML Federation の Terraform IaC 化**(phase E までで Identity Broker 側 federation 実装は完成、 ここで AWS リソース定義を CLI ランブックから IaC SoR に格上げ):
+    - **`infra/cognito/terraform/`** 新設、 7 ファイル(`versions.tf` / `variables.tf` / `main.tf` / `saml-idp.tf` / `app-clients.tf` / `outputs.tf` / `terraform.tfvars.example`)+ `README.md`。 `terraform 1.7+` / `aws provider ~> 5.70` で pin、 backend は S3 + DynamoDB lock の placeholder を `versions.tf` に置く(本タスクでは未有効化、 環境準備後に init)
+    - **`aws_cognito_user_pool`**: `username_attributes=email` / `auto_verified_attributes=email` / 強い password policy(SAML 経由でも Cognito 必須なので 12 文字大小数字記号)/ `admin_create_user_config.allow_admin_create_user_only=true`(SCIM / 手動投入のみ)/ MFA OFF(SAML IdP 側で実施)/ recovery=verified_email
+    - **`aws_cognito_user_pool_domain`**: Hosted UI 用ドメイン prefix を `^[a-z0-9-]{3,63}$` で validate
+    - **`aws_cognito_identity_provider`**: SAML provider(provider_name=`CorporateSAML`、 metadata URL を変数で注入、 `attribute_mapping` は default に `email` / `given_name` / `family_name` / `custom:employee_id` を含める)
+    - **`aws_cognito_user_pool_client` × 4**: `for_each = var.app_clients` で 4 業態(retail-ec / manufacturing / tpl / wholesale)に同型展開。 `supported_identity_providers=[CorporateSAML]` で SAML 経由のみに固定、 PKCE + `code` grant のみ、 SPA 想定で `generate_secret=false`、 access/id token=60 分 / refresh=30 日、 `prevent_user_existence_errors=ENABLED`(列挙攻撃対策)
+    - **`outputs.tf`**: K8s ConfigMap / Secret に注入する 8 値(`issuer_uri` / `jwks_uri` / `app_client_ids[*]` / `saml_acs_url` / `saml_entity_id` / `hosted_ui_base_url` / `user_pool_id` / `user_pool_arn`)。 `saml_acs_url` と `saml_entity_id` は SAML IdP 管理画面に手動登録する値(IdP 側 IaC は phase 範囲外)
+    - **`terraform.tfvars.example`**: env ごとに `terraform.<env>.tfvars` をコピー → `metadata_url` / callback URL を実値に置換 → `terraform plan -var-file=...` で適用するフロー
+    - **親 `infra/cognito/README.md` 更新**:冒頭に `prod は ./terraform/ の IaC を使う` 注記追加、 構成図に `terraform/` を追加、 既知の制約から「IaC 化は後タスク」を削除、 JIT provisioning は phase E で実装済に書換
+    - effect: prod 変更は全て `terraform plan` 経由で SecOps レビュー可能、 drift 検知は `terraform plan -detailed-exitcode` を CI で週次実行する想定(別タスクで wiring)。 AWS Console 直接編集は緊急時のみ
+    - F2 残: SAML IdP 側(Azure AD / Okta / Google Workspace)の IaC 化 — IdP ごとに API / 管理画面が違うため Terraform 化は次フェーズ。 metadata URL / Reply URL / Entity ID / NameID format / attribute statement の手動登録が前提
 - **F4 follow-up phase B Toast / Dialog / Select の animation 復元**(phase A で `tailwindcss-animate` plugin 未導入のため意図的に削除していた `data-[state=open]:animate-in` 等を、 plugin 配線後に復元):
     - **`tailwindcss-animate` ^1.0.7 を `@inventory/ui` の dependencies に追加**(本 plugin は `animate-in` / `animate-out` / `fade-in` / `fade-out` / `slide-in-from-right` / `zoom-in-95` などの utility を Tailwind に追加し、 Radix の `data-state="open|closed"` 遷移と組合せて宣言的に animation を書ける)
     - **`packages/ui/src/tailwind-preset.ts` の `plugins` に bundle**(各 web app は preset 継承で自動的に utility 利用可能)。 packages/ui 内の Storybook も同 preset を継承するため stories 上でも animation が動く
