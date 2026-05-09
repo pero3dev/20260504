@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -7,6 +6,7 @@ import { defineConfig } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// 純粋な vite 設定。 vitest の test 設定は `vitest.config.ts` に分離。
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -30,10 +30,5 @@ export default defineConfig({
         silentRenew: path.resolve(__dirname, 'silent-renew.html'),
       },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./src/test-setup.ts'],
   },
 });

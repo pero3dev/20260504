@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -7,6 +6,9 @@ import { defineConfig } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// 純粋な vite 設定。 vitest の test 設定は `vitest.config.ts` に分離している
+// (vite 6 + vitest 3 の defineConfig overload 解決で `test` 属性の型 augmentation
+// が落ちることがあるため、 関心事を 2 ファイルに分ける)。
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -30,10 +32,5 @@ export default defineConfig({
         silentRenew: path.resolve(__dirname, 'silent-renew.html'),
       },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./src/test-setup.ts'],
   },
 });
