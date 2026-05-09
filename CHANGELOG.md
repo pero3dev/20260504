@@ -213,6 +213,24 @@
     - **smoke 接続(retail-ec のみ)**: dashboard で fetch 完了時に `useToast` を呼び、 成功 / 失敗 / 該当なし を i18n 化された通知として表示。 catalog ja/en に `dashboard.toast.{fetch_success_title, fetch_success_description, fetch_failed_title, not_found_title}` 追加。 残 3 業態への接続は実際の mutation が出てきた phase で配線
     - **animation class は意図的に省略**: 当初 `data-[state=open]:animate-in fade-in` 等を入れたが `tailwindcss-animate` plugin が preset に未導入で機能しないため削除。 必要になった時 plugin 追加 + class 復元の予定。 機能としては Radix の即時 mount / unmount で動作
     - 残作業候補: `<Combobox>`(autosuggest 必要になったら)/ Dialog から SubmitButton + Form 連動の confirm dialog ヘルパー / Toast に countdown progress bar
+- **F5 Storybook 8 + addon-a11y(a11y 第 3 層)導入**(ADR-0022 の a11y 4 層防御の第 3 層を実体化、 design system の docs / 視覚 regression / a11y check の足場):
+    - **packages/ui に Storybook 8.4 + Vite 6 ビルダ install**(`@storybook/react-vite` + `@storybook/addon-essentials` + `@storybook/addon-a11y` + `@storybook/addon-interactions` + `@storybook/test`)。 設定は `.storybook/main.ts`(framework / stories glob / addons)+ `.storybook/preview.ts`(global parameters: a11y addon 全 story 有効、 backgrounds、 controls)
+    - **packages/ui 単独で Tailwind を回せる体制**: `packages/ui/tailwind.config.ts`(F4 で切り出した `tailwind-preset` を継承、 content scope は本パッケージの src)+ `packages/ui/postcss.config.js`(tailwindcss + autoprefixer)。 `preview.ts` から `'../src/styles.css'` を import して全 stories に CSS 変数 / Tailwind utility が効く
+    - **既存 9 component 全てに smoke stories 追加**:
+        - `Button`(primary / secondary / ghost / disabled の 4 variant)
+        - `Pagination`(Middle / FirstPage / LastPage / Pending の 4 状態)
+        - `Toast`(success / error / default / 永続 toast の 4 variant、 ToastProvider decorator で発火デモ)
+        - `Dialog`(削除確認 dialog のフルフロー、 Trigger → Content → Footer → Close)
+        - `Select`(controlled、 4 ステータス選択肢、 value 表示で双方向 binding 確認)
+        - `Form` + `FormField` + `SubmitButton`(zod schema + react-hook-form + Sync / AsyncWithPending 2 ケース、 pending 時 SubmitButton が `保存中...` に切替)
+        - `DataTable`(InventoryList / Empty 2 ケース、 generic 解消用 wrapper 経由)
+        - `LineChart`(Default 2 series + WithUnitFormatter で valueFormatter `{{value}} 個` を確認、 600px wrapper decorator)
+        - `DefaultErrorFallback`(本物 Error object を渡してメッセージ表示確認)
+    - **a11y 第 3 層が稼働**: addon-a11y は axe-core を全 stories に対して実行し、 違反は Stories panel に表示。 jsx-a11y(第 1 層、 lint 時)+ axe-core dev mode polling(第 2 層、 web app 起動時)+ Storybook addon-a11y(第 3 層、 component 単位で隔離)+ 手動 checklist(第 4 層、 release 前)で ADR-0022 の 4 層防御が完成
+    - **generic component の Meta 推論回避**: `LineChart<TPoint>` / `DataTable<T>` は generic なため `Meta<typeof Component>` で argTypes が `unknown` に潰れる。 specialized wrapper(`LineChartStory(props: LineChartProps<TrendPoint>)` / `DataTableInventory(props: ...)`)経由で型推論を維持する pattern を確立
+    - **CI への影響**: stories は `src/**/*.stories.tsx` で main tsconfig の include 配下に入るため `pnpm typecheck` で型検査される(CI で stories の型エラーも検出)。 `build-storybook` は別 script で turbo `build` task に未連結(必要になった時 `^build` 含めて連結)
+    - **dependencies / animation の制約**: `tailwindcss-animate` は preset 未導入のため Toast / Dialog / Select の `data-[state=open]:animate-in` 等は phase A で削除済。 plugin 導入 + class 復元は一括で別 PR
+    - 残作業候補: web app 単位の Storybook(dashboard 全体を story 化)/ chromatic 等の visual regression / addon-interactions で submit flow E2E テスト / `tailwindcss-animate` plugin 導入 + Toast/Dialog/Select の animation 復元
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料
