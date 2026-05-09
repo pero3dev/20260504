@@ -3,7 +3,7 @@
   "ui": "stream",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "codegen"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
@@ -11,14 +11,20 @@
       "persistent": true
     },
     "lint": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": ["codegen"]
     },
     "typecheck": {
       "outputs": [],
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "codegen"]
     },
     "test": {
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "dependsOn": ["codegen"]
+    },
+    "codegen": {
+      "inputs": ["codegen.ts", "src/lib/graphql-client.ts", "../bff-*/src/schema.graphql"],
+      "outputs": ["src/__generated__/**"]
     }
   }
 }

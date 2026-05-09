@@ -187,6 +187,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **F6 follow-up phase 1 GraphQL Codegen 導入(retail-ec pilot)**(BFF schema 駆動の TS 型生成。 4 web app で hand-written interface(`InventoryQueryResult` 等)が BFF schema からドリフトするリスクを build 時 typecheck で潰す。 retail-ec 1 業態で pilot 検証 → CI 緑化を確認後、 残 3 業態に同型展開する 2 段構え):
+    - **deps**: `@graphql-codegen/cli` ^5.0.3 + `@graphql-codegen/typescript` ^4.1.2 + `@graphql-codegen/typescript-operations` ^4.4.0 を retail-ec の devDependencies に追加(pilot 期間は他 web app は無変更)
+    - **`apps/web-retail-ec/codegen.ts`** 新設(TS 設定ファイル。 schema=`../bff-retail-ec/src/schema.graphql` / documents=`src/lib/graphql-client.ts` の `gql\`\`` テンプレ / 出力 `src/__generated__/graphql.ts` / config: `skipTypename: true`(現行 interface 互換)+ `useTypeImports: true` + scalars `DateTime` → `string`)
+    - **`pnpm codegen`** script を retail-ec に追加(`graphql-codegen --config codegen.ts`)
+    - **`src/lib/graphql-client.ts` を生成型に refactor**:hand-written `InventoryQueryResult` / `ViewerQueryResult` interface を `import type { InventoryQuery, ... } from '../__generated__/graphql'` に置換、 `client.request<T, V>` の 2 引数 generics で `Variables` 型も schema 駆動に。 後方互換のため `export type InventoryQueryResult = InventoryQuery` の alias は残す
+    - **turbo.json に `codegen` task 追加**:`inputs=[codegen.ts, src/lib/graphql-client.ts, ../bff-*/src/schema.graphql]` / `outputs=src/__generated__/**`。 `typecheck` / `lint` / `test` / `build` に `dependsOn: [codegen]` を追加し、 CI が turbo 経由で何を回しても codegen が事前に走るようにする(他 packages は codegen script を持たないので turbo が skip)
+    - **`__generated__/`** は frontend `.gitignore` で既に対象。 commit せず CI 内 + 開発者 `pnpm codegen` で生成
+    - **次フェーズ予定**: 残 3 web app(manufacturing / tpl / wholesale)の同型展開。 codegen.ts は schema パス + documents パスを書換えるだけで動く想定
 - **F4 follow-up phase C Popover + Command + Combobox 追加**(phase A で建てた design system に autosuggest / search palette を追加、 SKU / 取引先 / location 選択など候補多数の入力 UI に使う):
     - **deps**: `@radix-ui/react-popover` ^1.1.4 + `cmdk` ^1.0.4 を `@inventory/ui` の dependencies に追加
     - **`Popover`**(`@radix-ui/react-popover` 背後): `Popover` / `PopoverTrigger` / `PopoverAnchor` / `PopoverContent` の compound API。 outside-click 閉 / ESC 閉 / focus 管理は Radix 担当、 アニメ classes は phase B の `tailwindcss-animate` 利用
