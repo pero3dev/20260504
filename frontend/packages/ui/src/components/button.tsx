@@ -4,7 +4,9 @@ import { cn } from '../lib/cn.js';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+// stories から `Meta<typeof Button>` 経由で参照されるため export(declaration emit
+// 時に portable な名前付けが必要、 TS4023 回避)。
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
 }
 

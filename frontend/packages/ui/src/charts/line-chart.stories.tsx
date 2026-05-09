@@ -29,7 +29,10 @@ function LineChartStory(props: LineChartProps<TrendPoint>) {
   return <LineChart<TrendPoint> {...props} />;
 }
 
-const meta = {
+// 注意: `satisfies Meta<...>` で書くと decorators の inferred 型が Storybook の
+// 内部 csf module(.pnpm 配下)を参照して TS2742(portable でない)で落ちるため、
+// explicit annotation を使う。
+const meta: Meta<typeof LineChartStory> = {
   title: 'Charts/LineChart',
   component: LineChartStory,
   tags: ['autodocs'],
@@ -40,10 +43,10 @@ const meta = {
       </div>
     ),
   ],
-} satisfies Meta<typeof LineChartStory>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof LineChartStory>;
 
 export const Default: Story = {
   args: {

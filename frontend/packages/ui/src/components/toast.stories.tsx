@@ -49,7 +49,9 @@ function ToastDemo() {
   );
 }
 
-const meta = {
+// `satisfies` だと decorators の inferred 型が Storybook 内部 csf を参照して
+// TS2742 で落ちるため explicit annotation。 LineChart story と同パターン。
+const meta: Meta<typeof ToastDemo> = {
   title: 'Components/Toast',
   component: ToastDemo,
   tags: ['autodocs'],
@@ -60,9 +62,9 @@ const meta = {
       </ToastProvider>
     ),
   ],
-} satisfies Meta<typeof ToastDemo>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof ToastDemo>;
 
 export const Variants: Story = {};

@@ -3,7 +3,7 @@
 // で使用する。
 export { cn } from './lib/cn.js';
 export { AppShell, type AppShellNavItem } from './components/app-shell.js';
-export { Button, type ButtonVariant } from './components/button.js';
+export { Button, type ButtonProps, type ButtonVariant } from './components/button.js';
 export { DataTable, type DataTableColumn } from './components/data-table.js';
 export {
   AuthButtons,
