@@ -23,21 +23,22 @@ const queryClient = new QueryClient({
   },
 });
 
-// MVP は ja 固定。 phase 3 で Identity Broker tenant.locale claim を読んで切替予定。
-const i18n = await createI18n({
-  language: 'ja',
-  resources: mergeResources(defaultResources, retailEcResources),
-});
-
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('#root element not found');
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </I18nextProvider>
-  </StrictMode>,
-);
+// MVP は ja 固定。 phase 3 で Identity Broker tenant.locale claim を読んで切替予定。
+// top-level await を避け esbuild es2020 target でも build できるように .then() で render を遅延。
+void createI18n({
+  language: 'ja',
+  resources: mergeResources(defaultResources, retailEcResources),
+}).then((i18n) => {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </I18nextProvider>
+    </StrictMode>,
+  );
+});

@@ -18,20 +18,20 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
 
-const i18n = await createI18n({
-  language: 'ja',
-  resources: mergeResources(defaultResources, manufacturingResources),
-});
-
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('#root element not found');
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </I18nextProvider>
-  </StrictMode>,
-);
+void createI18n({
+  language: 'ja',
+  resources: mergeResources(defaultResources, manufacturingResources),
+}).then((i18n) => {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </I18nextProvider>
+    </StrictMode>,
+  );
+});
