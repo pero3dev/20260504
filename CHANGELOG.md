@@ -187,6 +187,16 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹³ 既存 user に追加 tenant membership を作成する REST API**(follow-up¹² の register は新規 user + 初期 1 membership を 1 操作で作るが、 user が複数テナントに跨る運用 (例: 親会社 admin が子会社テナントにも触る) ができなかった。 cross-tenant provisioning の最後のピース):
+    - **OpenAPI 仕様**: `POST /v1/admin/users/{userId}/memberships` を追加(req=`AddUserMembershipRequest{tenantId, roleName}` / 201=`MembershipResource{userId,tenantId,tenantDisplayName,tenantLocale,roles}` / 400 / 401 / 403 / 404 / 409)。 description で 「first membership は `POST /v1/admin/users` を使え」 と誘導
+    - **port-in**: `AddUserMembershipUseCase` 新設 + `UserMembershipAlreadyExistsException`(`ERR_USER_MEMBERSHIP_ALREADY_EXISTS` / 409)
+    - **use case**: `UserManagementService implements ... AddUserMembershipUseCase`(3 つ目の port を 1 service に集約)。 `addMembership(Command)` で user 存在 → tenant ACTIVE → 重複 membership 不在 を順に検証、 `@Auditable("USER_MEMBERSHIP_ADD")` で `targetIdExpression` を `userId/tenantId` の複合キーで埋める
+    - **`Command` 型衝突対策**: `RegisterUserUseCase.Command` と `AddUserMembershipUseCase.Command` が同名のため `register` 引数を `RegisterUserUseCase.Command` に明示修飾(コンパイルエラー回避、 1 行修正)
+    - **race 対策**: `findByUserAndTenant` と `add` の間で並列 INSERT があった場合は `DuplicateKeyException` を 409 に丸める
+    - **`UserAdminController.addUserMembership`** が生成 interface を実装、 `MembershipResource` を 201 で返す。 `toMembershipResource(TenantMembership)` ヘルパで domain → DTO 変換
+    - **`UserManagementServiceTest` 拡張**(12 ケース):addMembership 4 ケース追加(正常 / user 不在 → 404 / tenant 不在 → 404 / membership 既存 → 409)
+    - **`AdminSecurityTest`** に `@MockitoBean AddUserMembershipUseCase` を追加(controller の 3 つ目の依存に追従)
+    - **README** Future Work から該当行を「membership 追加実装済」に書換、 deactivate / unlink-membership は引続き次 phase
 - **A5 follow-up¹² admin 向け user 登録 REST API (federation-only) を追加**(follow-up³ で読み取り API、 ⁶ で SQL 直入れ ops 経路、 ¹¹ で SAML 連携 JIT を整えてきた user 管理経路の write 系の最初のピース。 「admin が Bob を acme テナントの INVENTORY_MANAGER として作る」 を REST 1 操作で完結させる):
     - **OpenAPI 仕様**:`POST /v1/admin/users` を追加(req=`RegisterUserRequest{email, displayName, tenantId, roleName}` / 201=`UserResource` / 400 / 401 / 403 / 404 / 409)。 federation-only である事と、 password 経路が必要なら ops SQL を案内する事を description に明記
     - **port-in**: `RegisterUserUseCase` 新設 + `UserAlreadyExistsException`(`ERR_USER_ALREADY_EXISTS` / 409)。 既存 `TenantNotFoundException` を tenant 不在 + DEACTIVATED の両方で再利用(admin に対しては存在/非活性を区別せずに 404 で揃え、 列挙負荷を下げる)

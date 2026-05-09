@@ -18,9 +18,11 @@ import org.mockito.Mockito;
 
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.commons.tenant.TenantId;
+import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.UserAlreadyExistsException;
+import com.example.inventory.identity.application.port.in.UserMembershipAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.UserNotFoundException;
 import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.application.port.out.TenantRepository;
@@ -214,5 +216,108 @@ class UserManagementServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(tenantRepository, never()).findById(any());
+    }
+
+    // ---------- addMembership ----------
+
+    @Test
+    void addMembership_は_既存_user_に_新規_membership_を作成する() {
+        User existing =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(existing));
+        when(tenantRepository.findById(new TenantId("acme")))
+                .thenReturn(Optional.of(activeTenant("acme")));
+        when(membershipRepository.findByUserAndTenant(new UserId(900100L), new TenantId("acme")))
+                .thenReturn(Optional.empty());
+
+        TenantMembership result =
+                service.addMembership(
+                        new AddUserMembershipUseCase.Command(900100L, "acme", "INVENTORY_MANAGER"));
+
+        assertThat(result.userId().value()).isEqualTo(900100L);
+        assertThat(result.tenantId().value()).isEqualTo("acme");
+        assertThat(result.tenantDisplayName()).isEqualTo("Display acme");
+        assertThat(result.tenantLocale()).isEqualTo("ja");
+        assertThat(result.roleNames()).containsExactly("INVENTORY_MANAGER");
+
+        verify(membershipRepository).add(any());
+    }
+
+    @Test
+    void addMembership_は_user_不在なら_UserNotFoundException() {
+        when(userRepository.findById(new UserId(99L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.addMembership(
+                                        new AddUserMembershipUseCase.Command(
+                                                99L, "acme", "VIEWER")))
+                .isInstanceOf(UserNotFoundException.class);
+
+        verify(tenantRepository, never()).findById(any());
+        verify(membershipRepository, never()).add(any());
+    }
+
+    @Test
+    void addMembership_は_tenant_不在なら_TenantNotFoundException() {
+        User existing =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(existing));
+        when(tenantRepository.findById(new TenantId("ghost"))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.addMembership(
+                                        new AddUserMembershipUseCase.Command(
+                                                900100L, "ghost", "VIEWER")))
+                .isInstanceOf(TenantNotFoundException.class);
+
+        verify(membershipRepository, never()).findByUserAndTenant(any(), any());
+        verify(membershipRepository, never()).add(any());
+    }
+
+    @Test
+    void addMembership_は_既存_membership_なら_UserMembershipAlreadyExistsException() {
+        User existing =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L);
+        TenantMembership existingMembership =
+                new TenantMembership(
+                        new UserId(900100L),
+                        new TenantId("acme"),
+                        "Acme",
+                        "ja",
+                        java.util.List.of(
+                                new com.example.inventory.identity.domain.model.RoleName("VIEWER")),
+                        java.util.List.of(),
+                        java.util.List.of());
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(existing));
+        when(tenantRepository.findById(new TenantId("acme")))
+                .thenReturn(Optional.of(activeTenant("acme")));
+        when(membershipRepository.findByUserAndTenant(new UserId(900100L), new TenantId("acme")))
+                .thenReturn(Optional.of(existingMembership));
+
+        assertThatThrownBy(
+                        () ->
+                                service.addMembership(
+                                        new AddUserMembershipUseCase.Command(
+                                                900100L, "acme", "INVENTORY_MANAGER")))
+                .isInstanceOf(UserMembershipAlreadyExistsException.class);
+
+        verify(membershipRepository, never()).add(any());
     }
 }

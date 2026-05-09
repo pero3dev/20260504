@@ -11,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.inventory.commons.audit.Auditable;
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.commons.tenant.TenantId;
+import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.TenantNotFoundException;
 import com.example.inventory.identity.application.port.in.UserAlreadyExistsException;
+import com.example.inventory.identity.application.port.in.UserMembershipAlreadyExistsException;
 import com.example.inventory.identity.application.port.in.UserNotFoundException;
 import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.application.port.out.TenantRepository;
@@ -39,7 +41,8 @@ import com.example.inventory.identity.domain.model.UserId;
  * {@code read = true} で参照行為も audit。
  */
 @Service
-public class UserManagementService implements GetUserUseCase, RegisterUserUseCase {
+public class UserManagementService
+        implements GetUserUseCase, RegisterUserUseCase, AddUserMembershipUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserManagementService.class);
 
@@ -85,7 +88,7 @@ public class UserManagementService implements GetUserUseCase, RegisterUserUseCas
     @Override
     @Transactional
     @Auditable(action = "USER_REGISTER", targetType = "User", targetIdExpression = "#command.email")
-    public User register(Command command) {
+    public User register(RegisterUserUseCase.Command command) {
         UserEmail email = new UserEmail(command.email());
         TenantId tenantId = new TenantId(command.tenantId());
         RoleName role = new RoleName(command.roleName());
@@ -134,5 +137,57 @@ public class UserManagementService implements GetUserUseCase, RegisterUserUseCas
                 tenantId.value(),
                 role.value());
         return newUser;
+    }
+
+    @Override
+    @Transactional
+    @Auditable(
+            action = "USER_MEMBERSHIP_ADD",
+            targetType = "TenantMembership",
+            targetIdExpression = "#command.userId + '/' + #command.tenantId")
+    public TenantMembership addMembership(AddUserMembershipUseCase.Command command) {
+        UserId userId = new UserId(command.userId());
+        TenantId tenantId = new TenantId(command.tenantId());
+        RoleName role = new RoleName(command.roleName());
+
+        // user 不在は 404。 race で findById 後に削除された場合の整合性は本 phase 範囲外。
+        userRepository
+                .findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(command.userId()));
+
+        Tenant tenant =
+                tenantRepository
+                        .findById(tenantId)
+                        .orElseThrow(() -> new TenantNotFoundException(command.tenantId()));
+        if (tenant.status() == TenantStatus.DEACTIVATED) {
+            throw new TenantNotFoundException(command.tenantId());
+        }
+
+        if (membershipRepository.findByUserAndTenant(userId, tenantId).isPresent()) {
+            throw new UserMembershipAlreadyExistsException(command.userId(), command.tenantId());
+        }
+
+        TenantMembership membership =
+                new TenantMembership(
+                        userId,
+                        tenantId,
+                        tenant.displayName(),
+                        tenant.locale(),
+                        List.of(role),
+                        List.of(),
+                        List.of());
+        try {
+            membershipRepository.add(membership);
+        } catch (DuplicateKeyException e) {
+            // findByUserAndTenant と add の間で並列 INSERT があった稀ケース。 409 で同じ扱い。
+            throw new UserMembershipAlreadyExistsException(command.userId(), command.tenantId());
+        }
+
+        LOG.info(
+                "user membership 追加 userId={} tenantId={} role={}",
+                userId.value(),
+                tenantId.value(),
+                role.value());
+        return membership;
     }
 }
