@@ -56,7 +56,7 @@
 - **日次 Merkle anchor** + 検証 REST(`Sha256MerkleTreeCalculator` + `ComputeDailyMerkleAnchorService`)
 - **DB レベル WORM トリガ** で `audit_record` / `audit_merkle_anchor` の UPDATE/DELETE 拒否
 
-#### ADR(18 本)
+#### ADR(22 本)
 
 | # | タイトル | 状態 |
 |---|---|---|
@@ -66,6 +66,10 @@
 | [0016](docs/adr/0016-per-business-context-compensation-topics.md) | Per-business-context compensation topics | Accepted |
 | [0017](docs/adr/0017-reserve-vs-reserve-ship-selection.md) | Reserve vs Reserve+Ship 使い分け | Accepted |
 | [0018](docs/adr/0018-cancel-vs-cancel-after-reservation-failure.md) | cancel メソッド使い分け | Accepted |
+| [0019](docs/adr/0019-pact-consumer-driven-contract-testing.md) | Pact Consumer-driven contract testing | Accepted |
+| [0020](docs/adr/0020-ci-parallelization-strategy.md) | CI parallelization strategy | Accepted |
+| [0021](docs/adr/0021-pact-broker-production-hosting.md) | Pact Broker 本番ホスティング | Accepted |
+| [0022](docs/adr/0022-frontend-structure-and-libraries.md) | Frontend structure and libraries(F7) | Accepted |
 
 #### CI / Test 強化
 
@@ -146,6 +150,15 @@
     - **web 側 silent token refresh** — `OidcAuthManager` に `automaticSilentRenew=true` + UserManager events(`userLoaded` / `userUnloaded` / `accessTokenExpired` / `silentRenewError`) wiring。 `OidcConfig.silentRedirectUri` 任意項目を追加し、 Vite `VITE_OIDC_SILENT_REDIRECT_URI` env で `/silent-renew.html` を hosting する想定。 prod は accessTokenExpiringNotificationTimeInSeconds の default 60 秒前に hidden iframe で refresh、 失敗時は cache クリアで UI が再 login を促す
     - **infra scaffolding** — `infra/cognito/README.md` に Cognito User Pool + SAML IdP 連携の AWS CLI ランブック(User Pool 作成 → Hosted UI domain → SAML IdP 登録 → App Client → SAML IdP 側 ACS URL 設定 → 配布値)。 `infra/k8s/identity-broker/federation-configmap.yaml`(`FEDERATION_*` env を ConfigMap + Secret で注入)、 `infra/k8s/bff/jwt-configmap.yaml`(`JWT_ISSUER` + `JWT_JWKS_URL` を 4 BFF 共通 ConfigMap で配布)、 `infra/k8s/bff/deployment-snippet.yaml`(`envFrom` 注入の BFF Deployment 雛形)
     - F2 残: SAML JIT provisioning(SCIM 連携 / 別 batch で先行 user 投入)、 Cognito の Terraform / CDK IaC 化、 K8s helm/kustomize overlay は別タスクで切出し
+- **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
+    - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
+    - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料
+    - **form**: `zod` schema + `react-hook-form` + `@hookform/resolvers/zod`。 controlled/uncontrolled 両対応で再 render 最小化、 GraphQL Codegen 型 + zod schema を併存(wire format vs UI バリデーション)
+    - **chart**: `recharts`(主、 declarative、 React 19 対応、 95% カバー)+ `visx`(逃げ道、 個別 chart のみ)。 nivo / Apache ECharts は React wrapper / 19 対応 lag で却下。 大規模 time-series は recharts Canvas → visx + Canvas へ段階的に逃がす
+    - **client state**: server state は TanStack Query、 form は react-hook-form、 router は TanStack Router search params、 local UI は React 標準 `useState`/`useReducer`。 **Redux/Zustand/Jotai は不採用**(global undo / cross-tab sync 等の要件が顕在化したら別 ADR)
+    - **error boundary**: `react-error-boundary` + 3 層(route / suspense+query / app root)。 `@inventory/ui/<DefaultErrorFallback>` を提供
+    - **runtime config**: build-time `VITE_*` env で完結(env ごとに別 image build)。 K8s ConfigMap → window.\_\_ENV\_\_ injection は採らない(SSR でないため意味が小さい)。 緊急 toggle は Unleash で runtime fetch
+    - 実装 phase は 4 段階(skeleton install / 既存 dashboard を i18n + 1 chart 追加 / form を順次 react-hook-form+zod へ統一 / Storybook 導入)で別 PR 切出し
 
 - **F4 共通 design system 切出し(`packages/ui`)** — 4 web app の Tailwind 設定 / CSS 変数 / Header の重複を解消し、 共通 component を 1 パッケージに集約:
     - `packages/ui/src/lib/cn.ts` — shadcn 標準の className マージ helper(`clsx + twMerge`)
