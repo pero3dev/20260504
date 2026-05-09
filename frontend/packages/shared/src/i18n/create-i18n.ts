@@ -26,8 +26,6 @@ export interface CreateI18nOptions {
 export async function createI18n(options: CreateI18nOptions = {}): Promise<i18n> {
   const instance = i18next.createInstance();
   await instance.use(initReactI18next).init({
-    resources: options.resources,
-    lng: options.language,
     fallbackLng: options.fallbackLanguage ?? 'ja',
     defaultNS: 'common',
     ns: ['common'],
@@ -35,6 +33,8 @@ export async function createI18n(options: CreateI18nOptions = {}): Promise<i18n>
       escapeValue: false, // React は JSX 経由で XSS 防御済
     },
     returnNull: false,
+    ...(options.resources !== undefined ? { resources: options.resources } : {}),
+    ...(options.language !== undefined ? { lng: options.language } : {}),
   });
   return instance;
 }
