@@ -1,6 +1,7 @@
 package com.example.inventory.identity.application.usecase;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.inventory.commons.audit.Auditable;
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
+import com.example.inventory.commons.security.RevocationStore;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
@@ -57,23 +59,29 @@ public class UserManagementService
     /** federation-only user の password_hash sentinel。 BCrypt 形式ではないので password 認証では決して通らない。 */
     static final String FEDERATED_PASSWORD_HASH_SENTINEL = "$external_federation$";
 
+    /** ADR-0023 で定義した access token TTL に揃える revocation 登録の TTL。 */
+    private static final Duration REVOCATION_TTL = Duration.ofMinutes(15);
+
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
     private final TenantMembershipRepository membershipRepository;
     private final SnowflakeIdGenerator idGenerator;
     private final Clock clock;
+    private final RevocationStore revocationStore;
 
     public UserManagementService(
             UserRepository userRepository,
             TenantRepository tenantRepository,
             TenantMembershipRepository membershipRepository,
             SnowflakeIdGenerator idGenerator,
-            Clock clock) {
+            Clock clock,
+            RevocationStore revocationStore) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.membershipRepository = membershipRepository;
         this.idGenerator = idGenerator;
         this.clock = clock;
+        this.revocationStore = revocationStore;
     }
 
     @Override
@@ -217,8 +225,12 @@ public class UserManagementService
             throw new UserMembershipNotFoundException(command.userId(), command.tenantId());
         }
 
+        // ADR-0023: 既発行 access token に当該 tenant role が焼き込まれているため、
+        // membership 取消後も TTL までアクセス継続を許してしまう。 user 単位で revoke して即時化。
+        revocationStore.revokeUser(userId.value(), REVOCATION_TTL);
+
         LOG.info(
-                "user membership 削除 userId={} tenantId={} 既発行 access token は TTL 切れまで有効",
+                "user membership 削除 userId={} tenantId={} revoke 登録済(ADR-0023)",
                 userId.value(),
                 tenantId.value());
     }
@@ -233,8 +245,14 @@ public class UserManagementService
         // 既に DEACTIVATED でも update 自体は idempotent に流す(deactivatedAt は domain 側で維持される)。
         user.deactivate(clock.instant());
         userRepository.update(user);
+
+        // ADR-0023: AuthenticateService / ExchangeFederatedTokenService は新規 session 発行を弾くが、
+        // 既発行 access token は signature + exp だけ見る stateless 検証のため TTL までアクセス可能。
+        // user 単位で revoke して即時化(15min TTL = access token TTL で self-expire)。
+        revocationStore.revokeUser(user.id().value(), REVOCATION_TTL);
+
         LOG.info(
-                "user 非活性化 userId={} status={} 既発行 access token は TTL 切れまで有効",
+                "user 非活性化 userId={} status={} revoke 登録済(ADR-0023)",
                 user.id().value(),
                 user.status());
         return user;

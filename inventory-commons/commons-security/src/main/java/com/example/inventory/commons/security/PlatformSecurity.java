@@ -32,21 +32,27 @@ public final class PlatformSecurity {
     private final AccessDeniedHandler accessDeniedHandler;
     private final TenantContextFilter tenantContextFilter;
     private final JwtAuthenticationConverter jwtConverter;
+    private final RevocationCheckFilter revocationCheckFilter;
 
     public PlatformSecurity(
             AuthenticationEntryPoint entryPoint,
             AccessDeniedHandler accessDeniedHandler,
             TenantContextFilter tenantContextFilter,
-            JwtAuthenticationConverter jwtConverter) {
+            JwtAuthenticationConverter jwtConverter,
+            RevocationCheckFilter revocationCheckFilter) {
         this.entryPoint = entryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.tenantContextFilter = tenantContextFilter;
         this.jwtConverter = jwtConverter;
+        this.revocationCheckFilter = revocationCheckFilter;
     }
 
     /**
      * プラットフォーム共通の HttpSecurity 設定を適用し、同じ {@link HttpSecurity} を返す。 呼出側は引き続き {@code
      * authorizeHttpRequests(...).build()} を続けて構成する。
+     *
+     * <p>Filter chain 順:{@code BearerTokenAuthenticationFilter} → {@link
+     * RevocationCheckFilter}(ADR-0023 即時 revocation チェック)→ {@link TenantContextFilter}。
      */
     public HttpSecurity applyDefaults(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
@@ -61,6 +67,7 @@ public final class PlatformSecurity {
                         eh ->
                                 eh.authenticationEntryPoint(entryPoint)
                                         .accessDeniedHandler(accessDeniedHandler))
-                .addFilterAfter(tenantContextFilter, BearerTokenAuthenticationFilter.class);
+                .addFilterAfter(revocationCheckFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(tenantContextFilter, RevocationCheckFilter.class);
     }
 }

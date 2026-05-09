@@ -117,6 +117,14 @@
         <!-- nimbus-jose-jwt は spring-security-oauth2-jose の推移依存(compile scope)で得る。
              RSAKey/JWKSet を直接利用するが Spring Security 経由で版が固定される。 -->
 
+        <!-- ADR-0023 即時 token revocation。 commons-security は optional 依存にしているため、
+             identity-broker (publisher 側) が明示的に有効化する。 production では
+             RedisRevocationStore が選択され、 設定 (spring.data.redis.*) で接続。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- OpenAPI 生成コード用 -->
         <dependency>
             <groupId>io.swagger.core.v3</groupId>

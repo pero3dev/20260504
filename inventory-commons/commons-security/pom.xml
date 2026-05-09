@@ -37,5 +37,20 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
+        <!-- ADR-0023 即時 token revocation 用。 optional=true で commons-security 依存サービスに
+             Redis を強制せず、 spring-boot-starter-data-redis を入れたサービスで自動 RedisRevocationStore が
+             有効化される(@ConditionalOnClass + @ConditionalOnBean RedisConnectionFactory)。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- テスト。 JUnit 5 + Mockito + spring-mock(MockHttpServletRequest 等)を引き込む。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

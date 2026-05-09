@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
+import com.example.inventory.commons.security.RevocationStore;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
@@ -48,6 +50,7 @@ class UserManagementServiceTest {
     private TenantRepository tenantRepository;
     private TenantMembershipRepository membershipRepository;
     private SnowflakeIdGenerator idGenerator;
+    private RevocationStore revocationStore;
     private UserManagementService service;
 
     @BeforeEach
@@ -56,10 +59,16 @@ class UserManagementServiceTest {
         tenantRepository = Mockito.mock(TenantRepository.class);
         membershipRepository = Mockito.mock(TenantMembershipRepository.class);
         idGenerator = Mockito.mock(SnowflakeIdGenerator.class);
+        revocationStore = Mockito.mock(RevocationStore.class);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service =
                 new UserManagementService(
-                        userRepository, tenantRepository, membershipRepository, idGenerator, clock);
+                        userRepository,
+                        tenantRepository,
+                        membershipRepository,
+                        idGenerator,
+                        clock,
+                        revocationStore);
     }
 
     private static Tenant activeTenant(String id) {
@@ -313,6 +322,7 @@ class UserManagementServiceTest {
         assertThat(result.status()).isEqualTo(UserStatus.DEACTIVATED);
         assertThat(result.deactivatedAt()).isEqualTo(NOW);
         verify(userRepository).update(result);
+        verify(revocationStore).revokeUser(900100L, Duration.ofMinutes(15));
     }
 
     @Test
@@ -348,12 +358,13 @@ class UserManagementServiceTest {
     // ---------- removeMembership ----------
 
     @Test
-    void removeMembership_は_該当行を削除する() {
+    void removeMembership_は_該当行を削除し_user_を_revoke_する() {
         when(membershipRepository.delete(new UserId(900100L), new TenantId("acme"))).thenReturn(1);
 
         service.removeMembership(new RemoveUserMembershipUseCase.Command(900100L, "acme"));
 
         verify(membershipRepository).delete(new UserId(900100L), new TenantId("acme"));
+        verify(revocationStore).revokeUser(900100L, Duration.ofMinutes(15));
     }
 
     @Test
