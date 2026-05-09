@@ -1,3 +1,4 @@
+import { startAxeDevScanner } from '@inventory/shared/dev';
 import {
   createI18n,
   defaultResources,
@@ -13,6 +14,10 @@ import { I18nextProvider } from 'react-i18next';
 import { router } from './router';
 
 import '@inventory/ui/styles.css';
+
+if (import.meta.env.DEV) {
+  void startAxeDevScanner();
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

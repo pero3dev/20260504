@@ -165,6 +165,12 @@
     - `web-retail-ec` に `<LineChart>`(`@inventory/ui/charts`)で「直近 7 日の在庫推移(デモ)」を追加。 mock データだが ResponsiveContainer + 凡例 + Tooltip + CSS 変数色の wiring を vertical 確認
     - **a11y lint 第 1 層**: root `frontend/package.json` に `eslint-plugin-jsx-a11y` ^6.10 を追加、 `eslint.config.mjs` に `.tsx` 限定で `jsx-a11y` plugin + `recommended` ruleset を適用。 既存 / 新規 JSX 全てが lint pass する状態で commit
     - phase 3 候補: `tenant.locale` claim → `language` の動的切替 / `@axe-core/react` dev mode 投入 / 残 3 業態 dashboard へ chart 拡張 / Storybook(F5)で a11y lint 第 3 層
+- **F7 phase 3 form vertical + a11y 第 2 層**(phase 1 で揃えた `<Form>` / `<FormField>` + zod を実 UI に貼り込み、 a11y を runtime でも見張る):
+    - **`web-retail-ec` dashboard に Filter form**:`inventoryId` を入力 → submit で `useQuery` の queryKey 更新 → fetch。 `<Form>` + `<FormField>`(`@inventory/ui`)+ `react-hook-form` + `zodResolver(zod schema)` の vertical demo。 schema は `t()` で error message を i18n 化(`required` / `numeric` パターン違反)。 input は `inputMode="numeric"` で a11y キーボード補助
+    - retail-ec catalog に `dashboard.filter.{title, inventory_id_label, inventory_id_description, fetch_button, validation.{required, numeric}}` を ja/en 追加
+    - **`@inventory/shared/dev` subpath 新設** + `startAxeDevScanner({ intervalMs?, initialDelayMs? })`(`axe-core` を dynamic import で polling scan、 default 5s 間隔、 違反は `console.warn` に流す)。 `@axe-core/react` 4.x が React 19(`react-dom.findDOMNode` 削除)非対応のため、 axe-core 単体 + polling で代替。 `@axe-core/react` の React 19 対応版が出たら本ヘルパは差替予定
+    - **4 web app の main.tsx に `if (import.meta.env.DEV) void startAxeDevScanner()`**(production tree shake で axe-core は bundle に含まれない)。 a11y 4 層の第 2 層が稼働
+    - phase 4 候補: `tenant.locale` claim → language 動的切替 / 残 3 業態 dashboard も filter form / chart 化 / F5 Storybook + addon-a11y(第 3 層)
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料

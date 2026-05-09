@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
     "@inventory/shared": "workspace:*",
     "@inventory/ui": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
@@ -21,8 +22,11 @@
     "i18next": "^23.16.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-error-boundary": "^4.1.2",
+    "react-hook-form": "^7.54.0",
     "react-i18next": "^15.4.0",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -33,6 +37,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "axe-core": "^4.10.2",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.16",

@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./web-auth": "./src/web-auth/index.ts",
-    "./i18n": "./src/i18n/index.ts"
+    "./i18n": "./src/i18n/index.ts",
+    "./dev": "./src/dev/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/react": "^19.0.0",
+    "axe-core": "^4.10.2",
     "eslint": "^9.17.0",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",
