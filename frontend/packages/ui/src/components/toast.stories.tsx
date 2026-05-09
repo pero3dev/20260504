@@ -4,25 +4,10 @@ import { Button } from './button.js';
 import { ToastProvider, useToast } from './toast.js';
 
 /**
- * Toast の発火デモ。 useToast() は ToastProvider 配下からのみ呼べるため、
- * meta.decorators で全 stories を Provider でラップする。
+ * `useToast` は ToastProvider 配下からのみ呼べるため、 meta.decorators で全 stories を
+ * Provider でラップする。 Provider 自体を component に置くと children 必須エラーが
+ * 出るので、 発火デモ wrapper を component に据えて Storybook の args 推論を成立させる。
  */
-const meta = {
-  title: 'Components/Toast',
-  component: ToastProvider,
-  tags: ['autodocs'],
-  decorators: [
-    (Story) => (
-      <ToastProvider>
-        <Story />
-      </ToastProvider>
-    ),
-  ],
-} satisfies Meta<typeof ToastProvider>;
-
-export default meta;
-type Story = StoryObj<typeof meta>;
-
 function ToastDemo() {
   const { toast } = useToast();
   return (
@@ -64,6 +49,20 @@ function ToastDemo() {
   );
 }
 
-export const Variants: Story = {
-  render: () => <ToastDemo />,
-};
+const meta = {
+  title: 'Components/Toast',
+  component: ToastDemo,
+  tags: ['autodocs'],
+  decorators: [
+    (Story) => (
+      <ToastProvider>
+        <Story />
+      </ToastProvider>
+    ),
+  ],
+} satisfies Meta<typeof ToastDemo>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Variants: Story = {};
