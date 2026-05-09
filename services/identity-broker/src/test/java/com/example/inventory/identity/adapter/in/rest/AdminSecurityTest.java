@@ -17,6 +17,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.example.inventory.commons.security.NoOpRevocationStoreAutoConfiguration;
 import com.example.inventory.commons.security.PlatformSecurityAutoConfiguration;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
@@ -36,7 +37,12 @@ import com.example.inventory.identity.config.SecurityConfig;
  * しておく(filter chain 構築時に Bean 解決が走る)。
  */
 @WebMvcTest(controllers = UserAdminController.class)
-@Import({SecurityConfig.class, JwtKeyConfig.class, PlatformSecurityAutoConfiguration.class})
+@Import({
+    SecurityConfig.class,
+    JwtKeyConfig.class,
+    PlatformSecurityAutoConfiguration.class,
+    NoOpRevocationStoreAutoConfiguration.class
+})
 class AdminSecurityTest {
 
     @Autowired private MockMvc mvc;

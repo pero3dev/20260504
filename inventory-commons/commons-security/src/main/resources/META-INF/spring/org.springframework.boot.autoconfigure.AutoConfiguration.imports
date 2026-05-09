@@ -1,1 +1,3 @@
+com.example.inventory.commons.security.RedisRevocationStoreAutoConfiguration
+com.example.inventory.commons.security.NoOpRevocationStoreAutoConfiguration
 com.example.inventory.commons.security.PlatformSecurityAutoConfiguration

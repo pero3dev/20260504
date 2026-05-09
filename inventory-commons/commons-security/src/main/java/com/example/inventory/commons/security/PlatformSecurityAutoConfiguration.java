@@ -4,11 +4,9 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -36,7 +34,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * PlatformSecurity#applyDefaults(org.springframework.security.config.annotation.web.builders.HttpSecurity)}
  * を呼び出して構成する。
  */
-@AutoConfiguration
+@AutoConfiguration(
+        after = {
+            RedisRevocationStoreAutoConfiguration.class,
+            NoOpRevocationStoreAutoConfiguration.class
+        })
 @ConditionalOnClass(SecurityFilterChain.class)
 public class PlatformSecurityAutoConfiguration {
 
@@ -84,39 +86,10 @@ public class PlatformSecurityAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(RevocationStore.class)
-    public RevocationStore noOpRevocationStore() {
-        return new NoOpRevocationStore();
-    }
-
-    @Bean
     @ConditionalOnMissingBean
     public RevocationCheckFilter revocationCheckFilter(
             RevocationStore revocationStore, AuthenticationEntryPoint entryPoint) {
         return new RevocationCheckFilter(revocationStore, entryPoint);
-    }
-
-    /**
-     * ADR-0023 即時 token revocation の Redis 実装を提供する nested config。 {@code StringRedisTemplate} を
-     * method 引数で参照するため、 spring-data-redis を依存に持たないサービスでは {@link java.lang.NoClassDefFoundError}
-     * を避ける必要がある。 外側の auto-config クラスから分離し、 class-level {@link ConditionalOnClass} で条件不成立時には
-     * class-load 自体が起きないようにしている。
-     */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(
-            name = {
-                "org.springframework.data.redis.core.StringRedisTemplate",
-                "org.springframework.data.redis.connection.RedisConnectionFactory"
-            })
-    static class RedisRevocationStoreConfiguration {
-
-        @Bean
-        @ConditionalOnBean(org.springframework.data.redis.connection.RedisConnectionFactory.class)
-        @ConditionalOnMissingBean(RevocationStore.class)
-        public RevocationStore redisRevocationStore(
-                org.springframework.data.redis.core.StringRedisTemplate redis) {
-            return new RedisRevocationStore(redis);
-        }
     }
 
     /** JWT の {@code roles} クレーム(配列)を {@code ROLE_*} 権限に変換する。 */
