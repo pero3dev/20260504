@@ -1,0 +1,20 @@
+{
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "signing_in": "Signing you in...",
+    "callback_failed": "OIDC callback failed"
+  },
+  "common": {
+    "loading": "Loading...",
+    "retry": "Retry",
+    "submit": "Submit",
+    "cancel": "Cancel"
+  },
+  "error": {
+    "unknown": "An unexpected error occurred",
+    "network": "Network request failed",
+    "unauthenticated": "Authentication required",
+    "not_found": "The requested resource was not found"
+  }
+}

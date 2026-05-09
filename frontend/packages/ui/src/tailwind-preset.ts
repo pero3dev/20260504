@@ -21,6 +21,10 @@ const preset: Partial<Config> = {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
         },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

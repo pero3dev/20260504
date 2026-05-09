@@ -1,0 +1,20 @@
+{
+  "auth": {
+    "login": "ログイン",
+    "logout": "ログアウト",
+    "signing_in": "サインイン処理中...",
+    "callback_failed": "OIDC callback 処理に失敗しました"
+  },
+  "common": {
+    "loading": "読み込み中...",
+    "retry": "再試行",
+    "submit": "送信",
+    "cancel": "キャンセル"
+  },
+  "error": {
+    "unknown": "予期しないエラーが発生しました",
+    "network": "通信に失敗しました",
+    "unauthenticated": "認証が必要です",
+    "not_found": "対象が見つかりませんでした"
+  }
+}

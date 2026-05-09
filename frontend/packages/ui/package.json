@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css",
-    "./tailwind-preset": "./src/tailwind-preset.ts"
+    "./tailwind-preset": "./src/tailwind-preset.ts",
+    "./charts": "./src/charts/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
@@ -16,10 +17,15 @@
     "lint": "eslint src --max-warnings=0"
   },
   "peerDependencies": {
+    "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-router": "^1.95.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwindcss": "^3.4.0"
+    "react-error-boundary": "^4.1.2",
+    "react-hook-form": "^7.54.0",
+    "recharts": "^2.15.0",
+    "tailwindcss": "^3.4.0",
+    "zod": "^3.24.0"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -27,14 +33,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-router": "^1.95.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-error-boundary": "^4.1.2",
+    "react-hook-form": "^7.54.0",
+    "recharts": "^2.15.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.18.0"
+    "typescript-eslint": "^8.18.0",
+    "zod": "^3.24.0"
   }
 }
