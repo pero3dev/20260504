@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.inventory.commons.audit.AuditExempt;
 import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.notification.application.port.in.NotifyOnInventoryMovementUseCase;
 import com.example.inventory.notification.application.port.out.EmailDeliveryException;
@@ -43,6 +44,10 @@ public class NotifyOnInventoryMovementService implements NotifyOnInventoryMoveme
 
     @Override
     @Transactional
+    @AuditExempt(
+            reason =
+                    "Kafka projection。 元 inventory.movement.v1 event は inventory-core 側で audit 済。"
+                            + " 通知発出は副作用記録(notification table)に過ぎず、 統制上の意思決定は元 event に紐づく")
     public void notifyIfNeeded(Command command) {
         // 閾値以下でなければ通知不要
         if (command.availableAfter() > lowStockThreshold) {

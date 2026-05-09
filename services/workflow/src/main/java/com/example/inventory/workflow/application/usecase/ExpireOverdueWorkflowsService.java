@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.example.inventory.commons.audit.AuditExempt;
 import com.example.inventory.workflow.application.port.in.ExpireOverdueWorkflowsUseCase;
 import com.example.inventory.workflow.application.port.out.WorkflowInstanceRepository;
 import com.example.inventory.workflow.domain.definition.WorkflowDefinition;
@@ -59,6 +60,10 @@ public class ExpireOverdueWorkflowsService implements ExpireOverdueWorkflowsUseC
     }
 
     @Override
+    @AuditExempt(
+            reason =
+                    "scheduler 起動の SLA 超過 housekeeping。 ユーザ操作ではなく時間経過の副作用で、"
+                            + " 統制上は scheduler の責務(個別 expire は INFO ログで監視)")
     public int expireOverdue() {
         Instant now = Instant.now();
         // 「最も短い SLA」より古いインスタンスのみ scan する。 全部 0 なら何も処理しない。

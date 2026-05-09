@@ -76,6 +76,11 @@
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-error</artifactId>
         </dependency>
+        <!-- @AuditExempt マーカ用(NotifyOnInventoryMovementService は projection で元 event は inventory-core 側で audit 済)。 -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-audit</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-resilience</artifactId>

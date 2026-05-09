@@ -20,6 +20,13 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule reposInAdapter = HexagonalLayerRules.repositoryImplsAreInAdapter();
 
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 NotifyOnInventoryMovementService は projection (元
+     * inventory.movement.v1 は inventory-core 側で audit 済) のため {@code @AuditExempt} で例外宣言済。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
+
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();

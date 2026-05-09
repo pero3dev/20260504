@@ -187,6 +187,12 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁹ `writePathsAreAuditable` を master-data / notification / workflow / tpl の 4 サービスに一括展開**(共通基盤系を ArchUnit 強制下に揃え、 8/13 サービス到達。 残り 5 = inventory-core / retail-ec / wholesale / manufacturing / integration-hub の業態 + write 権威の 5 で来 phase):
+    - **master-data**: `CreateSku/Location/PartnerService` 3 つは既に `@Auditable` 付与済、 `Get` 系 3 つは read-only。 注釈追加なしで opt-in
+    - **tpl**: `PlanStockMovementService` は既に `@Auditable`、 `GetStockMovementService` は read-only。 注釈追加なしで opt-in
+    - **notification**: `NotifyOnInventoryMovementService` の `repository.append` が rule 対象。 元 `inventory.movement.v1` event は inventory-core 側で audit 済の Kafka projection のため `@AuditExempt(reason=...)` 付与。 `pom.xml` に `commons-audit` 依存追加
+    - **workflow**: `Start/Advance/HandleApprovalActionService` は既に `@Auditable`、 `ExpireOverdueWorkflowsService` は scheduler 起動の SLA 超過 housekeeping (ユーザ操作ではない) のため `@AuditExempt(reason=...)` 付与
+    - **opt-in 進捗**: identity-broker (⁵) / audit-service (⁷) / inventory-read-model (⁸) / analytics (⁸) / master-data (⁹) / notification (⁹) / workflow (⁹) / tpl (⁹) = **8 / 13**。 残 5 = inventory-core / retail-ec / wholesale / manufacturing / integration-hub
 - **A5 follow-up⁸ `writePathsAreAuditable` を inventory-read-model + analytics に展開**(follow-up⁵ pilot → ⁷ audit-service の流れで、 projection 系 service を 2 つ追加で opt-in。 全 13 サービスのうち 4 service が ArchUnit 強制下に入った):
     - **inventory-read-model**: `InventoryProjectionStore` を経由するため (Repository ではない) 対象 0 件で vacuously 合格。 `GetInventoryService` は既に `@Auditable(read=true)` 付与済、 `ApplyInventoryMovementService` は projection 自身で元イベントは inventory-core 側で audit 済。 注釈追加なしで opt-in
     - **analytics**: `IngestOrderPlacedService` の `processedRepo.markProcessed` / `summaryRepo.incrementOrder` が rule の write パターン (`mark[A-Z].*` / `increment[A-Z].*`) に合致するため `@AuditExempt(reason=...)` 付与(Kafka projection、 元 order event は発生源 service で audit 済 / 二重カウント回避)。 `GetDailyOrderSummariesService` は read-only で対象外

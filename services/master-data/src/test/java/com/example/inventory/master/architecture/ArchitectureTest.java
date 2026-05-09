@@ -20,6 +20,13 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule reposInAdapter = HexagonalLayerRules.repositoryImplsAreInAdapter();
 
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 master-data の 3 write 系 (CreateSku/Location/Partner) は全て
+     * {@code @Auditable} 付与済。 Get 系 3 つは read-only で対象外。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
+
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();
