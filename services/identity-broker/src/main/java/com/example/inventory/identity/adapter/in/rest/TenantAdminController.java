@@ -21,9 +21,8 @@ import com.example.inventory.identity.domain.model.Tenant;
  * <p>OpenAPI 仕様から生成された {@link AdminTenantsApi} を実装。 not-found / already-exists は use case
  * 例外として上に抜け、 commons-error の {@code GlobalExceptionHandler} が RFC 7807 ProblemDetail に変換する。
  *
- * <p>MVP の {@code SecurityConfig} は {@code permitAll} で本 controller も無認証で叩ける。 production deployment
- * では SecurityConfig 拡張で {@code /v1/admin/**} を JWT 必須 + SUPER_ADMIN role に絞ること。
- * infra/tenant-provisioning/README.md の「セキュリティ要件」を参照。
+ * <p>{@code SecurityConfig.adminFilterChain} で {@code /v1/admin/**} は JWT 必須 + SUPER_ADMIN role
+ * 必須に絞り込まれている。 SUPER_ADMIN role の provisioning(プラットフォーム管理用テナント membership)は別運用。
  */
 @RestController
 public class TenantAdminController implements AdminTenantsApi {

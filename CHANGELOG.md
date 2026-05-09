@@ -187,6 +187,13 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴ identity-broker `SecurityConfig` で `/v1/admin/**` を JWT + SUPER_ADMIN role 必須に絞り込み**(`infra/tenant-provisioning/README.md` のセキュリティ要件から繰上げ。 ここまで `/v1/admin/**` は MVP `permitAll` で誰でも叩け、 follow-up² で `@Auditable` を付けても認可ゲートが無いと記録だけ残って実害が止まらない問題を閉じる):
+    - **`SecurityFilterChain` を 2 本に分割**:`adminFilterChain`(Order=HIGHEST_PRECEDENCE / `securityMatcher("/v1/admin/**")` / `PlatformSecurity.applyDefaults` で JWT 検証 + RFC 7807 認証認可エラー + `TenantContextFilter` を有効化 + `hasRole("SUPER_ADMIN")`)+ `publicFilterChain`(Order=LOWEST_PRECEDENCE / `anyRequest().permitAll()` / 認証/JWKS/actuator はそのまま叩ける)
+    - **自己 `JwtDecoder` Bean** を identity-broker に追加。 `NimbusJwtDecoder(DefaultJWTProcessor + JWSVerificationKeySelector)` で in-process JWKSource を使い、 自分が発行した JWT を JWKS HTTP 経路 を 踏まずに 検証(他 12 サービスは jwk-set-uri で identity-broker に HTTP しに行くが、 identity-broker は自分で持っている)
+    - **filter chain 分離の効果**:`/v1/auth/sessions` 等の認証エンドポイントは oauth2ResourceServer を 持たない publicFilterChain で処理されるため、 stale Bearer が付いた状態でも 401 漏れが起きず、 ログイン経路に副作用が及ばない
+    - **`AdminSecurityTest` 新設**(`@WebMvcTest` + Spring Security test の `with(jwt())`):JWT 無し → 401 / SUPER_ADMIN 無し → 403 / SUPER_ADMIN 有り → 200 / userId path も同様に守られる、 4 ケース。 admin path に到達しない場合は use case が呼ばれないことも `verifyNoInteractions` で確認
+    - **TenantAdminController / UserAdminController の Javadoc** から「MVP permitAll」の caveat を削除し、 「`adminFilterChain` で SUPER_ADMIN 必須」の現状に書換
+    - **未着手 (本 phase スコープ外)**: SUPER_ADMIN role の provisioning 経路 web UI 化(現状はプラットフォーム管理用テナント membership に SUPER_ADMIN を含む roles で行を入れる運用 SQL)
 - **A5 follow-up³ admin 向け user 参照 REST API (read-only MVP) 追加**(`infra/tenant-provisioning/README.md` の Future Work から繰上げ。 現状 user 一覧/単体取得は SQL 直接しか手段が無く、 admin operator が DB 不可視な環境でも操作できるよう REST 化。 write 系は password vs. federation-only provisioning の ADR 待ちで本 phase は read のみ):
     - **OpenAPI 仕様**: `GET /v1/admin/users`(全件)+ `GET /v1/admin/users/{userId}`(単体)+ `UserResource` schema 追加(`userId: int64` / `email` / `displayName` のみ。 password hash は admin にも露出させない)+ `admin-users` tag 追加
     - **port-in**: `GetUserUseCase`(`get(long)` + `listAll()`) と `UserNotFoundException`(`ERR_USER_NOT_FOUND` / 404)を新設。 既存 `GetTenantUseCase` と同型で `BusinessException` 継承により GlobalExceptionHandler が RFC 7807 化

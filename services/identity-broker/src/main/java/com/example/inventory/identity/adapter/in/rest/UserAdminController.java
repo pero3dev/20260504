@@ -20,8 +20,8 @@ import com.example.inventory.identity.domain.model.User;
  * <p>REST 層では password hash を 一切 露出させない。 admin が user 詳細を見る時も hash は要らない (BCrypt なので leak しても緩衝
  * isあるが、設計上 admin に hash を見せる必要は無い)。
  *
- * <p>MVP の {@code SecurityConfig} は {@code permitAll} で本 controller も無認証で叩ける。 production deployment
- * では SecurityConfig 拡張で {@code /v1/admin/**} を JWT 必須 + SUPER_ADMIN role に絞ること。
+ * <p>{@code SecurityConfig.adminFilterChain} で {@code /v1/admin/**} は JWT 必須 + SUPER_ADMIN role
+ * 必須に絞り込まれている。
  */
 @RestController
 public class UserAdminController implements AdminUsersApi {
