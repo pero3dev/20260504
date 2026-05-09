@@ -167,8 +167,7 @@ class ExchangeFederatedTokenServiceTest {
     void JIT有効_unknown_user_は_default_tenant_で_provision_されセッション発行() {
         when(verifier.verify("provider-jwt"))
                 .thenReturn(new IdpTokenVerifier.Subject("newuser@example.com", COGNITO_ISSUER));
-        when(users.findByEmail(new UserEmail("newuser@example.com")))
-                .thenReturn(Optional.empty());
+        when(users.findByEmail(new UserEmail("newuser@example.com"))).thenReturn(Optional.empty());
         TenantId tenantId = new TenantId("acme");
         Tenant tenant =
                 Tenant.restore(

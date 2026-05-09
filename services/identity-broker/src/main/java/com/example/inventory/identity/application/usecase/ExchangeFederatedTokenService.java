@@ -41,8 +41,8 @@ import com.example.inventory.identity.domain.model.UserId;
  *       provisioning)
  * </ul>
  *
- * <p>列挙攻撃対策のため、 token 不正 / subject 形式違反 / JIT 失敗(設定不備 / tenant 不在 / DEACTIVATED)は
- * 全て同じ 401 として扱う。 server log には判別可能な情報を残す。
+ * <p>列挙攻撃対策のため、 token 不正 / subject 形式違反 / JIT 失敗(設定不備 / tenant 不在 / DEACTIVATED)は 全て同じ 401 として扱う。
+ * server log には判別可能な情報を残す。
  *
  * <p>{@code @Auditable} で成功 / 失敗を `audit.log.v1` へ記録(J-SOX 統制、 platform tenant)。
  */
@@ -123,8 +123,8 @@ public class ExchangeFederatedTokenService implements ExchangeFederatedTokenUseC
     /**
      * 内部 User 不在時の JIT provisioning(または列挙攻撃対策の 401)。
      *
-     * <p>JIT 無効 / 設定不備 / tenant 不在 / tenant DEACTIVATED は全て {@link
-     * AuthenticationFailedException}。 ログには分類可能な情報を残す。
+     * <p>JIT 無効 / 設定不備 / tenant 不在 / tenant DEACTIVATED は全て {@link AuthenticationFailedException}。
+     * ログには分類可能な情報を残す。
      */
     private User jitProvision(UserEmail email, IdpTokenVerifier.Subject subject) {
         if (!jit.enabled()) {
@@ -145,7 +145,8 @@ public class ExchangeFederatedTokenService implements ExchangeFederatedTokenUseC
                         .orElseThrow(
                                 () -> {
                                     LOG.warn(
-                                            "JIT default tenant が DB 不在 tenantId={}", tenantId.value());
+                                            "JIT default tenant が DB 不在 tenantId={}",
+                                            tenantId.value());
                                     return new AuthenticationFailedException();
                                 });
         if (tenant.status() == TenantStatus.DEACTIVATED) {

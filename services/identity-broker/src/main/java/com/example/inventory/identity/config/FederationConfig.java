@@ -14,8 +14,7 @@ public class FederationConfig {
     @Bean
     public FederationJitProperties federationJitProperties(
             @Value("${platform.identity.federation.jit.enabled:false}") boolean enabled,
-            @Value("${platform.identity.federation.jit.default-tenant-id:}")
-                    String defaultTenantId,
+            @Value("${platform.identity.federation.jit.default-tenant-id:}") String defaultTenantId,
             @Value("${platform.identity.federation.jit.default-role:VIEWER}") String defaultRole) {
         return new FederationJitProperties(enabled, defaultTenantId, defaultRole);
     }
