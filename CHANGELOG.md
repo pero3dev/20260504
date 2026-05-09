@@ -187,6 +187,12 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up `SelectTenantService` で DEACTIVATED tenant を弾き、 token 再発行を拒否**(`infra/tenant-provisioning/README.md` の Future Work から繰上げ。 tenant deactivation の意味的な幅を完成させる修正で、 deactivate 後でも既存 membership 経由で access token が新規発行できる security gap を閉じる):
+    - **`SelectTenantService` constructor に `TenantRepository` を追加注入**、 selectTenant 内で membership 確認後に `tenantRepository.findById(tenantId)` を引いて `TenantStatus.DEACTIVATED` なら `TenantAccessDeniedException` で拒否
+    - **tenant row 不在(membership 有るのに tenants テーブル不在)の data inconsistency** も `TenantAccessDeniedException` + warn ログで安全側に倒す
+    - **既発行 access token は TTL 切れまで有効**(stateless JWT の制約)。 即時 revocation には別 mechanism(token 失効リスト / Redis 失効キャッシュ等)が必要、 本 phase では新規発行のみブロック
+    - **`SelectTenantServiceTest` 新設(本 service には test が無かった、 6 ケース網羅)**:happy(ACTIVE)/ session token 不正 / membership 不在 / **tenant DEACTIVATED** / **tenant row 不在 / tenantId 形式違反**
+    - **`infra/tenant-provisioning/README.md` の Future Work** から該当行を「実装済」に書換、 stateless JWT 制約のフォローアップを注記
 - **F6 follow-up phase 2 GraphQL Codegen を残 3 業態(manufacturing / tpl / wholesale)に同型展開**(phase 1 で retail-ec pilot 緑化後、 同 pattern を mechanical 適用):
     - 各 web app に `@graphql-codegen/{cli, typescript, typescript-operations}` devDep + `pnpm codegen` script + `codegen.ts` 設定 + `src/lib/graphql-client.ts` の hand-written interface を生成型 import に置換
     - **schema 入力**: manufacturing → `bff-manufacturing/src/schema.graphql`(`Date` scalar マップ)、 tpl → `bff-tpl/src/schema.graphql`(scalar 不要)、 wholesale → `bff-wholesale/src/schema.graphql`(`Date` マップ)
