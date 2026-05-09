@@ -155,6 +155,19 @@
     - **4 web app に `silent-renew.html` + `src/silent-renew.ts` + `vite.config.ts` rollup multi-page input 追加**(retail-ec / manufacturing / tpl / wholesale すべて同型)。 `silent-renew.html` は `<meta robots>` で indexer 排除 + 単一 module script tag のみの空ページ。 `silent-renew.ts` は helper を `import.meta.env` 渡しで一発呼ぶだけ。 build 時に Vite が `dist/silent-renew.html` を生成し prod hosting で `VITE_OIDC_SILENT_REDIRECT_URI=https://app.example/silent-renew.html` を指せる
     - effect: token expire 60 秒前(oidc-client-ts default)に hidden iframe が `silent-renew.html` を load → そこの bundled script が auth server から新 access token を fetch → parent UserManager に postMessage で返す → `userLoaded` event 経由で `OidcAuthManager.cachedAccessToken` が更新。 ユーザは login 状態のまま長時間滞在可能、 失敗時のみ再 login が必要
     - F2 残: SAML JIT provisioning / Cognito Terraform-CDK IaC 化(silent-renew.html 整備で web 側 OIDC は完成、 残りは IdP 側のみ)
+- **F2 phase E SAML JIT(Just-In-Time)provisioning(Identity Broker)**(F2 phase C で外部 IdP 認証は通すが内部 User 不在 → 401 だった経路を、 default tenant + role で auto-provision するオプションに置換):
+    - **`platform.identity.federation.jit.{enabled, default-tenant-id, default-role}` 設定 + `FederationJitProperties` record + `FederationConfig` Bean**(default は `enabled=false` で従来挙動を維持、 列挙攻撃対策と整合)。 `FEDERATION_JIT_*` env で K8s ConfigMap から ON 切替
+    - **`UserRepository.save(User)` + `TenantMembershipRepository.add(TenantMembership)` を port + impl + Mapper に追加**(従来は参照のみだった repo に書込みを開放)。 users テーブルは User の Snowflake id を caller(service)が採番、 tenant_memberships は独自 PK `id` を `TenantMembershipRepositoryImpl` が `SnowflakeIdGenerator` で採番(domain TenantMembership は id を持たない設計を維持、 PK 採番は永続化詳細として隠蔽)
+    - **`ExchangeFederatedTokenService` を JIT 対応に拡張**(`@Transactional` を method に付与、 SnowflakeIdGenerator + TenantRepository + FederationJitProperties を constructor 追加注入)。 unknown user 時の `jitProvision()` 分岐:
+        - JIT 無効 → `AuthenticationFailedException`(従来挙動)
+        - JIT 有効 + default-tenant-id 未設定 → 401(設定不備、 server log に warn)
+        - default tenant が DB 不在 → 401(warn)
+        - default tenant が DEACTIVATED → 401(warn)
+        - すべて clear → Snowflake user id 採番 + `User.create(id, email, PasswordHash("$external_federation$"), email-local-part)` で User INSERT + `TenantMembership(userId, tenantId, displayName, locale, [defaultRole], [], [])` で membership INSERT
+    - **password_hash sentinel `$external_federation$`**:BCrypt 形式ではないため password 認証 endpoint からは決して通らない、 SAML 経路専用ユーザを明示する marker
+    - **memberships 0 件防御**:既存ユーザでも accessibleTenants が空なら `AuthenticationFailedException`(過去 batch 不整合等で User 単独 row が残るケースを安全側に倒す)
+    - **test**: `ExchangeFederatedTokenServiceTest` を JIT 対応に書き直し、 9 ケース(従来 4 + JIT 5)で網羅:happy / 検証失敗 / JIT 無効 user 不在 / subject not email / **JIT 有効で provision 成功 + ArgumentCaptor で User と Membership 内容を assert** / JIT 有効 default-tenant 未設定 / default-tenant DB 不在 / default-tenant DEACTIVATED / memberships 空
+    - F2 残: Cognito User Pool / SAML IdP 設定の Terraform / CDK IaC 化(現在は `infra/cognito/README.md` に AWS CLI ランブックのみ)
 - **F7 phase 1 ADR-0022 skeleton install**(ADR で確定したライブラリの実装下地のみ、 既存 web app への組込みは phase 2 別 PR)— `@inventory/shared/i18n` と `@inventory/ui` 拡張を一気に投入:
     - **deps**: `i18next` ^23 + `react-i18next` ^15(shared)、 `zod` ^3 + `react-hook-form` ^7 + `@hookform/resolvers` ^3 + `recharts` ^2 + `react-error-boundary` ^4(ui peer)
     - **`@inventory/shared/i18n` subpath 新設** — `createI18n({ language?, fallbackLanguage?, resources? })` factory(react-i18next plugin 注入、 `defaultNS=common`、 fallback `ja`、 escapeValue=false)。 `defaultResources`(ja/en × common 1 NS)+ `mergeResources(...sources)` helper(言語 union + namespace 後勝ち merge)。 catalog は JSON ファイル(`locales/{ja,en}/common.json`、 `auth` / `common` / `error` 3 セクション)で TS は `with { type: 'json' }` import attributes(TS 5.3+ / Vite 6+ 対応)

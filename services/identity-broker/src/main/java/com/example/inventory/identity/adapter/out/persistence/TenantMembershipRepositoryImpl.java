@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.example.inventory.commons.persistence.SnowflakeIdGenerator;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.out.TenantMembershipRepository;
 import com.example.inventory.identity.domain.model.RoleName;
@@ -21,11 +22,15 @@ public class TenantMembershipRepositoryImpl implements TenantMembershipRepositor
 
     private final TenantMembershipMapper mapper;
     private final ObjectMapper objectMapper;
+    private final SnowflakeIdGenerator idGenerator;
 
     public TenantMembershipRepositoryImpl(
-            TenantMembershipMapper mapper, ObjectMapper objectMapper) {
+            TenantMembershipMapper mapper,
+            ObjectMapper objectMapper,
+            SnowflakeIdGenerator idGenerator) {
         this.mapper = mapper;
         this.objectMapper = objectMapper;
+        this.idGenerator = idGenerator;
     }
 
     @Override
@@ -37,6 +42,29 @@ public class TenantMembershipRepositoryImpl implements TenantMembershipRepositor
     public Optional<TenantMembership> findByUserAndTenant(UserId userId, TenantId tenantId) {
         TenantMembershipRow row = mapper.findByUserAndTenant(userId.value(), tenantId.value());
         return row == null ? Optional.empty() : Optional.of(toDomain(row));
+    }
+
+    @Override
+    public void add(TenantMembership membership) {
+        long id = idGenerator.nextId();
+        mapper.insert(
+                id,
+                new TenantMembershipRow(
+                        membership.userId().value(),
+                        membership.tenantId().value(),
+                        membership.tenantDisplayName(),
+                        membership.tenantLocale(),
+                        toJson(membership.roleNames()),
+                        toJson(membership.locationScopes()),
+                        toJson(membership.partnerScopes())));
+    }
+
+    private String toJson(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (Exception e) {
+            throw new IllegalStateException("文字列リストの JSON 直列化に失敗: " + values, e);
+        }
     }
 
     private TenantMembership toDomain(TenantMembershipRow row) {

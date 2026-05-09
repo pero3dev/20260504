@@ -31,6 +31,17 @@ public class UserRepositoryImpl implements UserRepository {
         return row == null ? Optional.empty() : Optional.of(toDomain(row));
     }
 
+    @Override
+    public void save(User user) {
+        mapper.insert(
+                new UserRow(
+                        user.id().value(),
+                        user.email().value(),
+                        user.passwordHash().value(),
+                        user.displayName(),
+                        user.version()));
+    }
+
     private static User toDomain(UserRow row) {
         return User.restore(
                 new UserId(row.id()),

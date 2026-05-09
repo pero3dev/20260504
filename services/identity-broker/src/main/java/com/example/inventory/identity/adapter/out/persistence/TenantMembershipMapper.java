@@ -12,4 +12,10 @@ public interface TenantMembershipMapper {
 
     TenantMembershipRow findByUserAndTenant(
             @Param("userId") long userId, @Param("tenantId") String tenantId);
+
+    /**
+     * tenant_memberships INSERT。 テーブル PK の {@code id} は Java domain では使わないので、 採番済の
+     * Snowflake ID を別 param で受ける(repository impl で生成)。
+     */
+    void insert(@Param("id") long id, @Param("row") TenantMembershipRow row);
 }

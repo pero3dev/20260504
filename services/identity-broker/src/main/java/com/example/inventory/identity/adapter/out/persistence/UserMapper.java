@@ -9,4 +9,6 @@ public interface UserMapper {
     UserRow findByEmail(@Param("email") String email);
 
     UserRow findById(@Param("id") long id);
+
+    void insert(@Param("row") UserRow row);
 }

@@ -51,6 +51,14 @@ platform:
       subject-claim: ${FEDERATION_SUBJECT_CLAIM:email}
       audience-claim: ${FEDERATION_AUDIENCE_CLAIM:client_id}
       audience: ${FEDERATION_AUDIENCE:}
+      # SAML JIT(Just-In-Time)provisioning 設定。 default 無効。
+      # enabled=true の時、 IdP 認証成功で内部 User 不在なら default tenant + role で
+      # User + TenantMembership を自動作成。 SCIM の代替経路で、 列挙攻撃対策のため成功 / 失敗
+      # は server log に分類可能な情報を残す(client には全て 401)。
+      jit:
+        enabled: ${FEDERATION_JIT_ENABLED:false}
+        default-tenant-id: ${FEDERATION_JIT_DEFAULT_TENANT_ID:}
+        default-role: ${FEDERATION_JIT_DEFAULT_ROLE:VIEWER}
   snowflake:
     worker-id: ${POD_ORDINAL:0}
   outbox:

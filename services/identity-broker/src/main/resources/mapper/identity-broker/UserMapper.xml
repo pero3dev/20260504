@@ -27,4 +27,10 @@
         WHERE id = #{id}
     </select>
 
+    <!-- SAML JIT provisioning 経路で新規 User を作成する。 version は 0 から開始。 -->
+    <insert id="insert">
+        INSERT INTO users (id, email, password_hash, display_name, version)
+        VALUES (#{row.id}, #{row.email}, #{row.passwordHash}, #{row.displayName}, #{row.version})
+    </insert>
+
 </mapper>

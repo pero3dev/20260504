@@ -36,4 +36,23 @@
           AND tenant_id = #{tenantId}
     </select>
 
+    <!-- SAML JIT provisioning 経路で新規 membership を作成する。 JSONB カラムは ::jsonb キャスト。
+         id PK は repository impl が SnowflakeIdGenerator で採番。 -->
+    <insert id="insert">
+        INSERT INTO tenant_memberships (
+            id, user_id, tenant_id, tenant_display_name, tenant_locale,
+            roles_json, location_scopes_json, partner_scopes_json
+        )
+        VALUES (
+            #{id},
+            #{row.userId},
+            #{row.tenantId},
+            #{row.tenantDisplayName},
+            #{row.tenantLocale},
+            #{row.rolesJson}::jsonb,
+            #{row.locationScopesJson}::jsonb,
+            #{row.partnerScopesJson}::jsonb
+        )
+    </insert>
+
 </mapper>
