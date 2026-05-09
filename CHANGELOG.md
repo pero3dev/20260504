@@ -187,6 +187,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁷ `@AuditExempt` マーカ導入で `writePathsAreAuditable` を audit-service にも opt-in**(follow-up⁵ で identity-broker pilot だった ArchUnit ルールを次の service に展開する第 1 弾。 audit emitter 自身は audit すると自己再帰になるため、 専用の exempt マーカを reason 必須で設計):
+    - **`commons-audit/AuditExempt`** 新設(`@Target(METHOD)` / `@Retention(RUNTIME)` / `String reason()` 必須)。 ランタイム挙動には影響せず(`AuditableAspect` は見ない)、 ArchUnit ルール用の compliance マーカ
+    - **`HexagonalLayerRules.writePathsAreAuditable`** を更新:`@Auditable` または `@AuditExempt` のいずれかが付いていれば合格(条件名と違反メッセージも更新)
+    - **audit-service `ProcessAuditEventService` / `ComputeDailyMerkleAnchorService`** に `@AuditExempt(reason=...)` 付与(audit emitter 自身の自己再帰防止 / chain housekeeping は scheduler 責務)
+    - **audit-service `pom.xml`** に `commons-audit` 依存を追加(consumer 側は今まで未依存だった)
+    - **audit-service `ArchitectureTest`** に `@ArchTest writePathsAreAuditable` opt-in、 5/5 ArchUnit 合格
+    - **rule sanity test を 4 ケースに拡張**(`ExemptService` fixture 追加、 `@AuditExempt` 単独でも合格することを実証)
+    - **未着手 (本 phase スコープ外)**: inventory-read-model / analytics 等の Kafka projection 系。 同型展開は次 phase
 - **A5 follow-up⁶ SUPER_ADMIN 初回 provisioning 経路を確立**(follow-up⁴ で `/v1/admin/**` を SUPER_ADMIN role 必須にした時点で発生する chicken-and-egg 問題を閉じる。 「初回の SUPER_ADMIN をどう生成するか」が後続の admin 業務全部の前提となるため、 ロックアウト不能性を含めて runbook 化):
     - **`V4__platform_tenant.sql`** で `platform` テナントを seed(`display_name="Platform Administration"`, `status=ACTIVE`, `locale=ja`, `ON CONFLICT DO NOTHING` で再起動冪等)
     - **`TenantManagementService.deactivate("platform")` を `TenantProtectedException` (409) で拒否**:platform tenant を消すと admin が完全にロックアウトされるため、 repository を引かずに早期 throw。 invariant 違反として info ログを残し ops から見えるように

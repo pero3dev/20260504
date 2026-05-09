@@ -75,6 +75,12 @@
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-error</artifactId>
         </dependency>
+        <!-- @AuditExempt マーカ用(audit emitter は自身を audit しない exempt 宣言が必要)。
+             AuditableAspect 自体は audit-service では使わない(本サービスが audit の終端 consumer)。 -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-audit</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-resilience</artifactId>

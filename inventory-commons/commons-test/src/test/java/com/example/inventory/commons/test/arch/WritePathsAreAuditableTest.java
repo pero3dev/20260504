@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import com.example.inventory.commons.test.arch.fixtures.application.port.out.FakeRepository;
 import com.example.inventory.commons.test.arch.fixtures.application.usecase.BadNonAuditableService;
+import com.example.inventory.commons.test.arch.fixtures.application.usecase.ExemptService;
 import com.example.inventory.commons.test.arch.fixtures.application.usecase.GoodAuditableService;
 import com.example.inventory.commons.test.arch.fixtures.application.usecase.ReadOnlyService;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -41,6 +42,15 @@ class WritePathsAreAuditableTest {
     void 書込を呼ばない_read_only_クラスは_vacuously_合格() {
         JavaClasses classes =
                 new ClassFileImporter().importClasses(ReadOnlyService.class, FakeRepository.class);
+
+        assertThatCode(() -> HexagonalLayerRules.writePathsAreAuditable().check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void 書込を呼び_AuditExempt_有り_は合格する() {
+        JavaClasses classes =
+                new ClassFileImporter().importClasses(ExemptService.class, FakeRepository.class);
 
         assertThatCode(() -> HexagonalLayerRules.writePathsAreAuditable().check(classes))
                 .doesNotThrowAnyException();

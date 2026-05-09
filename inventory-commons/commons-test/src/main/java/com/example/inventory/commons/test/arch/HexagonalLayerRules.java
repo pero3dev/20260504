@@ -81,8 +81,13 @@ public final class HexagonalLayerRules {
      * <ul>
      *   <li>「リポジトリ書込」: メソッド呼出先の宣言クラス名が {@code .*Repository} で、 メソッド名が {@code save / update / delete
      *       / insert / append / add / remove / mark.* / increment.* / persist} のいずれかに合致
-     *   <li>「@Auditable 有り」: クラスのいずれかのメソッドに {@code @Auditable} 注釈が直接付与されている
+     *   <li>「@Auditable 有り」: クラスのいずれかのメソッドに {@code @Auditable} もしくは {@code @AuditExempt}
+     *       注釈が直接付与されている
      * </ul>
+     *
+     * <p>{@code @AuditExempt} は audit emitter 自身の自己再帰防止 / read model projection の二重カウント回避 等、 正当な
+     * exempt を {@code reason} 必須でコード上に固着させるための マーカ。 詳細は {@code
+     * com.example.inventory.commons.audit.AuditExempt} の Javadoc を参照。
      */
     public static ArchRule writePathsAreAuditable() {
         return classes()
@@ -105,6 +110,10 @@ public final class HexagonalLayerRules {
     /** {@code @Auditable} の FQN(commons-test → commons-audit の compile 依存を増やさないため文字列参照)。 */
     private static final String AUDITABLE_FQN = "com.example.inventory.commons.audit.Auditable";
 
+    /** {@code @AuditExempt} の FQN(audit emitter / projection 等の正当な exempt を許可するためのマーカ)。 */
+    private static final String AUDIT_EXEMPT_FQN =
+            "com.example.inventory.commons.audit.AuditExempt";
+
     private static DescribedPredicate<JavaClass> callsRepositoryWrite() {
         return new DescribedPredicate<>("call(s) a repository write method") {
             @Override
@@ -124,19 +133,24 @@ public final class HexagonalLayerRules {
     }
 
     private static ArchCondition<JavaClass> haveAtLeastOneAuditableMethod() {
-        return new ArchCondition<>("have at least one method annotated with @Auditable") {
+        return new ArchCondition<>(
+                "have at least one method annotated with @Auditable or @AuditExempt") {
             @Override
             public void check(JavaClass clazz, ConditionEvents events) {
                 Set<JavaMethod> methods = clazz.getMethods();
-                boolean hasAuditable =
-                        methods.stream().anyMatch(m -> m.isAnnotatedWith(AUDITABLE_FQN));
-                if (!hasAuditable) {
+                boolean hasAuditableOrExempt =
+                        methods.stream()
+                                .anyMatch(
+                                        m ->
+                                                m.isAnnotatedWith(AUDITABLE_FQN)
+                                                        || m.isAnnotatedWith(AUDIT_EXEMPT_FQN));
+                if (!hasAuditableOrExempt) {
                     events.add(
                             SimpleConditionEvent.violated(
                                     clazz,
                                     String.format(
-                                            "%s はリポジトリ書込を呼ぶが、 @Auditable メソッドが 1 つも無い"
-                                                    + "(ADR-0008 audit 収集経路が欠落)",
+                                            "%s はリポジトリ書込を呼ぶが、 @Auditable / @AuditExempt が 1 つも無い"
+                                                    + "(ADR-0008 audit 収集経路が欠落、 例外なら @AuditExempt + reason)",
                                             clazz.getName())));
                 }
             }

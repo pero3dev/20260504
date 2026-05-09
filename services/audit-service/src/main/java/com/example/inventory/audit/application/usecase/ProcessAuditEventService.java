@@ -13,6 +13,7 @@ import com.example.inventory.audit.application.port.out.AuditRecordRepository;
 import com.example.inventory.audit.application.port.out.HashCalculator;
 import com.example.inventory.audit.domain.model.AuditRecord;
 import com.example.inventory.audit.domain.model.HashHex;
+import com.example.inventory.commons.audit.AuditExempt;
 
 /**
  * 1イベントを取り込み、ハッシュチェーンに追加する。
@@ -46,6 +47,7 @@ public class ProcessAuditEventService implements ProcessAuditEventUseCase {
 
     @Override
     @Transactional
+    @AuditExempt(reason = "audit emitter 自身。 ここで @Auditable を付けると audit 発行 → audit を生む再帰ループ")
     public Result process(Command command) {
         if (repository.existsByEventId(command.eventId())) {
             LOG.debug("既処理イベントをスキップ event_id={}", command.eventId());

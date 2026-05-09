@@ -20,6 +20,7 @@ import com.example.inventory.audit.application.port.out.MerkleTreeCalculator;
 import com.example.inventory.audit.domain.model.AuditRecord;
 import com.example.inventory.audit.domain.model.HashHex;
 import com.example.inventory.audit.domain.model.MerkleAnchor;
+import com.example.inventory.commons.audit.AuditExempt;
 
 /**
  * 日次 Merkle anchor 計算サービス(ADR-0008)。
@@ -64,6 +65,9 @@ public class ComputeDailyMerkleAnchorService implements ComputeDailyMerkleAnchor
 
     @Override
     @Transactional
+    @AuditExempt(
+            reason =
+                    "audit chain 自身の Merkle anchor 計算。 audit を生むと自己再帰。 housekeeping は scheduler 責務")
     public Result compute(Command command) {
         Optional<MerkleAnchor> existing =
                 anchorRepository.find(command.tenantId(), command.anchorDate());
