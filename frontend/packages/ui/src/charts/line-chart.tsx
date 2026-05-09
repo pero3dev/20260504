@@ -101,11 +101,10 @@ export function LineChart<TPoint extends Record<string, unknown>>({
               seriesLabel,
             ];
           }}
-          labelFormatter={
-            labelFormatter
-              ? (label: string | number) => labelFormatter(label)
-              : undefined
-          }
+          // exactOptionalPropertyTypes 適合のため undefined は渡さず spread で条件付与。
+          {...(labelFormatter
+            ? { labelFormatter: (label: string | number) => labelFormatter(label) }
+            : {})}
         />
         {showLegend && <Legend wrapperStyle={{ fontSize: '0.75rem' }} />}
         {series.map((s) => (
