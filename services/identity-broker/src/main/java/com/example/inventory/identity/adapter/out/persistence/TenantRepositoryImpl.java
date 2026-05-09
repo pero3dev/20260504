@@ -46,7 +46,8 @@ public class TenantRepositoryImpl implements TenantRepository {
                 tenant.displayName(),
                 tenant.status().name(),
                 tenant.createdAt(),
-                tenant.deactivatedAt());
+                tenant.deactivatedAt(),
+                tenant.locale());
     }
 
     private static Tenant toDomain(TenantRow row) {
@@ -55,6 +56,7 @@ public class TenantRepositoryImpl implements TenantRepository {
                 row.displayName(),
                 TenantStatus.valueOf(row.status()),
                 row.createdAt(),
-                row.deactivatedAt());
+                row.deactivatedAt(),
+                row.locale() != null ? row.locale() : Tenant.DEFAULT_LOCALE);
     }
 }

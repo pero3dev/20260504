@@ -8,4 +8,5 @@ public record TenantRow(
         String displayName,
         String status,
         Instant createdAt,
-        Instant deactivatedAt) {}
+        Instant deactivatedAt,
+        String locale) {}

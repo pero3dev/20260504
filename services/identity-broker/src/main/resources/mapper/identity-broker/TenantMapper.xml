@@ -11,30 +11,32 @@
             <arg column="status" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="deactivated_at" javaType="java.time.Instant"/>
+            <arg column="locale" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
     <insert id="insert">
-        INSERT INTO tenants (tenant_id, display_name, status, created_at, deactivated_at)
-        VALUES (#{tenantId}, #{displayName}, #{status}, #{createdAt}, #{deactivatedAt})
+        INSERT INTO tenants (tenant_id, display_name, status, created_at, deactivated_at, locale)
+        VALUES (#{tenantId}, #{displayName}, #{status}, #{createdAt}, #{deactivatedAt}, #{locale})
     </insert>
 
     <update id="updateStatus">
         UPDATE tenants
            SET display_name = #{displayName},
                status = #{status},
-               deactivated_at = #{deactivatedAt}
+               deactivated_at = #{deactivatedAt},
+               locale = #{locale}
          WHERE tenant_id = #{tenantId}
     </update>
 
     <select id="findById" resultMap="tenantRow">
-        SELECT tenant_id, display_name, status, created_at, deactivated_at
+        SELECT tenant_id, display_name, status, created_at, deactivated_at, locale
           FROM tenants
          WHERE tenant_id = #{tenantId}
     </select>
 
     <select id="findAll" resultMap="tenantRow">
-        SELECT tenant_id, display_name, status, created_at, deactivated_at
+        SELECT tenant_id, display_name, status, created_at, deactivated_at, locale
           FROM tenants
          ORDER BY tenant_id
     </select>

@@ -9,7 +9,7 @@ import {
 /**
  * BFF が verify 後に context として持つ user 情報。 Identity Broker (`NimbusJwtTokenIssuer`)
  * の access token claim と一致(`token_use=access`、 `tenant_id`、 `roles[]`、
- * `scopes.{locations,partners}`、 `mfa_strength`)。
+ * `scopes.{locations,partners}`、 `mfa_strength`、 `locale`)。
  */
 export interface BffUserClaims {
   /** Identity Broker の UserId(`sub` claim を Number 化) */
@@ -25,6 +25,11 @@ export interface BffUserClaims {
   };
   /** ステップアップ MFA 強度(`mfa_strength` claim、Phase 1 では low 固定) */
   mfaStrength: 'low' | 'medium' | 'high';
+  /**
+   * テナント運用言語(`locale` claim、 ADR-0022 phase 5a)。 web 側 `i18n.changeLanguage()`
+   * の入力。 IB が未発行の token(旧 token / federated 経路前)では `ja` fallback。
+   */
+  locale: string;
 }
 
 export interface JwtVerifierOptions {
@@ -132,7 +137,11 @@ function mapClaimsOrThrow(payload: JWTPayload): BffUserClaims {
   const mfaStrength: BffUserClaims['mfaStrength'] =
     mfaRaw === 'medium' || mfaRaw === 'high' ? mfaRaw : 'low';
 
-  return { userId, tenantId, roles, scopes, mfaStrength };
+  const localeRaw = payload['locale'];
+  const locale =
+    typeof localeRaw === 'string' && localeRaw.length > 0 ? localeRaw : 'ja';
+
+  return { userId, tenantId, roles, scopes, mfaStrength, locale };
 }
 
 function asStringArray(value: unknown, fieldLabel: string): string[] {

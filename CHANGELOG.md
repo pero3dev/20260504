@@ -178,6 +178,15 @@
     - 各 web app の package.json に `@hookform/resolvers` / `react-hook-form` / `zod` / `recharts` / `react-error-boundary` を direct dep として追加(transitive 経由では pnpm が型解決に出さないため)
     - 各業態 catalog(ja/en)に `dashboard.filter.*` + `dashboard.trend.*` を追加。 schema は render 内で `t()` 経由 error message を i18n 化、 input は `inputMode="numeric"` で a11y キーボード補助
     - phase 5 候補: `tenant.locale` claim → language 動的切替 / Form の submit-pending state 表示 / chart に Tooltip カスタマイズ / F5 Storybook + addon-a11y(第 3 層)
+- **F7 phase 5a `tenant.locale` claim 配線(IB → BFF)**(ADR-0022 の「言語切替はテナント単位固定」を実体化、 web 側適用は phase 5b で別 PR):
+    - **Identity Broker `tenants.locale` カラム + V3 migration**(BCP47 風 `^[a-z]{2}(-[A-Z]{2})?$`、 default `ja`)。 `tenant_memberships.tenant_locale` を `tenant_display_name` と同様 denormalize し JWT 発行 hot path で 1 row fetch で取れる構造に
+    - **`Tenant` 集約に `locale` フィールド + validation**、 register / restore は default `ja` で旧 API 互換、 新 API で locale 明示可
+    - **`TenantMembership` record の 7 引数化**(`tenantLocale` 追加)。 旧 6 引数 constructor を互換のため残し既存 test は無修正で通る
+    - **TenantRow / TenantMembershipRow / TenantMapper.xml / TenantMembershipMapper.xml** を locale carry に対応(SELECT/INSERT/UPDATE すべて locale を含む形)、 Repository 実装の domain ↔ row 変換を locale 対応
+    - **`NimbusJwtTokenIssuer.issueAccessToken`** の claim に `locale` を追加(`membership.tenantLocale()` 由来)
+    - **`@inventory/shared/web-auth/verify-jwt.ts`** の `BffUserClaims` に `locale: string`(default `ja` fallback)、 `mapClaimsOrThrow` で抽出
+    - test: 既存 IB 20 tests / shared 単体は無修正で通過、 verify-jwt 単体に「locale 明示」「locale 欠落 → ja fallback」の 2 系統を追加。 bff-context sample claim も locale 補完
+    - phase 5b 候補: web 側で `BffUserClaims.locale` を取って `i18n.changeLanguage(locale)` を呼ぶ(BFF に GraphQL `Query.viewer { locale, tenantId, roles }` を追加し、 web app 起動時 fetch + apply)
 - **F7 ADR-0022 Frontend 構造とライブラリ選定**(50+ engineers の規模で各 web app の分裂を防ぐ)— i18n / a11y / form / chart / state / error boundary / runtime config の 7 領域を確定:
     - **i18n**: `react-i18next`(`i18next` + `react-i18next` + JSON catalog、 namespace = 業態 + common、 フォーマットは `Intl` native、 言語切替はテナント単位固定 = `tenant.locale` claim 由来、 fallback `ja`)。 react-intl(ICU MessageFormat)は書き味と community 活性度で却下
     - **a11y**: WCAG 2.1 AA 目標 + 4 層防御(`eslint-plugin-jsx-a11y` + `@axe-core/react` dev mode + Storybook `addon-a11y`(F5)+ manual checklist)。 shadcn/ui = Radix primitives ベースで a11y デフォルト無料

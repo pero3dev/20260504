@@ -9,6 +9,7 @@
             <idArg column="user_id" javaType="_long"/>
             <arg column="tenant_id" javaType="java.lang.String"/>
             <arg column="tenant_display_name" javaType="java.lang.String"/>
+            <arg column="tenant_locale" javaType="java.lang.String"/>
             <arg column="roles_json" javaType="java.lang.String"/>
             <arg column="location_scopes_json" javaType="java.lang.String"/>
             <arg column="partner_scopes_json" javaType="java.lang.String"/>
@@ -16,7 +17,7 @@
     </resultMap>
 
     <select id="findByUserId" resultMap="membershipRow">
-        SELECT user_id, tenant_id, tenant_display_name,
+        SELECT user_id, tenant_id, tenant_display_name, tenant_locale,
                roles_json::text         AS roles_json,
                location_scopes_json::text AS location_scopes_json,
                partner_scopes_json::text  AS partner_scopes_json
@@ -26,7 +27,7 @@
     </select>
 
     <select id="findByUserAndTenant" resultMap="membershipRow">
-        SELECT user_id, tenant_id, tenant_display_name,
+        SELECT user_id, tenant_id, tenant_display_name, tenant_locale,
                roles_json::text         AS roles_json,
                location_scopes_json::text AS location_scopes_json,
                partner_scopes_json::text  AS partner_scopes_json

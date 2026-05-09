@@ -16,6 +16,7 @@ interface SignOpts {
   roles?: unknown;
   scopes?: unknown;
   mfaStrength?: unknown;
+  locale?: string;
   expSecondsFromNow?: number;
   kid?: string;
 }
@@ -42,6 +43,7 @@ async function sign(opts: SignOpts = {}): Promise<string> {
   };
   if (opts.tenantId !== undefined) payload['tenant_id'] = opts.tenantId;
   else payload['tenant_id'] = AUDIENCE;
+  if (opts.locale !== undefined) payload['locale'] = opts.locale;
 
   const builder = new SignJWT(payload)
     .setProtectedHeader({ alg: 'RS256', kid: opts.kid ?? 'test-key-1' })
@@ -62,7 +64,7 @@ function buildVerifier(audience?: string) {
 }
 
 describe('createJwtVerifier', () => {
-  it('正常系: token_use=access + tenant_id + roles + scopes を mapping する', async () => {
+  it('正常系: token_use=access + tenant_id + roles + scopes + locale を mapping する', async () => {
     const verify = buildVerifier();
     const token = await sign({
       sub: '42',
@@ -70,6 +72,7 @@ describe('createJwtVerifier', () => {
       roles: ['ROLE_USER', 'ROLE_OPS'],
       scopes: { locations: ['tokyo', 'osaka'], partners: ['p-1'] },
       mfaStrength: 'medium',
+      locale: 'en',
     });
 
     const claims = await verify(token);
@@ -79,6 +82,15 @@ describe('createJwtVerifier', () => {
     expect(claims.roles).toEqual(['ROLE_USER', 'ROLE_OPS']);
     expect(claims.scopes).toEqual({ locations: ['tokyo', 'osaka'], partners: ['p-1'] });
     expect(claims.mfaStrength).toBe('medium');
+    expect(claims.locale).toBe('en');
+  });
+
+  it('locale claim 欠落時は ja fallback', async () => {
+    const verify = buildVerifier();
+    // claim を立てずに sign(SignOpts.locale 未指定 = payload に含まれない)
+    const token = await sign();
+    const claims = await verify(token);
+    expect(claims.locale).toBe('ja');
   });
 
   it('audience option を渡すと一致しないトークンは reject', async () => {

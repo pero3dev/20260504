@@ -44,6 +44,7 @@ public class TenantMembershipRepositoryImpl implements TenantMembershipRepositor
                 new UserId(row.userId()),
                 new TenantId(row.tenantId()),
                 row.tenantDisplayName(),
+                row.tenantLocale(),
                 parseStringList(row.rolesJson()).stream().map(RoleName::new).toList(),
                 parseStringList(row.locationScopesJson()),
                 parseStringList(row.partnerScopesJson()));

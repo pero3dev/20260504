@@ -9,6 +9,7 @@ const SAMPLE_CLAIMS: BffUserClaims = {
   roles: ['ROLE_USER'],
   scopes: { locations: ['tokyo'], partners: [] },
   mfaStrength: 'low',
+  locale: 'ja',
 };
 
 describe('buildBffAuth', () => {

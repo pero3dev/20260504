@@ -65,6 +65,8 @@ public class NimbusJwtTokenIssuer implements TokenIssuer {
         claims.put("scopes", scopes);
         // Phase 1 では mfa_strength=low 固定(ステップアップ MFA 後続実装で更新する)
         claims.put("mfa_strength", "low");
+        // ADR-0022 phase 5a: tenant 単位の運用言語を web 側 i18n.changeLanguage 用に流す
+        claims.put("locale", membership.tenantLocale());
         return sign(String.valueOf(userId.value()), membership.tenantId().value(), claims, ttl);
     }
 
