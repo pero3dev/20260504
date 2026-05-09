@@ -84,6 +84,11 @@
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-persistence</artifactId>
         </dependency>
+        <!-- @AuditExempt マーカ用(IngestOrderPlacedService は projection で audit 元は発生源 service)。 -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-audit</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-error</artifactId>

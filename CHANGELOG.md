@@ -187,6 +187,11 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁸ `writePathsAreAuditable` を inventory-read-model + analytics に展開**(follow-up⁵ pilot → ⁷ audit-service の流れで、 projection 系 service を 2 つ追加で opt-in。 全 13 サービスのうち 4 service が ArchUnit 強制下に入った):
+    - **inventory-read-model**: `InventoryProjectionStore` を経由するため (Repository ではない) 対象 0 件で vacuously 合格。 `GetInventoryService` は既に `@Auditable(read=true)` 付与済、 `ApplyInventoryMovementService` は projection 自身で元イベントは inventory-core 側で audit 済。 注釈追加なしで opt-in
+    - **analytics**: `IngestOrderPlacedService` の `processedRepo.markProcessed` / `summaryRepo.incrementOrder` が rule の write パターン (`mark[A-Z].*` / `increment[A-Z].*`) に合致するため `@AuditExempt(reason=...)` 付与(Kafka projection、 元 order event は発生源 service で audit 済 / 二重カウント回避)。 `GetDailyOrderSummariesService` は read-only で対象外
+    - **analytics `pom.xml`** に `commons-audit` 依存を追加(consumer 側だが `@AuditExempt` マーカが必要)
+    - **opt-in 進捗**: identity-broker (⁵) / audit-service (⁷) / inventory-read-model (⁸) / analytics (⁸) = 4 / 13。 残 9 サービスは inventory-core / master-data / notification / workflow / retail-ec / tpl / wholesale / manufacturing / integration-hub
 - **A5 follow-up⁷ `@AuditExempt` マーカ導入で `writePathsAreAuditable` を audit-service にも opt-in**(follow-up⁵ で identity-broker pilot だった ArchUnit ルールを次の service に展開する第 1 弾。 audit emitter 自身は audit すると自己再帰になるため、 専用の exempt マーカを reason 必須で設計):
     - **`commons-audit/AuditExempt`** 新設(`@Target(METHOD)` / `@Retention(RUNTIME)` / `String reason()` 必須)。 ランタイム挙動には影響せず(`AuditableAspect` は見ない)、 ArchUnit ルール用の compliance マーカ
     - **`HexagonalLayerRules.writePathsAreAuditable`** を更新:`@Auditable` または `@AuditExempt` のいずれかが付いていれば合格(条件名と違反メッセージも更新)

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.inventory.analytics.application.port.in.IngestOrderPlacedUseCase;
 import com.example.inventory.analytics.application.port.out.DailyOrderSummaryRepository;
 import com.example.inventory.analytics.application.port.out.ProcessedEventRepository;
+import com.example.inventory.commons.audit.AuditExempt;
 
 /**
  * 注文確定イベント取り込みサービス。
@@ -44,6 +45,10 @@ public class IngestOrderPlacedService implements IngestOrderPlacedUseCase {
 
     @Override
     @Transactional
+    @AuditExempt(
+            reason =
+                    "Kafka projection。 元 order placement event は発生源 service (retail-ec / wholesale 等) で"
+                            + " 既に audit 済のため、 集計側でも打つと一操作 = 複数監査記録の二重カウント")
     public Result ingest(Command command) {
         try {
             processedRepo.markProcessed(command.eventId(), command.tenantId(), TOPIC_HINT);

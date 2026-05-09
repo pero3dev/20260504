@@ -23,6 +23,13 @@ class ArchitectureTest {
     static final ArchRule repositoryImplsLiveInAdapter =
             HexagonalLayerRules.repositoryImplsAreInAdapter();
 
+    /**
+     * ADR-0008 J-SOX 補完策 opt-in。 IngestOrderPlacedService は projection (元 order event は発生源 service
+     * で audit 済) のため {@code @AuditExempt} で例外宣言済。 GetDailyOrderSummariesService は read-only で対象外。
+     */
+    @ArchTest
+    static final ArchRule writePathsAreAuditable = HexagonalLayerRules.writePathsAreAuditable();
+
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();
