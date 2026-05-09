@@ -187,6 +187,14 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up¹¹ federation 経路 SUPER_ADMIN provisioning に対応(IdP groups claim → role mapping)**(follow-up⁶ で SQL 直入れの ops 経路は確立済だが、 README の Future Work で「federation 経路は SAML group → role mapping 設計が必要」と明記されていた残課題を閉じる。 SAML JIT で初回ログイン時に SUPER_ADMIN を生成できるようになる):
+    - **`IdpTokenVerifier.Subject` に `groups: List<String>` を追加**(後方互換の `Subject.of(value, issuer)` ファクトリで既存呼出箇所は無修正、 record 内で null/copyOf で immutable 化)
+    - **`NimbusIdpTokenVerifier`** に `${platform.identity.federation.groups-claim:cognito:groups}` プロパティを追加し、 JWT claim を `List<?>` で取り出して文字列化(Cognito の `cognito:groups`、 Azure AD の `groups` 等を吸収)
+    - **`FederationJitProperties.groupRoleMappings: Map<String, String>`** を追加(空 Map で no-op、 map iteration 順の最初の合致を採用、 不一致は `defaultRole` に fallback)。 後方互換のため 3-arg コンストラクタ (mappings 無し) を残す
+    - **`FederationConfig`** で `Binder` API を使って Map を構造化バインド(`@Value` の単純文字列バインドでは Map 非対応)
+    - **`ExchangeFederatedTokenService.jitProvision`** に `resolveRole(subject)` ヘルパ追加。 groups → role mapping を最初に評価し、 不一致時は default role に fallback。 ログに `groupsMatched=<group>` or `<default>` を出す
+    - **`ExchangeFederatedTokenServiceTest`** に新ケース 2 件追加(11 ケース):groups に mapped role 合致 → 該当 role で provision / mapped role 不一致 → default role で provision
+    - **`infra/tenant-provisioning/README.md`** の Future Work から「federation 経路 SUPER_ADMIN provisioning」を「実装済」に書換、 yaml サンプル付きで Cognito groups → SUPER_ADMIN フローを記載
 - **A5 follow-up¹⁰ `writePathsAreAuditable` を残り 5 サービスに展開、 全 13 サービス完全 opt-in 達成**(CLAUDE.md と `@Auditable` Javadoc が「ArchUnit による強制が必須」と明記していた J-SOX gap が完全閉鎖。 follow-up⁵ 着手から 6 phase で全社展開):
     - **inventory-core**: 全 write 系 (Reserve/Receive/Ship/Release/ApplyStockMovement/ConsumeWorkOrderComponents/ReceiveFinishedGoods 等) は既に `@Auditable`。 `Emit*Service` 系は `DomainEventPublisher` 経由で `*Repository` ではない、 `RegisterSkuFromMasterService` は `SkuRegistryPort.upsert` で同様に rule 対象外。 注釈追加なしで opt-in
     - **retail-ec / wholesale / manufacturing**: 全 write 系 (Place/Ship/Cancel/Release/Complete/HandleFailure 等) は既に `@Auditable`、 Get 系は read-only。 注釈追加なしで opt-in

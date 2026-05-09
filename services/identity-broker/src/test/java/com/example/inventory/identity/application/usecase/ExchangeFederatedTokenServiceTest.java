@@ -73,10 +73,15 @@ class ExchangeFederatedTokenServiceTest {
         return new FederationJitProperties(true, defaultTenantId, "VIEWER");
     }
 
+    private static FederationJitProperties jitWithGroupMappings(
+            String defaultTenantId, java.util.Map<String, String> groupRoleMappings) {
+        return new FederationJitProperties(true, defaultTenantId, "VIEWER", groupRoleMappings);
+    }
+
     @Test
     void 検証成功と内部User有りでセッショントークンとテナント一覧を返す() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("alice@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("alice@example.com", COGNITO_ISSUER));
         User user =
                 User.restore(
                         new UserId(100L),
@@ -129,7 +134,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void JIT無効_検証成功するも内部User未存在は認証失敗_列挙攻撃対策() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("ghost@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("ghost@example.com", COGNITO_ISSUER));
         when(users.findByEmail(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(
@@ -148,7 +153,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void subjectがemail形式でない場合も認証失敗() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("not-an-email", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("not-an-email", COGNITO_ISSUER));
 
         assertThatThrownBy(
                         () ->
@@ -166,7 +171,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void JIT有効_unknown_user_は_default_tenant_で_provision_されセッション発行() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("newuser@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("newuser@example.com", COGNITO_ISSUER));
         when(users.findByEmail(new UserEmail("newuser@example.com"))).thenReturn(Optional.empty());
         TenantId tenantId = new TenantId("acme");
         Tenant tenant =
@@ -225,7 +230,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void JIT有効だがdefault_tenant_id_未設定は認証失敗() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("newuser@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("newuser@example.com", COGNITO_ISSUER));
         when(users.findByEmail(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(
@@ -243,7 +248,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void JIT有効だがdefault_tenant_がDB不在は認証失敗() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("newuser@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("newuser@example.com", COGNITO_ISSUER));
         when(users.findByEmail(any())).thenReturn(Optional.empty());
         when(tenants.findById(new TenantId("ghost"))).thenReturn(Optional.empty());
 
@@ -262,7 +267,7 @@ class ExchangeFederatedTokenServiceTest {
     @Test
     void JIT有効だがdefault_tenant_がDEACTIVATEDは認証失敗() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("newuser@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("newuser@example.com", COGNITO_ISSUER));
         when(users.findByEmail(any())).thenReturn(Optional.empty());
         TenantId tenantId = new TenantId("acme");
         Tenant deactivated =
@@ -288,9 +293,95 @@ class ExchangeFederatedTokenServiceTest {
     }
 
     @Test
+    void JIT有効_groups_に_mapped_role_合致_は_その_role_で_provision() {
+        when(verifier.verify("provider-jwt"))
+                .thenReturn(
+                        new IdpTokenVerifier.Subject(
+                                "alice@example.com",
+                                COGNITO_ISSUER,
+                                List.of("platform-admins", "engineers")));
+        when(users.findByEmail(new UserEmail("alice@example.com"))).thenReturn(Optional.empty());
+        TenantId tenantId = new TenantId("platform");
+        Tenant tenant =
+                Tenant.restore(
+                        tenantId,
+                        "Platform Administration",
+                        TenantStatus.ACTIVE,
+                        Instant.parse("2026-01-01T00:00:00Z"),
+                        null,
+                        "ja");
+        when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(idGenerator.nextId()).thenReturn(900001L);
+        TenantMembership newMembership =
+                new TenantMembership(
+                        new UserId(900001L),
+                        tenantId,
+                        "Platform Administration",
+                        "ja",
+                        List.of(new RoleName("SUPER_ADMIN")),
+                        List.of(),
+                        List.of());
+        when(memberships.findByUserId(new UserId(900001L))).thenReturn(List.of(newMembership));
+        when(tokens.issueSessionToken(eq(new UserId(900001L)), eq(List.of(tenantId)), any()))
+                .thenReturn("session.admin.jwt");
+
+        ExchangeFederatedTokenUseCase.Result result =
+                service(
+                                jitWithGroupMappings(
+                                        "platform",
+                                        java.util.Map.of(
+                                                "platform-admins", "SUPER_ADMIN",
+                                                "inventory-managers", "INVENTORY_MANAGER")))
+                        .exchange(new ExchangeFederatedTokenUseCase.Command("provider-jwt"));
+
+        assertThat(result.sessionToken()).isEqualTo("session.admin.jwt");
+        ArgumentCaptor<TenantMembership> mCaptor = ArgumentCaptor.forClass(TenantMembership.class);
+        verify(memberships).add(mCaptor.capture());
+        assertThat(mCaptor.getValue().roleNames()).containsExactly("SUPER_ADMIN");
+    }
+
+    @Test
+    void JIT有効_groups_に_mapped_role_不一致_は_default_role_で_provision() {
+        when(verifier.verify("provider-jwt"))
+                .thenReturn(
+                        new IdpTokenVerifier.Subject(
+                                "bob@example.com", COGNITO_ISSUER, List.of("guests", "interns")));
+        when(users.findByEmail(new UserEmail("bob@example.com"))).thenReturn(Optional.empty());
+        TenantId tenantId = new TenantId("acme");
+        Tenant tenant =
+                Tenant.restore(
+                        tenantId,
+                        "Acme",
+                        TenantStatus.ACTIVE,
+                        Instant.parse("2026-01-01T00:00:00Z"),
+                        null,
+                        "ja");
+        when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(idGenerator.nextId()).thenReturn(900002L);
+        TenantMembership newMembership =
+                new TenantMembership(
+                        new UserId(900002L),
+                        tenantId,
+                        "Acme",
+                        "ja",
+                        List.of(new RoleName("VIEWER")),
+                        List.of(),
+                        List.of());
+        when(memberships.findByUserId(new UserId(900002L))).thenReturn(List.of(newMembership));
+        when(tokens.issueSessionToken(any(), any(), any())).thenReturn("session.fallback.jwt");
+
+        service(jitWithGroupMappings("acme", java.util.Map.of("platform-admins", "SUPER_ADMIN")))
+                .exchange(new ExchangeFederatedTokenUseCase.Command("provider-jwt"));
+
+        ArgumentCaptor<TenantMembership> mCaptor = ArgumentCaptor.forClass(TenantMembership.class);
+        verify(memberships).add(mCaptor.capture());
+        assertThat(mCaptor.getValue().roleNames()).containsExactly("VIEWER");
+    }
+
+    @Test
     void 既存ユーザでもmembershipsが空なら認証失敗() {
         when(verifier.verify("provider-jwt"))
-                .thenReturn(new IdpTokenVerifier.Subject("alice@example.com", COGNITO_ISSUER));
+                .thenReturn(IdpTokenVerifier.Subject.of("alice@example.com", COGNITO_ISSUER));
         User user =
                 User.restore(
                         new UserId(100L),

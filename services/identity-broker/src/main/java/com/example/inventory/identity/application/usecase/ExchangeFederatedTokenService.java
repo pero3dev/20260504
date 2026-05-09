@@ -2,6 +2,7 @@ package com.example.inventory.identity.application.usecase;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -162,23 +163,43 @@ public class ExchangeFederatedTokenService implements ExchangeFederatedTokenUseC
                         new PasswordHash(FEDERATED_PASSWORD_HASH_SENTINEL),
                         deriveDisplayName(email));
         userRepository.save(newUser);
+        String resolvedRole = resolveRole(subject);
         TenantMembership membership =
                 new TenantMembership(
                         newUserId,
                         tenantId,
                         tenant.displayName(),
                         tenant.locale(),
-                        List.of(new RoleName(jit.defaultRole())),
+                        List.of(new RoleName(resolvedRole)),
                         List.of(),
                         List.of());
         membershipRepository.add(membership);
         LOG.info(
-                "JIT provisioning 成功 issuer={} newUserId={} tenantId={} role={}",
+                "JIT provisioning 成功 issuer={} newUserId={} tenantId={} role={} groupsMatched={}",
                 subject.issuer(),
                 newUserId.value(),
                 tenantId.value(),
-                jit.defaultRole());
+                resolvedRole,
+                resolvedRole.equals(jit.defaultRole()) ? "<default>" : "<group>");
         return newUser;
+    }
+
+    /**
+     * IdP groups claim を順に見て {@link FederationJitProperties#groupRoleMappings} の最初の一致を採る。 一致無し /
+     * groups 空 / mapping 未設定 はいずれも {@code defaultRole} に fallback。
+     */
+    private String resolveRole(IdpTokenVerifier.Subject subject) {
+        Map<String, String> mappings = jit.groupRoleMappings();
+        if (mappings.isEmpty() || subject.groups().isEmpty()) {
+            return jit.defaultRole();
+        }
+        for (String group : subject.groups()) {
+            String role = mappings.get(group);
+            if (role != null && !role.isBlank()) {
+                return role;
+            }
+        }
+        return jit.defaultRole();
     }
 
     private static UserEmail parseEmailOrThrow(IdpTokenVerifier.Subject subject) {

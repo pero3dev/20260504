@@ -1,5 +1,7 @@
 package com.example.inventory.identity.adapter.out.security;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -30,6 +32,7 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
     private final String expectedSubjectClaim;
     private final String expectedAudienceClaim;
     private final String expectedAudienceValue;
+    private final String groupsClaim;
 
     private volatile JwtDecoder cachedDecoder;
 
@@ -40,12 +43,15 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
                     String expectedSubjectClaim,
             @Value("${platform.identity.federation.audience-claim:client_id}")
                     String expectedAudienceClaim,
-            @Value("${platform.identity.federation.audience:}") String expectedAudienceValue) {
+            @Value("${platform.identity.federation.audience:}") String expectedAudienceValue,
+            @Value("${platform.identity.federation.groups-claim:cognito:groups}")
+                    String groupsClaim) {
         this.issuerUri = issuerUri;
         this.jwksUri = jwksUri;
         this.expectedSubjectClaim = expectedSubjectClaim;
         this.expectedAudienceClaim = expectedAudienceClaim;
         this.expectedAudienceValue = expectedAudienceValue;
+        this.groupsClaim = groupsClaim;
     }
 
     @Override
@@ -75,8 +81,23 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
                                 + "' が期待値と一致しない(Cognito client_id 不一致の可能性)");
             }
         }
+        List<String> groups = extractGroups(jwt);
         return new Subject(
-                subjectValue, jwt.getIssuer() != null ? jwt.getIssuer().toString() : issuerUri);
+                subjectValue,
+                jwt.getIssuer() != null ? jwt.getIssuer().toString() : issuerUri,
+                groups);
+    }
+
+    /**
+     * groups claim を {@code List<String>} で取り出す。 Cognito は {@code cognito:groups: ["g1","g2"]} を吐く。
+     * claim が無い / 配列でないなら 空リスト。
+     */
+    private List<String> extractGroups(Jwt jwt) {
+        Object raw = jwt.getClaims().get(groupsClaim);
+        if (raw instanceof List<?> list) {
+            return list.stream().filter(o -> o != null).map(Object::toString).toList();
+        }
+        return List.of();
     }
 
     private boolean isConfigured() {
