@@ -189,6 +189,24 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴¹ ADR-0024 の `eks` stack Phase A + `modules/eks-cluster` 薄ラッパー(EKS control plane + 標準 addon + system NG、 EKS の 3 phase 構築の第 1 弾)**(ADR-0013 で確定した EKS 単一 cluster per env トポロジを 3 phase で構築する戦略の Phase A。 control plane + 標準 addon + system NG までで cluster が「立つ」 状態にし、 Karpenter / application NG は ⁴² Phase B、 ESO / DD / ArgoCD / ALB Controller / per-service IRSA は ⁴³ Phase C で別 PR):
+    - **`infra/aws/modules/eks-cluster/`**: `terraform-aws-modules/eks/aws ~> 20.0` 薄ラッパー、 EBS CSI driver IRSA は `iam-role-for-service-accounts-eks ~> 5.50` sub-module で内部生成
+    - **Phase A 範囲**:
+      - EKS control plane (Kubernetes 1.31)、 endpoint = private (全 env)、 secrets encryption = kms stack の `<env>-secrets` CMK
+      - control plane 全 5 log type を CloudWatch export、 90 日 retention
+      - OIDC provider (IRSA、 `enable_irsa = true`)
+      - **EKS Access Entries** `API_AND_CONFIG_MAP` mode (ConfigMap aws-auth より管理容易な新方式)
+      - 標準 addon (most_recent = true): vpc-cni / kube-proxy / coredns / aws-ebs-csi-driver
+      - **system managed node group** 1 個: ARM64 (Graviton)、 ON_DEMAND、 taint なし (CoreDNS / Karpenter / ALB Controller / ESO / DD agent / ArgoCD の足場)
+      - **Karpenter discovery tag** (`karpenter.sh/discovery = <cluster_name>`) を cluster + node SG に先付与、 Phase B で Karpenter が selector に使う
+    - **per-env サイジング (system NG のみ、 application は Phase B Karpenter)**: dev = t4g.medium × 1 / staging = t4g.medium × 2 / prod = m7g.large × 2 (各 AZ 1 instance で multi-AZ HA)
+    - **依存**: `vpc` (vpc_id + private_subnet_ids) + `kms` (secrets_key_arn)
+    - **per-env 構造**: ³⁴ pattern 踏襲
+    - **kubectl access**: private endpoint default のため経路は SSM Session Manager + bastion (推奨) / dev のみ public + IP allow-list / VPN (post-v1)。 README に 3 経路を明記
+    - **`.github/workflows/terraform.yml`**: `validate-eks` job 追加、 上流 module v20 + sub-module v5.50 の download を伴うため timeout を 8 分に拡張
+    - **terraform fmt + validate ローカル緑** (上流 module 依存解決 + validate で約 30 秒)
+    - **trade-off**: Phase A だけでは services が動かない (application 用 node 不在で pod pending)。 Phase B Karpenter で application node 確保まで「使い物にならない」 状態だが、 control plane を確実に立ち上げる方が分割容易性で勝る判断
+    - **Phase B/C scope の README 明記**: Phase B = Karpenter Helm + NodeClass + NodePool + Network Policy、 Phase C = External Secrets / Datadog / ArgoCD / Argo Rollouts / ALB Controller / per-service IRSA
 - **A5 follow-up⁴⁰ ADR-0024 の `msk` stack をコード化(MSK Serverless cluster + 2 SG + IAM policy template、 並列フェーズ最後の 1 stack)**(architecture.md C4 で確定した Apache Kafka 経路を MSK Serverless で構築。 並列フェーズ 6 stack のうち最後 = bootstrap/iam-baseline/vpc/kms 直系、 elasticache/aurora/s3-audit/glue-schema-registry に並ぶ 6 番目で完了):
     - **MSK Serverless 採用判断**: 200 MB/s ingress 上限に対して peak 11.6k TPS × 3 events × 1 KB ≒ 50 MB/s で 1/4 余裕。 broker sizing / EBS / partition rebalancing が不要 (auto)。 IAM auth 専用が architecture.md C4 と整合。 Provisioned 切替 ADR は 200 MB/s 超予測時に別途
     - **`infra/aws/stacks/msk/`**:

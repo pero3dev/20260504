@@ -300,3 +300,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-eks:
+    name: Validate eks stack Phase A (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/eks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # 上流 terraform-aws-modules/eks/aws ~> 20.0 + iam-role-for-service-accounts-eks
+      # sub-module の download を伴うため、 timeout を 8 分に拡張。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
