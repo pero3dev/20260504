@@ -189,6 +189,18 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³³ ADR-0024 の `iam-baseline` stack をコード化(account-level IAM の base、 GitHub OIDC + tf deploy role)**(³² の bootstrap に続く依存第 2 層。 env 非依存 (account-level) で、 全 IAM の前提となる password policy + GitHub Actions OIDC provider + terraform deploy role を 1 stack で固める。 `iam-baseline` が完成すれば post-v1 で `terraform-apply.yml` workflow が OIDC 経由で deploy 可能になり、 後続 stack 群を CI から apply する道筋が開く):
+    - **`infra/aws/stacks/iam-baseline/`** 新設:
+      - `aws_iam_account_password_policy`: 14 文字以上 / 大小英数記号必須 / 90 日 rotation / 24 個再利用禁止 (NIST SP 800-63B 準拠の最低限)
+      - `aws_iam_openid_connect_provider` (`token.actions.githubusercontent.com`): GitHub Actions が AWS に OIDC で federated access するための provider。 thumbprint を 2 個併記でローテーション耐性
+      - `aws_iam_role` `inventory-platform-tf-deploy`: trust = 本 repo (`pero3dev/20260504`) の GitHub Actions workflow のみ。 他 org / 他 repo からの assume は `StringLike` で reject。 `prevent_destroy` 有効
+      - `aws_iam_role_policy_attachment`: 上記 role に `AdministratorAccess` を attach (v1 暫定、 README に TODO marker)
+      - `default_tags` で `Project / ManagedBy / Stack=iam-baseline` 自動注入。 env 非依存 stack のため `Environment` tag は付与しない (³² と同じ方針)
+    - **`backend.tf`** は S3 backend block を **未コメント** で配置。 ³² の bootstrap stack と異なり chicken-and-egg なし、 bootstrap 適用後にそのまま `terraform init` 可能
+    - **README.md**: GitHub Actions workflow snippet 例 (`aws-actions/configure-aws-credentials@v4` で `role-to-assume`) + post-v1 TODO 5 項目 (least-privilege / per-env role / permission boundary / SCP / IAM Access Analyzer) を明示
+    - **`.github/workflows/terraform.yml`**: `validate-iam-baseline` job 追加 (既存 2 job と同型、 `init -backend=false` + validate、 AWS credential 不要)
+    - **terraform fmt + validate ローカル緑** (terraform 1.7.5)
+    - **trade-off**: deploy role は v1 で AdminAccess 1 本にした。 stack ごとに必要 action のみ allow する least-privilege policy は post-v1 PR。 当面は trust policy で repo スコープが取れていれば十分なリスク低減になる判断
 - **A5 follow-up³² ADR-0024 の bootstrap stack をコード化(全 stack の前提となる tfstate インフラ)**(³¹ で確定した layout の依存最上流。 全 12 stacks × 3 envs = 36 tfstate を保管する S3 バケット + DynamoDB lock + KMS を Terraform 自身で作る chicken-and-egg の起点。 実 apply は AWS account 払い出し時に operator が 1 回限り走らせる、 コードと runbook と CI 検証を先行して PR 化):
     - **`infra/aws/README.md`**: ADR-0024 の構造を repo top-level で文書化。 12 stacks のうちどれが env 依存 / 非依存か、 state key 規則、 依存順序、 既存 `infra/cognito/terraform/` / `infra/audit-s3/` / `infra/k8s/` の扱いを集約
     - **`infra/aws/stacks/bootstrap/`** 構成 (`versions.tf` / `variables.tf` / `main.tf` / `outputs.tf` / `backend.tf` / `terraform.tfvars.example` / `README.md`):

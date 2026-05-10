@@ -100,3 +100,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-iam-baseline:
+    name: Validate iam-baseline stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/iam-baseline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # backend は bootstrap が用意済 (S3) だが、 CI では `-backend=false` で provider plugin
+      # だけ取得して validate のみ。 AWS credential 不要。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
