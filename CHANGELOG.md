@@ -189,6 +189,22 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴⁰ ADR-0024 の `msk` stack をコード化(MSK Serverless cluster + 2 SG + IAM policy template、 並列フェーズ最後の 1 stack)**(architecture.md C4 で確定した Apache Kafka 経路を MSK Serverless で構築。 並列フェーズ 6 stack のうち最後 = bootstrap/iam-baseline/vpc/kms 直系、 elasticache/aurora/s3-audit/glue-schema-registry に並ぶ 6 番目で完了):
+    - **MSK Serverless 採用判断**: 200 MB/s ingress 上限に対して peak 11.6k TPS × 3 events × 1 KB ≒ 50 MB/s で 1/4 余裕。 broker sizing / EBS / partition rebalancing が不要 (auto)。 IAM auth 専用が architecture.md C4 と整合。 Provisioned 切替 ADR は 200 MB/s 超予測時に別途
+    - **`infra/aws/stacks/msk/`**:
+      - `aws_msk_serverless_cluster` `<env>-platform-msk` (IAM auth 有効、 VPC private endpoint、 database subnets 配置)
+      - `aws_security_group` × 2 (`msk_cluster_sg` + `msk_client_sg`、 elasticache / aurora と同 pattern)
+      - `aws_security_group_rule`: 9098 (IAM SASL TLS) ingress from msk_client_sg only
+      - `aws_iam_policy_document` (data): services の IRSA role に attach する template (Connect / DescribeCluster / Topic ReadData/WriteData/CreateTopic/DescribeTopic/Group 操作)、 実 attach は per-service IRSA stack で別途
+      - `data.aws_msk_bootstrap_brokers`: cluster resource は brokers URL を直接 expose しないので data source で取得して output
+    - **依存**: vpc (vpc_id + database_subnet_ids) のみ。 glue-schema-registry / kms は本 stack で直接参照しない (services 側 IRSA で連携)
+    - **per-env 差別化なし**: serverless は broker sizing / config 引数を持たない (auto-scaling)、 tfvars は env 名のみ。 cost は payload-based
+    - **範囲外**: Topic 作成 (services auto-create で v1 運用、 production K8s Job 化は別 PR) / Glue SR binding (services の AWSGlueSchemaRegistry serializer + IRSA で連携) / per-service IRSA role 作成 + attach
+    - **services 側 wire 例 (README)**: `aws-msk-iam-auth` Maven dep + Spring Kafka `security.protocol=SASL_SSL` + `sasl.mechanism=AWS_MSK_IAM` + Glue SR serializer 配線
+    - **Topic 命名規約 (README)**: 14 topics の Producer/Consumer 一覧を architecture.md A2 規約 + 業態フロー + audit + workflow から集約
+    - **`.github/workflows/terraform.yml`**: `validate-msk` job 追加、 上流 module 依存なしで軽量
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: Topic を terraform 化せず auto-create で v1 運用 (Confluent Kafka provider の認証経路複雑のため)。 IAM policy document は output JSON のみで実 attach は IRSA stack 後発、 本 stack apply 直後の services 起動時に MSK 接続不可 (IRSA 完了まで待つ)
 - **A5 follow-up³⁹ ADR-0024 の `aurora` stack + `modules/aurora-cluster` 薄ラッパー(3 cluster トポロジを env ごとに reify)**(ADR-0005 で確定した hot-path / business / common-base の 3 Aurora PostgreSQL cluster を env ごとに 1 セット構築。 architecture.md の DB ownership モデルを IaC で literal に表現する大型 stack):
     - **`infra/aws/modules/aurora-cluster/`**: `terraform-aws-modules/rds-aurora/aws ~> 9.0` の薄ラッパー。 engine = aurora-postgresql 16.4、 storage_encrypted + KMS CMK、 manage_master_user_password = true (RDS managed master password、 自動 Secrets Manager + rotation)、 `apply_immediately = false` (障害誘発回避)、 deletion_protection / final snapshot は env で切替
     - **3 cluster の役割割当**:
