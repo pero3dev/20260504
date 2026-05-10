@@ -225,3 +225,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-elasticache:
+    name: Validate elasticache stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/elasticache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # vpc + kms remote_state を参照するが backend=false で resolution は plan 時に遅延。
+      # random provider plugin の download も本 init で完結。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

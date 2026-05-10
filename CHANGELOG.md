@@ -189,6 +189,19 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁸ ADR-0024 の `elasticache` stack をコード化(inventory-read-model + identity-broker 共有 Redis cluster + auth token + Secrets Manager 連携)**(architecture.md A2 / B4 で確定した ElastiCache for Redis を env ごとに 1 cluster 構築。 inventory-read-model (CQRS 読み側投影) + identity-broker (ADR-0023 token revocation) の 2 用途を 1 cluster で共有 (logical key prefix `rm:` / `rev:` で分離)、 運用分離が必要なら post-v1 で 2 cluster 化):
+    - **Redis 7.1, cluster mode disabled**: 1 shard、 N nodes (1 primary + N-1 replicas)。 `parameter_group` に `maxmemory-policy = allkeys-lru` (eviction で memory 満杯回避)
+    - **per-env サイジング**: dev=t4g.micro×2 (auto_failover false / multi_az false / snapshot 0 日)、 staging=t4g.small×2 (auto_failover + multi_az true / snapshot 1 日)、 prod=r7g.large×3 (auto_failover + multi_az true / snapshot 7 日)
+    - **暗号化**: TLS in-transit + at-rest 暗号化 (v1 は AWS-managed key、 CMK 化は post-v1)、 auth token 必須 (64 chars)
+    - **auth token 管理**: `random_password` で生成 → `aws_secretsmanager_secret` に kms stack の `<env>-secrets` CMK で暗号化保管。 secret 名は `<env>/platform/redis/auth-token`、 services は External Secrets Operator 経由で K8s Secret に sync する設計
+    - **Security Group pattern (重要)**: `redis_cluster_sg` (Redis ノード自身、 ingress 6379 from `redis_client_sg` only) + `redis_client_sg` (空 SG、 「Redis に接続する」 マーカ) の 2 SG 構成。 後続 eks-platform stack で node group の `additional_security_group_ids` に `redis_client_sg` を attach することで node 上の全 pod が Redis 到達可能に
+    - **依存**: `vpc` (database_subnet_ids + vpc_id) + `kms` (secrets_key_arn) を `terraform_remote_state` で参照
+    - **`lifecycle.ignore_changes = [auth_token]`**: `random_password` ベースなので terraform apply で毎回 rotation を試みないよう抑止。 意図的 rotation は別途 `keepers` trigger + ElastiCache modify CLI で実施 (post-v1 runbook 化)
+    - **per-env 構造**: ³⁴ pattern 踏襲 + per-env tfvars に node_type / num_cache_clusters / failover / multi_az / snapshot 日数を分離
+    - **`backend.tf`**: S3 backend block 未コメント、 key 行は partial config 注入
+    - **`.github/workflows/terraform.yml`**: `validate-elasticache` job 追加、 `random` provider plugin の download も CI で gate
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: 1 cluster 共有で inventory-read-model の load が identity-broker revocation 経路に影響する可能性あり (memory 圧迫時の eviction 等)。 Datadog memory monitor で先回り検知 + post-v1 で 2 cluster 分割の路線。 cluster mode disabled なので horizontal scaling 不可、 11.6k TPS 想定は scale-up (node_type 大型化) で対応する方針
 - **A5 follow-up³⁷ ADR-0024 の `glue-schema-registry` stack をコード化(MSK 前提の registry container を確保、 個別 schema は services Avro 移行に合わせて段階的に追加)**(architecture.md B2-2 で「採用」 と確定した AWS Glue Schema Registry の registry を env ごとに 1 つ作る。 個別 schema (`inventory.movement.v1` 等) は本 stack で空のまま、 services が JSON ObjectMapper → Avro Serializer に移行する PR で 1 schema 1 PR で追加する設計):
     - **`infra/aws/stacks/glue-schema-registry/`**: `aws_glue_registry` `<env>-platform-schemas` 1 個のみ作成。 `aws_glue_schema` は本 stack では作らず、 後続 PR の hook を README で文書化
     - **運用 convention** (README で確立):
