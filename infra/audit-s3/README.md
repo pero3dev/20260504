@@ -1,5 +1,11 @@
 ## Audit Service S3 Object Lock — 本番デプロイランブック(ADR-0008 A4)
 
+> **⚠️ DEPRECATION (A5 follow-up³⁶)**: 本 directory の手動 runbook (Step 1〜10) と SQL / JSON 設定ファイルは [`infra/aws/stacks/s3-audit/`](../aws/stacks/s3-audit/) で IaC 化されました。
+>
+> 本 README + `bucket-config/*.json` + `glue/*.sql` は IaC が裏で何をするかの reference として残置していますが、 **新規デプロイは IaC stack を使ってください**。 PLACEHOLDER 置換も IaC 側で `kms` stack の output から自動解決されます。
+>
+> 旧 runbook での手動デプロイ済 bucket がある場合は、 IaC で `terraform import` で取り込むパスを別 PR で検討します (現状未実装)。
+
 `audit-service` が日次で WORM 保管する S3 bucket(Object Lock Compliance + 1 年 retention)+ Athena 経由のクエリ用 Glue table 定義。
 
 ### 構成

@@ -176,3 +176,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-s3-audit:
+    name: Validate s3-audit stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/s3-audit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # s3-audit stack は kms stack の terraform_remote_state を参照するが、 validate 時は
+      # backend=false で remote state を読み込まずに完結する (data source resolution は plan 時)。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

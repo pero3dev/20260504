@@ -189,6 +189,17 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁶ ADR-0024 の `s3-audit` stack + `modules/s3-audit-bucket` をコード化(³² で flag した PLACEHOLDER バケット問題を直接解消、 audit-service が production wire 可能に)**(³⁵ の kms に続く並列フェーズ第 2 stack。 ADR-0008 A4 の 「audit-service が日次 WORM 保管する S3 + Athena Glue Catalog」 を IaC 化。 既存 `infra/audit-s3/` の手動 10-step runbook を完全自動化し、 `kms` stack の audit-s3 CMK を `terraform_remote_state` で参照する経路を establish):
+    - **`infra/aws/modules/s3-audit-bucket/`**: Object Lock Compliance mode 365 日 + SSE-KMS + Versioning + lifecycle 365 日 + public block + Deny policy を 1 セットで作る wrapper。 `prevent_destroy = true` で `terraform destroy` を物理封じ
+    - **bucket policy 設計**: 全 principal で `s3:DeleteObject*` / `s3:PutLifecycleConfiguration` / `s3:PutBucketObjectLockConfiguration` / `s3:PutBucketVersioning` を **Deny** する 2 statement のみ。 audit-service IRSA の Allow PUT と監査人 role の Allow GET は IRSA 側 IAM policy で attach する設計 (リソース所有者は Deny 集中、 Allow は利用者側に分散)
+    - **`infra/aws/stacks/s3-audit/`**: バケット名 `inventory-platform-<env>-audit` (override 可)。 `terraform_remote_state` で kms stack の `audit_s3_key_arn` 参照
+    - **Glue Catalog IaC 化**: `aws_glue_catalog_database` `audit_db_<env>` + `aws_glue_catalog_table` × 2 (`audit_records` + `audit_anchors`)。 既存 `infra/audit-s3/glue/*.sql` の Athena DDL を terraform 化、 partition projection (tenant × date、 JsonSerDe) 込み。 `ALTER TABLE ADD PARTITION` 不要
+    - **`infra/audit-s3/README.md`**: 先頭に **deprecation notice** 追記。 SQL / JSON ファイルは IaC が裏で何をするかの reference として残置、 新規デプロイは IaC stack を案内
+    - **per-env 構造**: ³⁴ pattern 踏襲 (envs/{dev,staging,prod}.tfvars + .backend.hcl)
+    - **`.github/workflows/terraform.yml`**: `validate-s3-audit` job 追加、 backend=false で remote state read を skip しつつ module + provider resolution は CI で gate
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: bucket policy の Allow を IRSA 側に倒した結果、 IRSA stack 完成までは audit-service の S3 PUT が IAM policy 不在で動かない。 ただし IRSA は eks-platform / 各 service IRSA stack で別 PR 整備するので、 順序的に問題なし。 「リソース所有者は Deny、 利用者側で Allow」 の S3 慣例に沿って整合
+    - **CRR 範囲外**: 東京 → 大阪 ap-northeast-3 への replication は `aws_s3_bucket_replication_configuration` で別 PR (DR 要件、 2 region の bucket を pair で管理する複雑度のため分離)
 - **A5 follow-up³⁵ ADR-0024 の `kms` stack + `modules/kms-key` 薄ラッパーをコード化(アプリ用 4 種 CMK、 後続 stack の at-rest 暗号化前提を確立)**(³⁴ の vpc に続く並列フェーズ第 1 stack。 KMS は他 stack の依存になる (Aurora / S3 / Secrets Manager / EBS) ため早期に固める価値が高い。 modules/kms-key を作って 4 用途を同 module で量産する形で「KMS key の defaults をプロジェクトで一度だけ書く」 pattern を establish):
     - **`infra/aws/modules/kms-key/`**: 1 用途 1 KMS key + alias を作る再利用 module。 rotation ON / 削除待機 30 日 / account root 全権 policy が default。 `additional_principals` で追加 principal grant 可、 v1 は空運用
     - **`infra/aws/stacks/kms/`**: 4 用途の CMK を module 経由で量産:
