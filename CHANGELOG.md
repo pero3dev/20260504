@@ -188,6 +188,11 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up²⁴ frontend に `pnpm-lock.yaml` を commit して CI を `--frozen-lockfile` + auto-cache 化**(²¹ で `setup-node@v5` の packageManager 検出 auto-cache が lockfile 不在で失敗するため `package-manager-cache: false` を明示無効化していた TODO の回収。 これで PR ごとに依存解決の差分が deterministic になり、 GitHub Actions の pnpm cache hit で install 時間が短縮される):
+    - **`frontend/pnpm-lock.yaml`** (~380 KB) を commit。 `corepack` で activate した pnpm@9.15.0 (= `package.json` の `packageManager` 一致) で生成。 既存の typecheck (16/16) / lint (14/14) / build (14/14) / test (13/13) が通ることを local で確認済み
+    - **`frontend.yml` 変更**: `pnpm install --no-frozen-lockfile` → `--frozen-lockfile` で PR の lockfile 改竄が CI で検出されるように。 `package-manager-cache: false` の override を撤去(setup-node@v5 default の auto-cache が有効化、 lockfile を cache key に使う)
+    - **「Upload pnpm-lock.yaml」 artifact step を削除**: 元々 lockfile 未 commit 時代に devs が CI から落として手元で commit する用の workaround だったが、 lockfile が main に乗った今は dead code
+    - **peer dep 警告は既存**(`@as-integrations/fastify` ↔ `fastify@5` / `@storybook/test` 8.6.18 vs 8.6.15): pre-existing で本 phase で触らない、 monorepo 単位の依存揃え phase が立った段階で対応
 - **A5 follow-up²³ ArchUnit で `PlatformSecurity.applyDefaults` 経路の漏れを CI 強制**(¹⁶〜²² で完成させた即時 token revocation の経路は `commons-security` の `PlatformSecurity.applyDefaults` を踏まないと chain に入らない。 個々の service が将来自前で `HttpSecurity.csrf(..)` を組み立て始めると、 ADR-0023 / RFC 7807 / TenantContextFilter が黙って外れる事故を起こすため、 アーキテクチャレベルで CI 強制する):
     - **新ルール `SecurityRules.securityFilterChainsUsePlatformDefaults`**(commons-test): `@Bean` かつ戻り値型が `SecurityFilterChain` のメソッドを 13 services 全部から ArchUnit で検出し、 `PlatformSecurity.applyDefaults` を呼ばない場合は `@SecurityFilterChainExempt(reason="...")` で明示宣言を要求。 違反は CI で fail
     - **新マーカ `@SecurityFilterChainExempt(reason)`**(commons-security): メソッド単位で適用、 `reason` 必須。 `@AuditExempt` と同じ思想で「正当な例外を理由付きでコードに固着させる」 設計

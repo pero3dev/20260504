@@ -47,15 +47,11 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          # setup-node@v5 は package.json の packageManager フィールド検出で auto-cache する
-          # ようになったが、 frontend/pnpm-lock.yaml はまだ未コミットで cache key が算出できず
-          # 失敗するため無効化。 lockfile を commit に含めたら cache: 'pnpm' を有効化する。
-          package-manager-cache: false
+          # setup-node@v5 が package.json の packageManager フィールド (pnpm@9.15.0) を検出して
+          # 自動 pnpm cache を有効化する。 frontend/pnpm-lock.yaml が cache key として使われる。
 
-      # 初回 commit 時点では pnpm-lock.yaml が無いため frozen-lockfile を外す。 lockfile が
-      # CI artifact 経由で frontend/pnpm-lock.yaml に commit されたら --frozen-lockfile に切替。
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck (turbo run typecheck)
         run: pnpm typecheck
@@ -68,12 +64,3 @@ jobs:
 
       - name: Test (turbo run test)
         run: pnpm test
-
-      - name: Upload pnpm-lock.yaml
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: pnpm-lock
-          path: frontend/pnpm-lock.yaml
-          if-no-files-found: warn
-          retention-days: 7
