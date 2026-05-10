@@ -201,3 +201,27 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-glue-schema-registry:
+    name: Validate glue-schema-registry stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/glue-schema-registry
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # registry のみで schema 個別追加なし、 validate は env 非依存で完結。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

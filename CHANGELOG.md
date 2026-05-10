@@ -189,6 +189,20 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁷ ADR-0024 の `glue-schema-registry` stack をコード化(MSK 前提の registry container を確保、 個別 schema は services Avro 移行に合わせて段階的に追加)**(architecture.md B2-2 で「採用」 と確定した AWS Glue Schema Registry の registry を env ごとに 1 つ作る。 個別 schema (`inventory.movement.v1` 等) は本 stack で空のまま、 services が JSON ObjectMapper → Avro Serializer に移行する PR で 1 schema 1 PR で追加する設計):
+    - **`infra/aws/stacks/glue-schema-registry/`**: `aws_glue_registry` `<env>-platform-schemas` 1 個のみ作成。 `aws_glue_schema` は本 stack では作らず、 後続 PR の hook を README で文書化
+    - **運用 convention** (README で確立):
+      - schema 名 = Kafka topic 名と完全一致 (例: `inventory.movement.v1`)
+      - `data_format` = AVRO (default、 architecture.md B2-2)
+      - `compatibility` = BACKWARD_TRANSITIVE (architecture.md B2-2 + ADR-0019)
+      - schema 定義は `schemas/<topic-name>.avsc` に Avro JSON で配置、 `file()` で読込
+      - services 側 `autoRegistrationSetting: false` で auto-register を禁止し、 schema は terraform PR 経由でのみ追加
+    - **`schemas/.gitkeep`**: 空ディレクトリ保持、 PR 追加時の hook 用
+    - **services 側 wire 設定例** (README): Spring Kafka producer / consumer の `AWSKafkaAvroSerializer` / `AWSKafkaAvroDeserializer` 配線、 `registry.name` に terraform output を渡す形式を提示
+    - **per-env 構造**: ³⁴ pattern 踏襲
+    - **`.github/workflows/terraform.yml`**: `validate-glue-schema-registry` job 追加、 backend=false で env 非依存 validate
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: registry container だけ作って schema 0 の状態で commit するのは「動くが何も登録されてない registry」 という中途半端さを残す。 ただし services の Avro 移行は post-v1 段階展開で進める方針 (Pact 契約で互換性担保 + JSON 直送のまま production 投入は問題なし) のため、 registry を先に確保しておくことで msk stack apply 時に「registry 存在しない」 エラーを避けられる
 - **A5 follow-up³⁶ ADR-0024 の `s3-audit` stack + `modules/s3-audit-bucket` をコード化(³² で flag した PLACEHOLDER バケット問題を直接解消、 audit-service が production wire 可能に)**(³⁵ の kms に続く並列フェーズ第 2 stack。 ADR-0008 A4 の 「audit-service が日次 WORM 保管する S3 + Athena Glue Catalog」 を IaC 化。 既存 `infra/audit-s3/` の手動 10-step runbook を完全自動化し、 `kms` stack の audit-s3 CMK を `terraform_remote_state` で参照する経路を establish):
     - **`infra/aws/modules/s3-audit-bucket/`**: Object Lock Compliance mode 365 日 + SSE-KMS + Versioning + lifecycle 365 日 + public block + Deny policy を 1 セットで作る wrapper。 `prevent_destroy = true` で `terraform destroy` を物理封じ
     - **bucket policy 設計**: 全 principal で `s3:DeleteObject*` / `s3:PutLifecycleConfiguration` / `s3:PutBucketObjectLockConfiguration` / `s3:PutBucketVersioning` を **Deny** する 2 statement のみ。 audit-service IRSA の Allow PUT と監査人 role の Allow GET は IRSA 側 IAM policy で attach する設計 (リソース所有者は Deny 集中、 Allow は利用者側に分散)
