@@ -52,10 +52,10 @@ variable "saml_attribute_mapping" {
   EOT
   type        = map(string)
   default = {
-    email                 = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-    given_name            = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
-    family_name           = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
-    "custom:employee_id"  = "http://schemas.example.com/identity/claims/employeeid"
+    email                = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+    given_name           = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+    family_name          = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
+    "custom:employee_id" = "http://schemas.example.com/identity/claims/employeeid"
   }
 }
 
