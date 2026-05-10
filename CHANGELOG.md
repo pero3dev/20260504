@@ -189,6 +189,22 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁹ ADR-0024 の `aurora` stack + `modules/aurora-cluster` 薄ラッパー(3 cluster トポロジを env ごとに reify)**(ADR-0005 で確定した hot-path / business / common-base の 3 Aurora PostgreSQL cluster を env ごとに 1 セット構築。 architecture.md の DB ownership モデルを IaC で literal に表現する大型 stack):
+    - **`infra/aws/modules/aurora-cluster/`**: `terraform-aws-modules/rds-aurora/aws ~> 9.0` の薄ラッパー。 engine = aurora-postgresql 16.4、 storage_encrypted + KMS CMK、 manage_master_user_password = true (RDS managed master password、 自動 Secrets Manager + rotation)、 `apply_immediately = false` (障害誘発回避)、 deletion_protection / final snapshot は env で切替
+    - **3 cluster の役割割当**:
+      - `<env>-aurora-hotpath` → inventory-core, master-data (Bridge model: schema per tenant)
+      - `<env>-aurora-business` → retail-ec, wholesale, tpl, manufacturing (Bridge)
+      - `<env>-aurora-common` → identity-broker, audit-service, notification, workflow, analytics, integration-hub (Pool: tenant_id 列 + RLS)
+    - **per-env サイジング**: dev = 全 cluster t4g.medium × 1 (合計 3 instances)、 staging = 全 t4g.medium × 2 (合計 6)、 prod = hotpath r7g.xlarge × 3 + business r7g.large × 2 + common r7g.large × 2 (合計 7)。 hotpath prod は 11.6k TPS 想定で memory-optimized + 3 instances (writer + 2 reader、 各 AZ 1 個)
+    - **共有 client SG pattern**: `aurora_client_sg` を 1 つ作って全 3 cluster の ingress source に追加。 EKS node group が attach することで全 cluster 到達可能 (cluster 越え制御は IAM ではなく credential 経由、 v1 simplification)
+    - **per-service DB / user 作成は範囲外**: cluster 作成後の Flyway K8s Job で対応 (CLAUDE.md 方針)。 admin SQL の例は README に列挙
+    - **依存**: vpc (vpc_id, database_subnet_group_name) + kms (aurora_key_arn) を `terraform_remote_state` で参照
+    - **per-env 構造**: ³⁴ pattern 踏襲 + per-env tfvars に 3 cluster 各々の instance_class / instance_count を分離
+    - **`backup_retention_period`** per env: dev=1 / staging=7 / prod=35 日 (architecture.md D2 + RDS 上限)
+    - **Performance Insights** (7 日保持) + CloudWatch postgresql logs export (default ON)
+    - **`.github/workflows/terraform.yml`**: `validate-aurora` job 追加、 上流 module download (~> 9.0) も CI で gate
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: cluster 越え IAM-based access control 不在 (= aurora_client_sg を attach した node 上の pod は技術的に全 cluster 到達可能、 制御は per-service credential のみ)。 IAM database authentication 化は post-v1。 prod cost ≒ $3,500/月 (on-demand)、 Reserved Instance で 30〜50% 削減可、 production traffic 安定後に検討
 - **A5 follow-up³⁸ ADR-0024 の `elasticache` stack をコード化(inventory-read-model + identity-broker 共有 Redis cluster + auth token + Secrets Manager 連携)**(architecture.md A2 / B4 で確定した ElastiCache for Redis を env ごとに 1 cluster 構築。 inventory-read-model (CQRS 読み側投影) + identity-broker (ADR-0023 token revocation) の 2 用途を 1 cluster で共有 (logical key prefix `rm:` / `rev:` で分離)、 運用分離が必要なら post-v1 で 2 cluster 化):
     - **Redis 7.1, cluster mode disabled**: 1 shard、 N nodes (1 primary + N-1 replicas)。 `parameter_group` に `maxmemory-policy = allkeys-lru` (eviction で memory 満杯回避)
     - **per-env サイジング**: dev=t4g.micro×2 (auto_failover false / multi_az false / snapshot 0 日)、 staging=t4g.small×2 (auto_failover + multi_az true / snapshot 1 日)、 prod=r7g.large×3 (auto_failover + multi_az true / snapshot 7 日)

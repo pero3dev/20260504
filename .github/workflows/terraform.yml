@@ -250,3 +250,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-aurora:
+    name: Validate aurora stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/aurora
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # 上流 terraform-aws-modules/rds-aurora/aws ~> 9.0 の download を伴うので少し時間がかかる。
+      # vpc + kms の remote_state は plan 時に遅延、 validate には不要。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
