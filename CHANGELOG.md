@@ -188,6 +188,9 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up²⁴-followup `pnpm/action-setup` を v4 → v6 に bump**(²¹ で `action.yml` の default branch HEAD を見て「node24 で動作中」 と判定して bump 不要としたが、 実際は v4 タグ時点では `using: node20` だった(default branch ≠ v4 tag のミスを ²⁴ の Frontend CI annotation で再露呈)。 v4 タグの action.yml を `?ref=v4` 付きで再確認したところ node20、 v6 が node24。 ²⁴ commit に併せて bump):
+    - **frontend.yml**: `pnpm/action-setup@v4 → @v6`。 v6 release で API 互換、 `version: 9.15.0` 引数はそのまま
+    - **²¹ の lessons learned**: 第 3 者 action の Node version 確認は **specific tag/ref を指定して action.yml を取得** すること(`gh api .../contents/action.yml?ref=v4`)。 default branch HEAD は次 major の preview を含むため tag 時点と乖離するケースがある
 - **A5 follow-up²⁴ frontend に `pnpm-lock.yaml` を commit して CI を `--frozen-lockfile` + auto-cache 化**(²¹ で `setup-node@v5` の packageManager 検出 auto-cache が lockfile 不在で失敗するため `package-manager-cache: false` を明示無効化していた TODO の回収。 これで PR ごとに依存解決の差分が deterministic になり、 GitHub Actions の pnpm cache hit で install 時間が短縮される):
     - **`frontend/pnpm-lock.yaml`** (~380 KB) を commit。 `corepack` で activate した pnpm@9.15.0 (= `package.json` の `packageManager` 一致) で生成。 既存の typecheck (16/16) / lint (14/14) / build (14/14) / test (13/13) が通ることを local で確認済み
     - **`frontend.yml` 変更**: `pnpm install --no-frozen-lockfile` → `--frozen-lockfile` で PR の lockfile 改竄が CI で検出されるように。 `package-manager-cache: false` の override を撤去(setup-node@v5 default の auto-cache が有効化、 lockfile を cache key に使う)
