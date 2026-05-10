@@ -4,11 +4,11 @@ ADR-0024 / ADR-0013 で確定した EKS 単一 cluster per env トポロジを 3
 
 ## Phase 構成
 
-| Phase | 範囲 | 状態 |
-|---|---|---|
-| **A** (本 stack) | control plane + IAM + KMS + OIDC + 標準 addon + system NG + Karpenter discovery tag | ⁴¹ で完了 |
-| **B** | Karpenter Helm + NodeClass + NodePool + application node groups + Network Policy | ⁴² 予定 |
-| **C** (`eks-platform` stack) | External Secrets Operator + Datadog + ArgoCD + Argo Rollouts + ALB Controller + per-service IRSA | ⁴³ 予定 |
+| Phase | stack | 範囲 | 状態 |
+|---|---|---|---|
+| **A** (本 stack) | `eks` | control plane + IAM + KMS + OIDC + 標準 addon + system NG + Karpenter discovery tag (cluster + node SG) | ⁴¹ で完了 |
+| **B-1** | `eks-karpenter` | Karpenter Controller IRSA + Node IAM + Instance Profile + SQS interruption queue + EventBridge rules + private subnet discovery tag | ⁴² で完了 |
+| **C** | `eks-platform` | Karpenter Helm + EC2NodeClass + NodePool + ESO + Datadog + ArgoCD + Argo Rollouts + ALB Controller + per-service IRSA + 他 stack の client SG attach | ⁴³ 予定 |
 
 ## Phase A で何を作るか
 

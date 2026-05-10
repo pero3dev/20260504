@@ -325,3 +325,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-eks-karpenter:
+    name: Validate eks-karpenter stack Phase B-1 (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/eks-karpenter
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # terraform-aws-modules/eks/aws//modules/karpenter sub-module + その依存 IAM role module の
+      # download を伴うため、 timeout を 8 分に拡張 (eks Phase A と同等)。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

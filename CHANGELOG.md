@@ -189,6 +189,18 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴² ADR-0024 の `eks-karpenter` stack + `modules/karpenter` 薄ラッパー(Karpenter の AWS リソース部分のみ、 EKS の 3 phase 構築の第 2 弾 = Phase B-1)**(eks Phase A で control plane が立った状態に対して、 Karpenter が動作するために必要な AWS-side リソース [Controller IRSA + Node IAM + Instance Profile + SQS interruption queue + EventBridge rules + private subnet discovery tag] を 1 stack に集約。 Karpenter Helm chart deploy + EC2NodeClass / NodePool は K8s リソースのため、 helm/kubectl_manifest provider が必要 → Phase C `eks-platform` stack で扱う設計):
+    - **設計判断 — AWS-side と K8s-side の分離**: 1 stack に混在させると provider 数増 + plan-time に cluster 起動を前提化 + state 結合が強くなる → AWS-side のみの stack として独立させ、 Phase C の K8s-side と直交させる
+    - **`infra/aws/modules/karpenter/`**: `terraform-aws-modules/eks/aws//modules/karpenter ~> 20.0` 薄ラッパー。 `enable_v1_permissions = true` (Karpenter v1.0+ 用権限)、 `enable_irsa = true` (Pod Identity 移行は post-v1)、 `irsa_namespace_service_accounts = ["karpenter:karpenter"]` (Helm chart default に合わせる)、 `create_node_iam_role = true` + `node_iam_role_name = "<cluster>-karpenter-node"` (固定名、 system NG 用 role と独立)、 `node_iam_role_attach_cni_policy = true`
+    - **`infra/aws/stacks/eks-karpenter/`**:
+      - karpenter module 呼び出し (cluster_id + oidc_provider_arn を eks remote_state から)
+      - **private subnet discovery tag**: `aws_ec2_tag` resource で `karpenter.sh/discovery = <cluster_name>` を 3 AZ 全 private subnet に付与。 vpc module を変更せず、 stack 側で個別付与する設計 (vpc に EKS 固有の関心が漏れない)
+      - per-env tfvars は `environment` のみ (sizing は K8s 側 NodePool で完結するため AWS-side は env 差なし)
+    - **outputs**: `controller_iam_role_arn` (Helm `serviceAccount.annotations[eks.amazonaws.com/role-arn]` 用) / `node_iam_role_name` (EC2NodeClass.spec.role 用) / `interruption_queue_name` (Helm `settings.interruptionQueue` 用) / `instance_profile_name` (v1 では自動解決、 互換性のため残置)
+    - **依存**: `eks` (cluster_id + oidc_provider_arn) + `vpc` (private_subnet_ids)
+    - **`.github/workflows/terraform.yml`**: `validate-eks-karpenter` job 追加、 上流 EKS module v20 + IAM sub-module の download を伴うため timeout を 8 分に設定 (eks Phase A と同等)
+    - **trade-off**: AWS-side のみで「使い物にならない」 状態は変わらない (Karpenter Controller が cluster で動作していないので NodePool が pod を schedule しない)。 ただし state isolation + provider 数削減の利得が勝る判断。 Phase C で Helm + NodeClass + NodePool を 1 PR で commit すれば一直線に Karpenter 利用可能になる
+    - **README に Phase C で deploy する K8s リソース例を明記**: Helm values + EC2NodeClass + NodePool の YAML テンプレート (output を参照する形)。 Phase C 着手時の coding 起点として
 - **A5 follow-up⁴¹ ADR-0024 の `eks` stack Phase A + `modules/eks-cluster` 薄ラッパー(EKS control plane + 標準 addon + system NG、 EKS の 3 phase 構築の第 1 弾)**(ADR-0013 で確定した EKS 単一 cluster per env トポロジを 3 phase で構築する戦略の Phase A。 control plane + 標準 addon + system NG までで cluster が「立つ」 状態にし、 Karpenter / application NG は ⁴² Phase B、 ESO / DD / ArgoCD / ALB Controller / per-service IRSA は ⁴³ Phase C で別 PR):
     - **`infra/aws/modules/eks-cluster/`**: `terraform-aws-modules/eks/aws ~> 20.0` 薄ラッパー、 EBS CSI driver IRSA は `iam-role-for-service-accounts-eks ~> 5.50` sub-module で内部生成
     - **Phase A 範囲**:
