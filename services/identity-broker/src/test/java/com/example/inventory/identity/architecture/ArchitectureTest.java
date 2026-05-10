@@ -2,6 +2,7 @@ package com.example.inventory.identity.architecture;
 
 import com.example.inventory.commons.test.arch.AuditMaskingRules;
 import com.example.inventory.commons.test.arch.HexagonalLayerRules;
+import com.example.inventory.commons.test.arch.SecurityRules;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
@@ -35,4 +36,13 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();
+
+    /**
+     * A5 follow-up²³: 全 service で {@code PlatformSecurity.applyDefaults} 経路を強制し、 ADR-0023
+     * RevocationCheckFilter / RFC 7807 / TenantContextFilter が無音で外れる事故を防ぐ。 publicFilterChain は
+     * {@code @SecurityFilterChainExempt(reason="...")} で明示宣言済。
+     */
+    @ArchTest
+    static final ArchRule securityFilterChainsUsePlatformDefaults =
+            SecurityRules.securityFilterChainsUsePlatformDefaults();
 }

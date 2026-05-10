@@ -2,6 +2,7 @@ package com.example.inventory.master.architecture;
 
 import com.example.inventory.commons.test.arch.AuditMaskingRules;
 import com.example.inventory.commons.test.arch.HexagonalLayerRules;
+import com.example.inventory.commons.test.arch.SecurityRules;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
@@ -30,4 +31,9 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule sensitiveCommandFieldsAreMasked =
             AuditMaskingRules.sensitiveFieldsInCommandsAreMasked();
+
+    /** A5 follow-up²³: PlatformSecurity.applyDefaults 経路を強制。 */
+    @ArchTest
+    static final ArchRule securityFilterChainsUsePlatformDefaults =
+            SecurityRules.securityFilterChainsUsePlatformDefaults();
 }

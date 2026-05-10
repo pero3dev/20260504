@@ -49,5 +49,14 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- SecurityRules の単体テストでのみ fixture が PlatformSecurity / @SecurityFilterChainExempt を
+             import するため。 ルール本体は FQN 文字列で参照するため、ライブラリ利用側にこの依存は伝搬しない。 -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-security</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

@@ -7,6 +7,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.example.inventory.commons.security.SecurityFilterChainExempt;
+
 /**
  * Notification の Security 設定。
  *
@@ -18,6 +20,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
+    @SecurityFilterChainExempt(
+            reason =
+                    "notification は外部 API を持たず Kafka 内部消費 + actuator のみ。 actuator は K8s NetworkPolicy"
+                            + " / Service Mesh で内部限定するためのアプリ層 permitAll で、 ADR-0023 revocation /"
+                            + " RFC 7807 / TenantContextFilter は不要(JWT を受けない)。"
+                            + " 将来 admin 通知設定 API 等の外部公開を出す段階で本 chain を 2 本化する設計。")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)

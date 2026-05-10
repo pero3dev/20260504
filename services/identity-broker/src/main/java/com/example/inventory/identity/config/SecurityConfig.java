@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.example.inventory.commons.security.PlatformSecurity;
+import com.example.inventory.commons.security.SecurityFilterChainExempt;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
@@ -64,6 +65,12 @@ public class SecurityConfig {
     /** 認証/JWKS/Actuator など admin 以外の全パス。 認証無し(MVP)。 */
     @Bean
     @Order(Ordered.LOWEST_PRECEDENCE)
+    @SecurityFilterChainExempt(
+            reason =
+                    "MVP の公開エンドポイント (login / refresh / select-tenant / federated-exchange / JWKS /"
+                            + " actuator) は permitAll で Bearer 検証経路を持たない。 oauth2ResourceServer も意図的に"
+                            + " 未配線(Bearer ヘッダがあっても無視され stale token による 401 漏れを防ぐ)。 共通"
+                            + " RevocationCheckFilter / TenantContextFilter は本 chain では不要。")
     public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)

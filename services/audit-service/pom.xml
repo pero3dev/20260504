@@ -89,6 +89,14 @@
             <groupId>com.example.inventory</groupId>
             <artifactId>commons-observability</artifactId>
         </dependency>
+        <!-- @SecurityFilterChainExempt マーカ用(本サービスは外部 API 持たず PlatformSecurity を使わないため
+             ArchUnit ルールで明示 exempt 宣言する)。 commons-tenant 経由で spring-security は既に classpath にあるので
+             PlatformSecurityAutoConfiguration の Bean 群は wire されるが、 SecurityFilterChain は applyDefaults を
+             呼ばないため filter chain 自体には載らない(no-op)。 -->
+        <dependency>
+            <groupId>com.example.inventory</groupId>
+            <artifactId>commons-security</artifactId>
+        </dependency>
 
         <!-- A4: ADR-0008 の S3 Object Lock 投入。 BOM がバージョンを管理する。 -->
         <dependency>

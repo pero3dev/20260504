@@ -188,6 +188,19 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up²³ ArchUnit で `PlatformSecurity.applyDefaults` 経路の漏れを CI 強制**(¹⁶〜²² で完成させた即時 token revocation の経路は `commons-security` の `PlatformSecurity.applyDefaults` を踏まないと chain に入らない。 個々の service が将来自前で `HttpSecurity.csrf(..)` を組み立て始めると、 ADR-0023 / RFC 7807 / TenantContextFilter が黙って外れる事故を起こすため、 アーキテクチャレベルで CI 強制する):
+    - **新ルール `SecurityRules.securityFilterChainsUsePlatformDefaults`**(commons-test): `@Bean` かつ戻り値型が `SecurityFilterChain` のメソッドを 13 services 全部から ArchUnit で検出し、 `PlatformSecurity.applyDefaults` を呼ばない場合は `@SecurityFilterChainExempt(reason="...")` で明示宣言を要求。 違反は CI で fail
+    - **新マーカ `@SecurityFilterChainExempt(reason)`**(commons-security): メソッド単位で適用、 `reason` 必須。 `@AuditExempt` と同じ思想で「正当な例外を理由付きでコードに固着させる」 設計
+    - **新規例外 4 件を明示宣言**:
+      - `identity-broker.SecurityConfig.publicFilterChain` — MVP 公開エンドポイント (login / refresh / select-tenant / federated-exchange / JWKS / actuator) は permitAll、 oauth2ResourceServer 未配線で Bearer ヘッダ無視
+      - `inventory-core.LoadTestSecurityConfig.loadTestFilterChain` — `@Profile("loadtest")` 専用、 認証バイパスで X-Tenant-Id ヘッダ経由のテナント解決のみ
+      - `audit-service.SecurityConfig.securityFilterChain` — 外部 API 持たず Kafka 内部消費 + actuator のみ、 K8s NetworkPolicy で内部限定
+      - `notification.SecurityConfig.securityFilterChain` — 同上(Kafka 内部消費の通知配信 backend)
+    - **commons-security 依存を audit-service / notification の pom に追加**(従来 commons-tenant 経由で spring-security 自体は classpath にあったが `@SecurityFilterChainExempt` クラスは無かった。 PlatformSecurityAutoConfiguration の Bean 群は wire されるが、 SecurityFilterChain は applyDefaults を呼ばないため filter chain 自体には載らない no-op)
+    - **13 services 全部の `ArchitectureTest` に opt-in**(`@ArchTest static final ArchRule securityFilterChainsUsePlatformDefaults = SecurityRules.securityFilterChainsUsePlatformDefaults();`)。 全 13 サービスで AuditExempt 同様の coverage が ArchUnit で確保される
+    - **regression test 4 ケース** (`SecurityRulesTest`): applyDefaults 呼ぶ → 合格 / 呼ばず exempt も無し → 違反検出 / `@SecurityFilterChainExempt` 付き → 合格 / SecurityFilterChain Bean 無し → vacuously 合格
+    - **fixture 3 件** (`commons-test/src/test/java/.../fixtures/config/`): `GoodSecurityConfig` / `BadSecurityConfig` / `ExemptSecurityConfig`
+    - **これで commons-security ベースのプラットフォーム共通機能(認証/認可エラー RFC 7807 / Bearer 経路 / Tenant context / 即時 revocation)を将来の service 追加で「気付かず外す」 risk が CI で検出される**。 `@AuditExempt` (J-SOX 監査) と `@SecurityFilterChainExempt` (security 共通機能) の 2 つの opt-out 機構で、 「全サービス default 強制 + reason 付き個別例外」 の運用に揃った
 - **A5 follow-up²² admin が user の現状 revocation 状態を確認する read API**(¹⁹ 完了時点で「revocation 状態の admin 確認 API は MVP では `redis-cli GET` で代用」 と TODO 残しにしていた最後のピース。 これで ADR-0023 関連の admin REST 表面が write (revoke) + read (status) の対称になる):
     - **OpenAPI**: `GET /v1/admin/users/{userId}/revocation-status`(operationId `getUserRevocationStatus`、 `admin-users` tag)。 response `RevocationStatusResource {revoked: bool, ttlSeconds: int64?}`、 200 / 401 / 403 / 404
     - **port-out 拡張**: `RevocationStore.getRevocationTtl(long userId): Optional<Duration>` を追加。 `RedisRevocationStore` は `redis.getExpire(key, SECONDS)` で残 TTL 取得(Redis 戻り値: 正値=残秒 / -1=TTL なし / -2=key なし)、 fail-open(`DataAccessException` は warn log のみで empty 返却)。 `NoOpRevocationStore` は常に empty

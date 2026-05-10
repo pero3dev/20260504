@@ -18,6 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.example.inventory.commons.security.SecurityFilterChainExempt;
 import com.example.inventory.commons.tenant.TenantContext;
 import com.example.inventory.commons.tenant.TenantId;
 
@@ -46,6 +47,10 @@ public class LoadTestSecurityConfig {
     private static final Logger LOG = LoggerFactory.getLogger(LoadTestSecurityConfig.class);
 
     @Bean
+    @SecurityFilterChainExempt(
+            reason =
+                    "loadtest profile 専用、 認証バイパスで X-Tenant-Id ヘッダ経由のテナント解決のみ行う。 production "
+                            + "profile では生成されない (@Profile(\"loadtest\")) ので revocation / Bearer 経路は不要。")
     public SecurityFilterChain loadTestFilterChain(HttpSecurity http) throws Exception {
         LOG.warn(
                 "==========================================\n"
