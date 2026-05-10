@@ -151,3 +151,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-kms:
+    name: Validate kms stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/kms
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # kms stack は env 依存だが validate は env 非依存。 modules/kms-key を 4 回 instantiate
+      # しているので module resolution + provider plugin の download だけで validate 完結。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

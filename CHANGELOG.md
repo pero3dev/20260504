@@ -189,6 +189,19 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁵ ADR-0024 の `kms` stack + `modules/kms-key` 薄ラッパーをコード化(アプリ用 4 種 CMK、 後続 stack の at-rest 暗号化前提を確立)**(³⁴ の vpc に続く並列フェーズ第 1 stack。 KMS は他 stack の依存になる (Aurora / S3 / Secrets Manager / EBS) ため早期に固める価値が高い。 modules/kms-key を作って 4 用途を同 module で量産する形で「KMS key の defaults をプロジェクトで一度だけ書く」 pattern を establish):
+    - **`infra/aws/modules/kms-key/`**: 1 用途 1 KMS key + alias を作る再利用 module。 rotation ON / 削除待機 30 日 / account root 全権 policy が default。 `additional_principals` で追加 principal grant 可、 v1 は空運用
+    - **`infra/aws/stacks/kms/`**: 4 用途の CMK を module 経由で量産:
+      - `alias/<env>-aurora`: Aurora 3 cluster (hot-path / business / common-base) at-rest 暗号化共通
+      - `alias/<env>-audit-s3`: audit-service の S3 Object Lock バケット (compliance mode 365 days)
+      - `alias/<env>-secrets`: Secrets Manager で管理する全 secret 共通 (JWT 鍵 / Aurora master / SES SMTP 等)
+      - `alias/<env>-ebs`: EKS node groups の EBS volume + PVC
+    - **範囲外 (本 stack で作らない)**: MSK 専用 CMK (v1 は AWS-managed) / ElastiCache 専用 CMK (同上) / tfstate 用 CMK (bootstrap 既存) / Cognito 用 (AWS-managed で十分)
+    - **per-env 構造**: `envs/{dev,staging,prod}.tfvars` (環境名のみ) + `envs/{dev,staging,prod}.backend.hcl` (state key partial config)。 ³⁴ で establish した pattern を踏襲
+    - **`backend.tf`**: S3 backend block 未コメント、 key 行は partial config で注入
+    - **`.github/workflows/terraform.yml`**: `validate-kms` job 追加、 module を 4 回 instantiate しているので module resolution が CI で検証される
+    - **terraform fmt + validate ローカル緑** (terraform 1.7.5、 上流 module download なし)
+    - **trade-off**: 4 keys を 1 stack に集約して discoverability 重視。 用途ごとに別 stack に分ける案 (s3-audit stack に audit CMK を同居等) も検討したが、 「`alias/<env>-*` を見れば全 CMK 一覧」 という運用上の利便性を優先。 cost は env あたり 4 keys × $1/month + 使用 API call 数で軽量
 - **A5 follow-up³⁴ ADR-0024 の `vpc` stack + `modules/vpc` 薄ラッパーをコード化(env 依存 stack 第 1 号、 per-env tfvars/backend pattern を establish)**(³³ の iam-baseline に続く依存第 3 層。 EKS / Aurora / MSK / ElastiCache すべてが VPC 依存なので、 並列フェーズ 6 stack のうち最初に書く必要がある。 加えて env 依存 stack 第 1 号として「per-env tfvars + per-env partial backend config」 の作業 pattern を後続 11 stack へ展開できる形で確立する):
     - **`infra/aws/modules/vpc/`** (上流 `terraform-aws-modules/vpc/aws ~> 5.14` の薄ラッパー):
       - 命名 `${env}-vpc`、 DNS 全 ON、 database subnets 用 dedicated route table + RDS Subnet Group 自動生成
