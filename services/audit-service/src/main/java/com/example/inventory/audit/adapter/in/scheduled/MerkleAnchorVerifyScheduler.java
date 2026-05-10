@@ -2,6 +2,7 @@ package com.example.inventory.audit.adapter.in.scheduled;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,9 @@ import com.example.inventory.audit.application.port.in.VerifyMerkleAnchorUseCase
 import com.example.inventory.audit.application.port.in.VerifyMerkleAnchorUseCase.Status;
 import com.example.inventory.audit.config.AnchorProperties;
 import com.example.inventory.commons.tenant.TenantId;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * 日次 Merkle anchor 整合性検証スケジューラ(ADR-0008、 A5 follow-up²⁵)。
@@ -35,6 +39,16 @@ import com.example.inventory.commons.tenant.TenantId;
  *
  * <p>ERROR ログは Datadog 等のログモニタで page out される設計。 scheduler 自体は continue-on-error で 1 tenant / 1
  * 日付の失敗が他に伝搬しない(VerifyMerkleAnchorService の内部 read-only DB アクセスが落ちた場合のみ catch)。
+ *
+ * <p>Micrometer metrics(A5 follow-up²⁶):
+ *
+ * <ul>
+ *   <li>{@code audit.anchor.verify.count} — 1 日 1 tenant 1 anchor の verify が完走するたびに +1。 タグ {@code
+ *       tenant} と {@code status}(ok / anchor_not_found / record_count_mismatch / root_mismatch)を付与。
+ *       Datadog で「 mismatch != 0 が直近 25 時間で発生」 のようなアラートが立てられる。
+ *   <li>{@code audit.anchor.verify.exceptions} — verify 中に {@link RuntimeException} を catch するたびに
+ *       +1。 タグ {@code tenant} のみ。 DB 切断等の運用障害を J-SOX mismatch と区別して可視化する。
+ * </ul>
  */
 @Component
 @ConditionalOnProperty(
@@ -45,13 +59,20 @@ public class MerkleAnchorVerifyScheduler {
 
     private static final Logger LOG = LoggerFactory.getLogger(MerkleAnchorVerifyScheduler.class);
 
+    static final String METRIC_VERIFY_COUNT = "audit.anchor.verify.count";
+    static final String METRIC_VERIFY_EXCEPTIONS = "audit.anchor.verify.exceptions";
+
     private final VerifyMerkleAnchorUseCase useCase;
     private final AnchorProperties properties;
+    private final MeterRegistry meterRegistry;
 
     public MerkleAnchorVerifyScheduler(
-            VerifyMerkleAnchorUseCase useCase, AnchorProperties properties) {
+            VerifyMerkleAnchorUseCase useCase,
+            AnchorProperties properties,
+            MeterRegistry meterRegistry) {
         this.useCase = useCase;
         this.properties = properties;
+        this.meterRegistry = meterRegistry;
     }
 
     @Scheduled(cron = "${platform.audit.anchor.verify.cron:0 0 2 * * *}", zone = "UTC")
@@ -107,9 +128,11 @@ public class MerkleAnchorVerifyScheduler {
                                     report.recomputedRoot().map(h -> h.value()).orElse("?"));
                         }
                     }
+                    incrementVerifyCount(tenant, report.status());
                 } catch (RuntimeException e) {
                     LOG.error(
                             "anchor verify 例外 tenant={} date={}: {}", tenant, target, e.toString());
+                    incrementExceptionCount(tenant);
                 }
             }
         }
@@ -120,5 +143,22 @@ public class MerkleAnchorVerifyScheduler {
                 okCount,
                 notFoundCount,
                 mismatchCount);
+    }
+
+    private void incrementVerifyCount(String tenant, Status status) {
+        Counter.builder(METRIC_VERIFY_COUNT)
+                .description("Merkle anchor verify result count by tenant and status")
+                .tag("tenant", tenant)
+                .tag("status", status.name().toLowerCase(Locale.ROOT))
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private void incrementExceptionCount(String tenant) {
+        Counter.builder(METRIC_VERIFY_EXCEPTIONS)
+                .description("Merkle anchor verify uncaught exceptions by tenant")
+                .tag("tenant", tenant)
+                .register(meterRegistry)
+                .increment();
     }
 }
