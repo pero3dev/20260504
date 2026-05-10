@@ -1,0 +1,9 @@
+# bootstrap stack はすべての値が default で動くため tfvars は通常不要。
+# AWS account / リージョンを変える場合のみ override する想定。
+#
+# 例 (大阪 region に bootstrap を置きたい場合 — DR や regional isolation 検討時):
+# region                                    = "ap-northeast-3"
+# tfstate_bucket_name                       = "inventory-platform-tfstate-osaka"
+# tflock_table_name                         = "inventory-platform-tflock-osaka"
+# tfstate_kms_alias                         = "alias/tfstate-osaka"
+# tfstate_noncurrent_version_retention_days = 90

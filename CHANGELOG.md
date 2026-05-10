@@ -189,6 +189,17 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³² ADR-0024 の bootstrap stack をコード化(全 stack の前提となる tfstate インフラ)**(³¹ で確定した layout の依存最上流。 全 12 stacks × 3 envs = 36 tfstate を保管する S3 バケット + DynamoDB lock + KMS を Terraform 自身で作る chicken-and-egg の起点。 実 apply は AWS account 払い出し時に operator が 1 回限り走らせる、 コードと runbook と CI 検証を先行して PR 化):
+    - **`infra/aws/README.md`**: ADR-0024 の構造を repo top-level で文書化。 12 stacks のうちどれが env 依存 / 非依存か、 state key 規則、 依存順序、 既存 `infra/cognito/terraform/` / `infra/audit-s3/` / `infra/k8s/` の扱いを集約
+    - **`infra/aws/stacks/bootstrap/`** 構成 (`versions.tf` / `variables.tf` / `main.tf` / `outputs.tf` / `backend.tf` / `terraform.tfvars.example` / `README.md`):
+      - **S3 バケット** `inventory-platform-tfstate`: versioning ON / SSE-KMS / public access block / 非 current 90 日 expiration / `prevent_destroy = true`
+      - **DynamoDB lock table** `inventory-platform-tflock`: PAY_PER_REQUEST / SSE-KMS / PITR / `prevent_destroy = true`
+      - **KMS CMK** `alias/tfstate`: rotation ON / 削除待機 30 日。 key policy は本 stack 時点では account root のみ (`iam-baseline` stack 完成後に「deploy role のみ kms:Decrypt 可」 へ絞る別 PR 予定)
+      - `default_tags` で `Project=inventory-platform / ManagedBy=terraform / Stack=bootstrap` を全リソースに自動注入。 env tag は env 非依存 stack のため意図的に付与しない
+    - **chicken-and-egg 解消**: `backend.tf` に S3 backend ブロックを **コメント済**で配置、 README で「Step 1. local state で apply → Step 2. backend ブロック有効化 → Step 3. `terraform init -migrate-state` で自分自身の state を新規バケットへ移動 → 残ローカル state を削除」 の 3 段ランブックを明記
+    - **`.github/workflows/terraform.yml`**: `validate-bootstrap` job 追加 (既存 `validate-cognito` と同型、 `terraform init -backend=false` + `terraform validate`、 AWS credential 不要)
+    - **terraform fmt + validate ローカル緑** (terraform 1.7.5)
+    - **trade-off**: `prevent_destroy = true` を S3 バケット / DynamoDB lock の両方に付与し、 意図的に「terraform destroy で消えない」 状態を作った。 廃棄手順 README に明記。 「うっかり terraform destroy」 が全 env を破壊するリスクを物理的に封じる方が、 万一の正規廃棄時の手間を上回る判断
 - **A5 follow-up³¹ ADR-0024 を起票 — AWS infra Terraform layout 確定(残作業 60+ PR の前提を 1 ADR で固める)**(production release までの残タスク sweep の結果、 AWS 側 IaC は 1 module (cognito) しか書かれておらず、 EKS / Aurora x3 / MSK / ElastiCache / Glue Schema Registry / S3 Object Lock / IAM / KMS / Secrets Manager すべて未着手と判明。 IaC PR を着手する前提として「state layout / env 分離方式 / backend bootstrap / multi-account / module 戦略 / 命名 + tagging」 の 6 軸を 1 ADR で決定):
     - **state layout**: per-stack remote state (1 stack × 1 env = 1 tfstate)、 12 stacks × 3 envs = 36 state files。 cross-stack 参照は `terraform_remote_state` データソース。 単一 stack の bad apply 影響は 1 stack × 1 env に限定
     - **stack 一覧**: `bootstrap` (state バケット + lock) / `iam-baseline` / `kms` / `vpc` / `eks` / `aurora` / `msk` / `elasticache` / `glue-schema-registry` / `s3-audit` / `cognito` (現行モジュールの移行先) / `eks-platform` (External Secrets / Datadog / ArgoCD / Argo Rollouts)

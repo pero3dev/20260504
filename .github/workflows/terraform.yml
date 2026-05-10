@@ -75,3 +75,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-bootstrap:
+    name: Validate bootstrap stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/bootstrap
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # bootstrap stack は backend.tf がコメント済みなので backend なしで init できる。
+      # 実 apply は operator が AWS credential を持って実行する 1-time setup (本 stack の README 参照)。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
