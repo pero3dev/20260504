@@ -12,10 +12,11 @@ data:
   FEDERATION_SUBJECT_CLAIM: "email"
   FEDERATION_AUDIENCE_CLAIM: "client_id"
 ---
-# 各 Cognito App Client ID は共通親 client(SAML 専用 entry app)を 1 つ立てる場合は
-# 単一 audience になるが、 web app ごとに client を分けると複数 audience になる。
-# 後者の場合は audience チェックを Identity Broker 側で OFF(空文字)にし、
-# Cognito 側 group / scope claim で aggregate validation する設計に切り替える。
+# 各 Cognito App Client ID(infra/cognito/terraform の `app_client_ids` output)を
+# CSV で列挙する。 web app ごとに client を分けても、 各 token の `client_id` claim が
+# 許可リストに含まれれば認証成功(A5 follow-up²⁹ で multi-client 対応)。
+# 共通親 client を 1 つ立てる場合は単一値 1 つを入れる。 空文字なら audience 検証 OFF
+# (推奨されない、 production では必ず CSV を埋める)。
 apiVersion: v1
 kind: Secret
 metadata:
@@ -23,4 +24,5 @@ metadata:
   namespace: inventory-platform
 type: Opaque
 stringData:
-  FEDERATION_AUDIENCE: ""   # 単一親 client を使うなら client_id を入れる
+  # 例: "5abc...,6def...,7ghi...,8jkl..." (4 web app の client_id を列挙)
+  FEDERATION_AUDIENCE: ""

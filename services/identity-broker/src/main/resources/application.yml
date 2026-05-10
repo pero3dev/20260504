@@ -50,6 +50,8 @@ platform:
       jwks-uri: ${FEDERATION_JWKS_URI:}
       subject-claim: ${FEDERATION_SUBJECT_CLAIM:email}
       audience-claim: ${FEDERATION_AUDIENCE_CLAIM:client_id}
+      # CSV 形式で複数 client_id を許可リスト指定可能(A5 follow-up²⁹ で multi-client 対応)。
+      # 例: "abc123,def456,ghi789"。 空 / 未設定なら audience 検証スキップ。
       audience: ${FEDERATION_AUDIENCE:}
       # SAML JIT(Just-In-Time)provisioning 設定。 default 無効。
       # enabled=true の時、 IdP 認証成功で内部 User 不在なら default tenant + role で

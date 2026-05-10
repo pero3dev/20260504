@@ -1,5 +1,6 @@
 package com.example.inventory.identity.adapter.out.security;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,11 @@ import com.example.inventory.identity.application.port.out.IdpTokenVerifier;
  *
  * <p>Cognito access token は標準 OAuth2 access token に従い、 audience claim は通常 `client_id` (`aud`
  * ではない)に格納される。 そのため audience は手動 claim 比較で検査する。
+ *
+ * <p>multi-client 対応(A5 follow-up²⁹): {@code platform.identity.federation.audience} は CSV を受け 入れる。
+ * 例 "{@code abc123,def456,ghi789}"。 各 web app が独自の Cognito App Client で発行された access token を 同一 IB
+ * で受けるとき、 audience claim がいずれか 1 つに一致すれば成功、 いずれにも一致しないなら reject。 単一値("{@code abc123}")も 後方互換で 1 要素
+ * list として扱う。 空文字 / 空白だけ / blank なら audience 検証スキップ。
  */
 @Component
 public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
@@ -31,7 +37,7 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
     private final String jwksUri;
     private final String expectedSubjectClaim;
     private final String expectedAudienceClaim;
-    private final String expectedAudienceValue;
+    private final List<String> expectedAudienceValues;
     private final String groupsClaim;
 
     private volatile JwtDecoder cachedDecoder;
@@ -43,14 +49,14 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
                     String expectedSubjectClaim,
             @Value("${platform.identity.federation.audience-claim:client_id}")
                     String expectedAudienceClaim,
-            @Value("${platform.identity.federation.audience:}") String expectedAudienceValue,
+            @Value("${platform.identity.federation.audience:}") String expectedAudienceCsv,
             @Value("${platform.identity.federation.groups-claim:cognito:groups}")
                     String groupsClaim) {
         this.issuerUri = issuerUri;
         this.jwksUri = jwksUri;
         this.expectedSubjectClaim = expectedSubjectClaim;
         this.expectedAudienceClaim = expectedAudienceClaim;
-        this.expectedAudienceValue = expectedAudienceValue;
+        this.expectedAudienceValues = parseCsv(expectedAudienceCsv);
         this.groupsClaim = groupsClaim;
     }
 
@@ -66,19 +72,26 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
         } catch (JwtException e) {
             throw new InvalidIdpTokenException("federated token の検証に失敗: " + e.getMessage(), e);
         }
+        return verifyDecoded(jwt);
+    }
 
+    /**
+     * decode 済 Jwt から subject / audience / groups を取り出す本体。 audience 検証ロジックを単体テストするため
+     * package-private に抽出してある(production 経路では {@link #verify(String)} 経由で呼ばれる)。
+     */
+    Subject verifyDecoded(Jwt jwt) {
         String subjectValue = stringClaim(jwt, expectedSubjectClaim);
         if (!StringUtils.hasText(subjectValue)) {
             throw new InvalidIdpTokenException("subject claim '" + expectedSubjectClaim + "' が空");
         }
 
-        if (StringUtils.hasText(expectedAudienceValue)) {
+        if (!expectedAudienceValues.isEmpty()) {
             String aud = stringClaim(jwt, expectedAudienceClaim);
-            if (!expectedAudienceValue.equals(aud)) {
+            if (aud == null || !expectedAudienceValues.contains(aud)) {
                 throw new InvalidIdpTokenException(
                         "audience claim '"
                                 + expectedAudienceClaim
-                                + "' が期待値と一致しない(Cognito client_id 不一致の可能性)");
+                                + "' が許可リストに含まれない(Cognito client_id 不一致の可能性)");
             }
         }
         List<String> groups = extractGroups(jwt);
@@ -119,6 +132,11 @@ public class NimbusIdpTokenVerifier implements IdpTokenVerifier {
             }
             return cachedDecoder;
         }
+    }
+
+    private static List<String> parseCsv(String csv) {
+        if (!StringUtils.hasText(csv)) return List.of();
+        return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
     }
 
     private static String stringClaim(Jwt jwt, String name) {

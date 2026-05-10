@@ -47,7 +47,7 @@ terraform output
 | `issuer_uri`          | IB 側 federation issuer                      | `FEDERATION_ISSUER_URI`(IB Secret)      |
 | `jwks_uri`            | IB 側 JWKS fetch                             | `FEDERATION_JWKS_URI`(IB Secret)        |
 | `app_client_ids[*]`   | 各 web app の Client ID                      | `VITE_OIDC_CLIENT_ID`(各 web app env)   |
-| `app_client_ids[*]`   | IB 側 audience 検証(共通親に集約する場合は別)| `FEDERATION_AUDIENCE`(IB Secret)        |
+| `app_client_ids` 全値 | IB 側 audience 検証(CSV 列挙、 multi-client 対応) | `FEDERATION_AUDIENCE`(IB Secret、 A5 follow-up²⁹) |
 | `hosted_ui_base_url`  | login redirect 起点                          | (web app は authority から自動構築するので注入不要) |
 | `saml_acs_url`        | SAML IdP の Reply URL                        | IdP 管理画面に手動登録                    |
 | `saml_entity_id`      | SAML IdP の Entity ID                        | IdP 管理画面に手動登録                    |
