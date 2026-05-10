@@ -188,6 +188,13 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up²⁵ audit-service Merkle anchor 整合性検証 scheduler を追加(ADR-0008 J-SOX 補完)**(`DailyMerkleAnchorScheduler` (UTC 01:00) は anchor を「書く」 側、 本 phase は anchor を「再計算して照合する」 側を新設して継続監視層を完成させる。 改ざん / 後追い登録 / 後追い削除 を 1 日 1 回検出する。 月次 compliance audit で人手検証していた工程を自動化する):
+    - **新規 `MerkleAnchorVerifyScheduler`**(`audit-service.adapter.in.scheduled`): `@ConditionalOnProperty(platform.audit.anchor.verify.enabled=true)` でゲート、 default cron は UTC 02:00(計算 scheduler 01:00 の 1 時間後 = 当日分 anchor 確実書込み後)。 各 tenant × 直近 `verify.lookback-days` 日分 (default 7) を `VerifyMerkleAnchorUseCase.verify()` で再計算照合する
+    - **status → log level 対応**: `OK` → INFO / `ANCHOR_NOT_FOUND` → WARN(計算 scheduler の取りこぼし or 範囲外日付)/ `RECORD_COUNT_MISMATCH` → ERROR(後追い登録/削除、 J-SOX 重大事象)/ `ROOT_MISMATCH` → ERROR(改ざん、 J-SOX 重大事象)。 ERROR ログは Datadog 等のログモニタで page out される設計
+    - **continue-on-error**: 1 tenant / 1 日付の検証中に `RuntimeException` が出ても他に伝搬せず、 残りの tenant × 日付を回し続ける。 `VerifyMerkleAnchorService` の read-only DB 経路が落ちた場合のみ catch する
+    - **`AnchorProperties.Verify` ネスト record 追加**: `(boolean enabled, String cron, int lookbackDays)`、 default `(false, "0 0 2 * * *", 7)`、 `lookbackDays <= 0` は 7 に補正
+    - **テスト 5 ケース**: tenants 空時の no-op、 各 tenant × lookbackDays 分呼出し、 全 status を返しても全件回す continue-on-error、 RuntimeException 発生時の継続実行、 `Verify` record の default 補正
+    - **trade-off**: 計算と検証で `@Scheduled` Bean が 2 つに増えるが、 ADR-0008 の compliance gap (毎日 J-SOX 整合性監視) を閉じる必要があるため許容。 計算が無効なら検証も意味が無いため、 verify は計算の補助 toggle として `platform.audit.anchor.verify.*` を独立に持たせて段階導入可能にした
 - **A5 follow-up²⁴-followup `pnpm/action-setup` を v4 → v6 に bump**(²¹ で `action.yml` の default branch HEAD を見て「node24 で動作中」 と判定して bump 不要としたが、 実際は v4 タグ時点では `using: node20` だった(default branch ≠ v4 tag のミスを ²⁴ の Frontend CI annotation で再露呈)。 v4 タグの action.yml を `?ref=v4` 付きで再確認したところ node20、 v6 が node24。 ²⁴ commit に併せて bump):
     - **frontend.yml**: `pnpm/action-setup@v4 → @v6`。 v6 release で API 互換、 `version: 9.15.0` 引数はそのまま
     - **²¹ の lessons learned**: 第 3 者 action の Node version 確認は **specific tag/ref を指定して action.yml を取得** すること(`gh api .../contents/action.yml?ref=v4`)。 default branch HEAD は次 major の preview を含むため tag 時点と乖離するケースがある
