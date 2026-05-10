@@ -145,7 +145,15 @@ FEDERATION_ISSUER_URI=https://cognito-idp.${REGION}.amazonaws.com/${POOL_ID}
 FEDERATION_JWKS_URI=https://cognito-idp.${REGION}.amazonaws.com/${POOL_ID}/.well-known/jwks.json
 FEDERATION_SUBJECT_CLAIM=email           # access token に email claim を載せる設定が前提
 FEDERATION_AUDIENCE_CLAIM=client_id      # Cognito access token は aud=client_id 構造
-FEDERATION_AUDIENCE=<CLIENT_ID_1>,<CLIENT_ID_2>,...  # CSV で許可 client_id を列挙(A5 follow-up²⁹ で multi-client 対応)
+FEDERATION_AUDIENCE=<terraform output -raw federation_audience_csv>  # 4 web app の client_id を CSV (A5 follow-up²⁹/³⁰)
+```
+
+Terraform で cognito を管理している場合は最後の行を直接 1-step で注入できる:
+
+```bash
+kubectl create secret generic identity-broker-federation \
+  --from-literal=FEDERATION_AUDIENCE="$(terraform -chdir=infra/cognito/terraform output -raw federation_audience_csv)" \
+  --namespace inventory-platform
 ```
 
 ### 検証手順

@@ -52,3 +52,16 @@ output "app_client_ids" {
     name => client.id
   }
 }
+
+output "federation_audience_csv" {
+  description = <<-EOT
+    Identity Broker の `FEDERATION_AUDIENCE` Secret に直接食わせる CSV (A5 follow-up³⁰)。
+    `app_client_ids` 全値を カンマ区切り に join した文字列。 web app ごとに別 client_id を持つ
+    multi-client 構成で、 IB が各 token の `client_id` claim を許可リスト方式で検証する経路に対応。
+    例: `terraform output -raw federation_audience_csv | kubectl create secret ...`。
+  EOT
+  value = join(",", values({
+    for name, client in aws_cognito_user_pool_client.web_apps :
+    name => client.id
+  }))
+}
