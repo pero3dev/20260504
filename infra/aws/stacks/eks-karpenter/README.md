@@ -7,8 +7,9 @@ ADR-0024 / eks Phase A の続き。 Karpenter 動作に必要な **AWS リソー
 | Phase | stack | 範囲 | 状態 |
 |---|---|---|---|
 | A | `eks` | control plane + IAM + KMS + OIDC + 標準 addon + system NG + Karpenter discovery tag (cluster + node SG) | ⁴¹ で完了 |
-| **B-1 (本 stack)** | `eks-karpenter` | Karpenter Controller IRSA + Node IAM role + Instance Profile + SQS interruption queue + EventBridge rules + private subnet discovery tag | ⁴² で完了予定 |
-| C | `eks-platform` | Karpenter Helm + EC2NodeClass + NodePool + ESO + Datadog + ArgoCD + Argo Rollouts + ALB Controller + per-service IRSA + 他 stack の client SG attach | ⁴³ 予定 |
+| **B-1 (本 stack)** | `eks-karpenter` | Karpenter Controller IRSA + Node IAM role + Instance Profile + SQS interruption queue + EventBridge rules + private subnet discovery tag | ⁴² で完了 |
+| C-1 | `eks-platform` | Karpenter Helm + EC2NodeClass + NodePool | ⁴³ で完了 |
+| C-rest | `eks-platform` (本 stack に追加) | ESO + Datadog + ArgoCD + Argo Rollouts + ALB Controller + per-service IRSA + 他 stack の client SG attach | 後続 phase 予定 |
 
 ## 設計判断: なぜ AWS-side と K8s-side を分けるか
 

@@ -350,3 +350,28 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-eks-platform:
+    name: Validate eks-platform stack Phase C (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/eks-platform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # provider plugin (aws / helm / gavinbunney/kubectl) のみ download。 cluster 接続は不要
+      # (validate は plan を走らせない)。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

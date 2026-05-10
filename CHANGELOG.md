@@ -189,6 +189,36 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴³ ADR-0024 の `eks-platform` stack scaffolding + Karpenter Helm 完成(EKS の 3 phase 構築の第 3 弾 = Phase C-1、 Karpenter ループを閉じて application pod が schedule できる状態に到達)**(eks Phase A で control plane、 Phase B-1 で Karpenter AWS-side リソースを作成済の状態に対して、 K8s-side platform pieces を deploy する集約 stack の第 1 弾。 本 PR では Karpenter 関連 [Helm CRD chart + Helm Controller chart + default EC2NodeClass + default NodePool] までで cluster が application pod を実 schedule できる「使える」 状態に到達。 ESO / ALB Controller / Datadog / ArgoCD / Argo Rollouts / per-service IRSA / SG attach は後続 phase で本 stack に追加していく):
+    - **`infra/aws/stacks/eks-platform/`** 新設:
+      - **provider 設定**: aws + helm (~> 2.17) + gavinbunney/kubectl (~> 1.19)。 helm/kubectl 双方とも `aws eks get-token` exec で都度 token 取得 → operator の AWS credential が EKS Access Entries で cluster-admin policy を持っている前提
+      - **kubectl provider 選定**: hashicorp/kubernetes の `kubernetes_manifest` は plan-time CRD discovery が必要 → Helm-then-manifest pattern (CRD を helm で install → 同 stack で manifest apply) と相性悪い → schema validation を apply 時に遅延させる gavinbunney/kubectl を採用 (alekc/kubectl fork も検討したが安定枠優先)
+      - **Karpenter chart version 固定**: `1.1.1` (v1.x 系)。 v0.x との混在禁止、 upgrade は別 PR で `karpenter_chart_version` 変数 bump
+    - **`helm_release.karpenter_crd`**: CRD chart `oci://public.ecr.aws/karpenter/karpenter-crd`、 namespace = `kube-system`、 wait + 5 分 timeout
+    - **`helm_release.karpenter`** (Controller chart):
+      - `serviceAccount.annotations[eks.amazonaws.com/role-arn]` = eks-karpenter stack の `controller_iam_role_arn`
+      - `settings.{clusterName, clusterEndpoint, interruptionQueue}` を eks / eks-karpenter remote_state から結線
+      - `controller.nodeSelector[node-role.platform/system] = true` (Phase A の system NG に schedule)
+      - `replicas = 2` (leader election による HA)、 resource req 200m/256Mi limit 1000m/1Gi
+      - `crds.skipCrds = true` (CRD は別 chart で先 install 済)
+      - `depends_on = [helm_release.karpenter_crd]`、 wait + 10 分 timeout
+    - **`kubectl_manifest.default_nodeclass`**: `EC2NodeClass` (apiVersion karpenter.k8s.aws/v1)
+      - `amiFamily: AL2023` + `amiSelectorTerms: [{alias: al2023@latest}]` (v1 で amiSelectorTerms 必須化)
+      - `role` = eks-karpenter stack の `node_iam_role_name` (instance profile は Karpenter Controller が role 名から自動解決)
+      - `subnetSelectorTerms` + `securityGroupSelectorTerms` どちらも `karpenter.sh/discovery = <cluster_name>` 単一 selector
+      - tags: `Project / Environment / ManagedBy=karpenter` (cost allocation + 監査 + Datadog filter 用)
+      - `depends_on = [helm_release.karpenter]`
+    - **`kubectl_manifest.default_nodepool`**: `NodePool` (apiVersion karpenter.sh/v1)
+      - requirements: `arch=arm64` (Graviton 優先) / `os=linux` / `capacity-type=[on-demand, spot]` (spot 優先 fallback) / `instance-category=[c, m]` (general purpose only) / `instance-generation > 5` (Graviton 6gen 以降)
+      - limits: env 別 (dev=10vCPU/40Gi、 staging=50/200Gi、 prod=1000/4000Gi)。 Karpenter は需要ベース起動なので over-provision の cost 影響なし
+      - `disruption: WhenEmptyOrUnderutilized` + `consolidateAfter = 30s` (rapid rebalance、 過剰反応を避けつつ余剰 node を消す)
+      - `expireAfter = 168h` (1 週間で node 再生成、 security patch 適用)
+      - `depends_on = [kubectl_manifest.default_nodeclass, helm_release.karpenter]`
+    - **per-env tfvars/backend.hcl pattern 踏襲** (³⁴ 以降 全 env-依存 stack 共通)
+    - **`.github/workflows/terraform.yml`**: `validate-eks-platform` job 追加、 timeout 5 分 (helm + kubectl provider plugin の download のみ、 cluster 接続不要)
+    - **trade-off**: AWS API 経由でなく cluster API 経由 → terraform 操作者 / CI の credential 要件が厳しい (EKS Access Entries で cluster admin)。 ただし K8s-side リソースを 1 stack に集約する利点 (provider 重複排除、 dependency 一直線、 後続 phase の本 stack 追加が容易) が勝る
+    - **README に動作確認手順 + chart version 更新フロー + drift 検知の制約を明記**: kubectl で pending pod を作って Karpenter が node 起動するか試す runbook、 chart version bump フロー (release notes → dev → staging → prod)、 manifest 手動編集に terraform が気付けない制約 (post-ArgoCD で ArgoCD 側に管理委譲予定)
+    - **scope: ⁴³ では Karpenter まで**。 ESO / ALB Controller / Datadog / ArgoCD / Argo Rollouts / per-service IRSA × 13 / SG attach は後続 phase で本 stack に追加 (新 stack を増やさない方針)
 - **A5 follow-up⁴² ADR-0024 の `eks-karpenter` stack + `modules/karpenter` 薄ラッパー(Karpenter の AWS リソース部分のみ、 EKS の 3 phase 構築の第 2 弾 = Phase B-1)**(eks Phase A で control plane が立った状態に対して、 Karpenter が動作するために必要な AWS-side リソース [Controller IRSA + Node IAM + Instance Profile + SQS interruption queue + EventBridge rules + private subnet discovery tag] を 1 stack に集約。 Karpenter Helm chart deploy + EC2NodeClass / NodePool は K8s リソースのため、 helm/kubectl_manifest provider が必要 → Phase C `eks-platform` stack で扱う設計):
     - **設計判断 — AWS-side と K8s-side の分離**: 1 stack に混在させると provider 数増 + plan-time に cluster 起動を前提化 + state 結合が強くなる → AWS-side のみの stack として独立させ、 Phase C の K8s-side と直交させる
     - **`infra/aws/modules/karpenter/`**: `terraform-aws-modules/eks/aws//modules/karpenter ~> 20.0` 薄ラッパー。 `enable_v1_permissions = true` (Karpenter v1.0+ 用権限)、 `enable_irsa = true` (Pod Identity 移行は post-v1)、 `irsa_namespace_service_accounts = ["karpenter:karpenter"]` (Helm chart default に合わせる)、 `create_node_iam_role = true` + `node_iam_role_name = "<cluster>-karpenter-node"` (固定名、 system NG 用 role と独立)、 `node_iam_role_attach_cni_policy = true`

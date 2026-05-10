@@ -31,7 +31,7 @@ infra/aws/
     glue-schema-registry/          # Glue SR + schemas per Kafka topic (env)
     s3-audit/                      # 監査バケット + Object Lock Compliance + CRR (env)
     cognito/                       # User Pool + App Clients + SAML IdP (env、 移行後)
-    eks-platform/                  # External Secrets / Datadog / ArgoCD / Argo Rollouts / ALB (env)
+    eks-platform/                  # Karpenter Helm + NodeClass/NodePool + (後続) ESO / Datadog / ArgoCD / Argo Rollouts / ALB / per-service IRSA (env、 Phase C)
 ```
 
 ## State layout
@@ -74,7 +74,7 @@ eks  +  aurora  +  msk  +  elasticache  +  glue-schema-registry  +  s3-audit  + 
   ↓
 eks-karpenter (Phase B-1: Karpenter AWS リソース)
   ↓
-eks-platform (Phase C: Karpenter Helm + ESO + Datadog + ArgoCD + Argo Rollouts + ALB Controller + IRSA)
+eks-platform (Phase C: Karpenter Helm + NodeClass/NodePool 完了、 ESO / Datadog / ArgoCD / Argo Rollouts / ALB / IRSA は後続 phase で本 stack に追加)
   ↓
 K8s manifests × 13 services (terraform スコープ外、 GitOps repo へ)
 ```
