@@ -16,6 +16,7 @@ import com.example.inventory.commons.security.RevocationStore;
 import com.example.inventory.commons.tenant.TenantId;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
+import com.example.inventory.identity.application.port.in.GetUserRevocationStatusUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
@@ -54,7 +55,8 @@ public class UserManagementService
                 AddUserMembershipUseCase,
                 RemoveUserMembershipUseCase,
                 DeactivateUserUseCase,
-                RevokeUserUseCase {
+                RevokeUserUseCase,
+                GetUserRevocationStatusUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserManagementService.class);
 
@@ -272,5 +274,22 @@ public class UserManagementService
         revocationStore.revokeUser(id.value(), REVOCATION_TTL);
 
         LOG.info("admin 強制 revoke userId={} reason={}(ADR-0023)", id.value(), reason);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Auditable(
+            action = "USER_REVOCATION_STATUS_GET",
+            targetType = "User",
+            targetIdExpression = "#userId",
+            read = true)
+    public RevocationStatus getStatus(long userId) {
+        UserId id = new UserId(userId);
+        userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(userId));
+
+        return revocationStore
+                .getRevocationTtl(id.value())
+                .map(ttl -> new RevocationStatus(true, ttl.toSeconds()))
+                .orElseGet(() -> new RevocationStatus(false, null));
     }
 }

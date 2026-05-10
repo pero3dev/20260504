@@ -440,6 +440,57 @@ class UserManagementServiceTest {
         verify(revocationStore, never()).revokeUser(org.mockito.ArgumentMatchers.anyLong(), any());
     }
 
+    // ---------- get revocation status (admin read) ----------
+
+    @Test
+    void get_revocation_status_は_revoke_中なら_revoked_true_と_ttlSeconds_を返す() {
+        User active =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L,
+                        UserStatus.ACTIVE,
+                        null);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(active));
+        when(revocationStore.getRevocationTtl(900100L))
+                .thenReturn(Optional.of(Duration.ofSeconds(720)));
+
+        var status = service.getStatus(900100L);
+
+        org.assertj.core.api.Assertions.assertThat(status.revoked()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(status.ttlSeconds()).isEqualTo(720L);
+    }
+
+    @Test
+    void get_revocation_status_は_revoke_無しなら_revoked_false_と_ttlSeconds_null_を返す() {
+        User active =
+                User.restore(
+                        new UserId(900100L),
+                        new UserEmail("alice@example.com"),
+                        new PasswordHash("$2a$10$..."),
+                        "Alice",
+                        0L,
+                        UserStatus.ACTIVE,
+                        null);
+        when(userRepository.findById(new UserId(900100L))).thenReturn(Optional.of(active));
+        when(revocationStore.getRevocationTtl(900100L)).thenReturn(Optional.empty());
+
+        var status = service.getStatus(900100L);
+
+        org.assertj.core.api.Assertions.assertThat(status.revoked()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(status.ttlSeconds()).isNull();
+    }
+
+    @Test
+    void get_revocation_status_は_user_不在なら_UserNotFoundException_で_Redis_を読まない() {
+        when(userRepository.findById(new UserId(99L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getStatus(99L)).isInstanceOf(UserNotFoundException.class);
+        verify(revocationStore, never()).getRevocationTtl(org.mockito.ArgumentMatchers.anyLong());
+    }
+
     @Test
     void addMembership_は_既存_membership_なら_UserMembershipAlreadyExistsException() {
         User existing =

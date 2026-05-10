@@ -536,6 +536,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /v1/admin/users/{userId}/revocation-status:
+    get:
+      tags: [admin-users]
+      operationId: getUserRevocationStatus
+      summary: Inspect a user's current token revocation state (ADR-0023)
+      description: |
+        Returns whether the user is currently in the per-user revocation list,
+        and if so, the remaining TTL in seconds. This is the read counterpart
+        to revokeUserTokens / deactivateUser / removeUserMembership / tenant
+        deactivate fanout — operators previously had to use `redis-cli GET
+        revocation:user:<id>` directly, which is now replaced by this audited
+        REST surface.
+
+        TTL semantics map directly to Redis: a positive TTL means the user is
+        still revoked, a missing key (or expired one) means cleared. The
+        operator's read action itself is recorded in the audit chain.
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Revocation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevocationStatusResource'
+        '401':
+          $ref: '#/components/responses/AuthenticationFailed'
+        '403':
+          description: Caller lacks SUPER_ADMIN role
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
   /v1/admin/users/{userId}/revoke-tokens:
     post:
       tags: [admin-users]
@@ -807,6 +854,21 @@ components:
             `VIEWER`). The broker does not validate the role against an
             enumeration here — downstream services interpret roles via the
             `roles` claim on the issued access token.
+
+    RevocationStatusResource:
+      type: object
+      required: [revoked]
+      description: |
+        Read-only snapshot of a user's current revocation entry in Redis.
+        ttlSeconds is omitted when revoked is false.
+      properties:
+        revoked:
+          type: boolean
+        ttlSeconds:
+          type: integer
+          format: int64
+          description: Remaining seconds until the revocation entry self-expires. Only present when revoked is true.
+          minimum: 1
 
     RevokeUserTokensRequest:
       type: object

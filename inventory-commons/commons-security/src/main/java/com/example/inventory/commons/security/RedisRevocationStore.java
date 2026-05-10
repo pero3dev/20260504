@@ -2,6 +2,8 @@ package com.example.inventory.commons.security;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +58,34 @@ public class RedisRevocationStore implements RevocationStore {
                     "RevocationStore Redis write 失敗 admin DB 操作は完了済 userId={}: {}",
                     userId,
                     e.toString());
+        }
+    }
+
+    /**
+     * Redis {@code TTL} コマンドの戻り値:
+     *
+     * <ul>
+     *   <li>正の数 → 残 TTL 秒、 revoke 中
+     *   <li>{@code -1} → key 有り / TTL 無し(本実装では発生しないが防御的に empty 扱い)
+     *   <li>{@code -2} (Spring では null) → key 無し、 revoke 無し
+     * </ul>
+     *
+     * Redis 不達は fail-open で empty を返す(status read を 200 で成功させる)。
+     */
+    @Override
+    public Optional<Duration> getRevocationTtl(long userId) {
+        try {
+            Long ttlSeconds = redis.getExpire(KEY_PREFIX + userId, TimeUnit.SECONDS);
+            if (ttlSeconds == null || ttlSeconds <= 0) {
+                return Optional.empty();
+            }
+            return Optional.of(Duration.ofSeconds(ttlSeconds));
+        } catch (DataAccessException e) {
+            LOG.warn(
+                    "RevocationStore Redis TTL 読出失敗 fail-open で empty 返却 userId={}: {}",
+                    userId,
+                    e.toString());
+            return Optional.empty();
         }
     }
 }

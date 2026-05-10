@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.sql.Connection;
@@ -162,6 +163,29 @@ class RevocationE2EIntegrationTest {
                         get("/v1/admin/users/{id}", INNOCENT_USER_ID)
                                 .with(jwtForUser(INNOCENT_USER_ID)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void revocation_status_API_は_revoke_中の_user_に_revoked_true_と_TTL_を返す() throws Exception {
+        // 直接 Redis に 12min TTL で revocation を書き込み(720sec 残ることを期待)
+        redis.opsForValue().set("revocation:user:" + VICTIM_USER_ID, "1", Duration.ofMinutes(12));
+
+        mockMvc.perform(
+                        get("/v1/admin/users/{id}/revocation-status", VICTIM_USER_ID)
+                                .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revoked").value(true))
+                .andExpect(jsonPath("$.ttlSeconds").isNumber());
+    }
+
+    @Test
+    void revocation_status_API_は_revoke_されていない_user_に_revoked_false_を返す() throws Exception {
+        mockMvc.perform(
+                        get("/v1/admin/users/{id}/revocation-status", INNOCENT_USER_ID)
+                                .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revoked").value(false))
+                .andExpect(jsonPath("$.ttlSeconds").doesNotExist());
     }
 
     @Test

@@ -10,10 +10,12 @@ import com.example.inventory.identity.adapter.in.rest.api.AdminUsersApi;
 import com.example.inventory.identity.adapter.in.rest.api.model.AddUserMembershipRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.MembershipResource;
 import com.example.inventory.identity.adapter.in.rest.api.model.RegisterUserRequest;
+import com.example.inventory.identity.adapter.in.rest.api.model.RevocationStatusResource;
 import com.example.inventory.identity.adapter.in.rest.api.model.RevokeUserTokensRequest;
 import com.example.inventory.identity.adapter.in.rest.api.model.UserResource;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
+import com.example.inventory.identity.application.port.in.GetUserRevocationStatusUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
@@ -42,6 +44,7 @@ public class UserAdminController implements AdminUsersApi {
     private final RemoveUserMembershipUseCase removeUserMembership;
     private final DeactivateUserUseCase deactivateUser;
     private final RevokeUserUseCase revokeUser;
+    private final GetUserRevocationStatusUseCase getRevocationStatus;
 
     public UserAdminController(
             GetUserUseCase getUser,
@@ -49,13 +52,15 @@ public class UserAdminController implements AdminUsersApi {
             AddUserMembershipUseCase addUserMembership,
             RemoveUserMembershipUseCase removeUserMembership,
             DeactivateUserUseCase deactivateUser,
-            RevokeUserUseCase revokeUser) {
+            RevokeUserUseCase revokeUser,
+            GetUserRevocationStatusUseCase getRevocationStatus) {
         this.getUser = getUser;
         this.registerUser = registerUser;
         this.addUserMembership = addUserMembership;
         this.removeUserMembership = removeUserMembership;
         this.deactivateUser = deactivateUser;
         this.revokeUser = revokeUser;
+        this.getRevocationStatus = getRevocationStatus;
     }
 
     @Override
@@ -106,6 +111,16 @@ public class UserAdminController implements AdminUsersApi {
     public ResponseEntity<Void> revokeUserTokens(Long userId, RevokeUserTokensRequest request) {
         revokeUser.revoke(userId, request.getReason());
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<RevocationStatusResource> getUserRevocationStatus(Long userId) {
+        GetUserRevocationStatusUseCase.RevocationStatus status =
+                getRevocationStatus.getStatus(userId);
+        RevocationStatusResource resource = new RevocationStatusResource();
+        resource.setRevoked(status.revoked());
+        resource.setTtlSeconds(status.ttlSeconds());
+        return ResponseEntity.ok(resource);
     }
 
     private UserResource toResource(User user) {

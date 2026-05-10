@@ -21,6 +21,7 @@ import com.example.inventory.commons.security.NoOpRevocationStoreAutoConfigurati
 import com.example.inventory.commons.security.PlatformSecurityAutoConfiguration;
 import com.example.inventory.identity.application.port.in.AddUserMembershipUseCase;
 import com.example.inventory.identity.application.port.in.DeactivateUserUseCase;
+import com.example.inventory.identity.application.port.in.GetUserRevocationStatusUseCase;
 import com.example.inventory.identity.application.port.in.GetUserUseCase;
 import com.example.inventory.identity.application.port.in.RegisterUserUseCase;
 import com.example.inventory.identity.application.port.in.RemoveUserMembershipUseCase;
@@ -58,6 +59,8 @@ class AdminSecurityTest {
     @MockitoBean private DeactivateUserUseCase deactivateUserUseCase;
 
     @MockitoBean private RevokeUserUseCase revokeUserUseCase;
+
+    @MockitoBean private GetUserRevocationStatusUseCase getUserRevocationStatusUseCase;
 
     @Test
     void admin_endpoint_は_JWT_無しで_401() throws Exception {

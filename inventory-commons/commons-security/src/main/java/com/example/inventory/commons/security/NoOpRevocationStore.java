@@ -1,6 +1,7 @@
 package com.example.inventory.commons.security;
 
 import java.time.Duration;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,5 +27,10 @@ public class NoOpRevocationStore implements RevocationStore {
                 "RevocationStore = NoOp (Redis 未配線)。 userId={} の revoke を実行できない。"
                         + " production では spring-boot-starter-data-redis を依存に加えること",
                 userId);
+    }
+
+    @Override
+    public Optional<Duration> getRevocationTtl(long userId) {
+        return Optional.empty();
     }
 }

@@ -1,6 +1,7 @@
 package com.example.inventory.commons.security;
 
 import java.time.Duration;
+import java.util.Optional;
 
 /**
  * 即時 token revocation の保存ポート(ADR-0023)。
@@ -27,4 +28,12 @@ public interface RevocationStore {
      * fail-open)。
      */
     void revokeUser(long userId, Duration ttl);
+
+    /**
+     * 該当 userId の revoke 残 TTL を返す。 admin の状態確認 API 用。 Redis 不達は fail-open で {@link
+     * Optional#empty()}(= 「revoke 無し」 と同じ扱いで status read を成功させる)。
+     *
+     * @return revoke 中なら残 TTL、 revoke されていない / 判定不能なら empty
+     */
+    Optional<Duration> getRevocationTtl(long userId);
 }
