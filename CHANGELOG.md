@@ -188,6 +188,10 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up²⁸ `github/codeql-action` を v3 → v4 に bump(deprecation 予防)**(²⁷ の CI 確認時に CodeQL Action v4 が「v3 will be deprecated in December 2026」 と annotation を出していた件を、 deadline (2026-12) 7 ヶ月前に予防 bump。 ²¹ の Node 24 / ²⁴-followup の pnpm/action-setup と同じ「deprecation 警告は deadline まで放置せず ²N で潰す」 パターン):
+    - **`.github/workflows/codeql.yml`**: `github/codeql-action/init@v3` / `github/codeql-action/analyze@v3` → 両方 `@v4`。 v3 は `using: node20` で v4 は `using: node24`(GitHub Actions runner の Node 24 既定化に追従、 ²¹ で他 actions が辿った経路と同じ)
+    - **²⁴-followup lessons learned 適用**: 第 3 者 action の Node version 確認は `?ref=v4` でタグ時点の `action.yml` を直接見て検証(default branch HEAD ≠ release tag のミスを再発させない)。 v4 init / analyze 両方の `using: node24` を確認した上で bump
+    - **trade-off**: codeql-action は `init` / `analyze` で対称な major version が必須(混在で warning)。 同一 PR で両方 bump、 リスク同居でロールバックも 1 commit revert で済むようまとめた
 - **A5 follow-up²⁷ DailyMerkleAnchorScheduler にも Micrometer metrics を追加(²⁶ の対称形、 write/read 双方の sweep を可視化)**(²⁶ で verify (read) 側に metrics を入れた対称として、 compute (write) 側にも metrics を入れる。 compute scheduler が止まると verify は ANCHOR_NOT_FOUND を出し続けるため、 compute 側の不在を先に検知できないと verify メトリクスから間接推測になる。 J-SOX 継続監視層を write/read 双方向で機械可読に):
     - **counter `audit.anchor.compute.count`** — 1 tenant の compute 完走毎に +1。 タグ `tenant` + `status` (`created` / `already_anchored`)。 Datadog で「直近 25h の `created + already_anchored` 合計が tenant 数と一致しない」 で sweep 未走行アラート、 「`created` が 0 で `already_anchored` のみ」 で SNS 通知漏れの示唆等が組める
     - **counter `audit.anchor.compute.exceptions`** — compute 中の `RuntimeException` catch 毎に +1、 タグ `tenant` のみ。 単発エラーは次 sweep で再試行されるが連続発生で Aurora 障害として page out
