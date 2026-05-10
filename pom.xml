@@ -40,7 +40,7 @@
         <!-- Stack versions -->
         <spring.boot.version>3.4.1</spring.boot.version>
         <spring.cloud.version>2024.0.0</spring.cloud.version>
-        <mybatis.spring.boot.version>3.0.4</mybatis.spring.boot.version>
+        <mybatis.spring.boot.version>4.0.1</mybatis.spring.boot.version>
         <flyway.version>11.1.0</flyway.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <mapstruct.version>1.6.3</mapstruct.version>
