@@ -125,3 +125,29 @@ jobs:
 
       - name: terraform validate
         run: terraform validate
+
+  validate-vpc:
+    name: Validate vpc stack (ADR-0024)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: infra/aws/stacks/vpc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # vpc stack は env 依存 (per-env tfvars/backend) だが、 validate 自体は env 非依存。
+      # `-backend=false` で provider plugin と terraform-aws-modules/vpc/aws を download し
+      # validate のみ実行。 AWS credential 不要。
+      - name: terraform init -backend=false
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

@@ -189,6 +189,22 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³⁴ ADR-0024 の `vpc` stack + `modules/vpc` 薄ラッパーをコード化(env 依存 stack 第 1 号、 per-env tfvars/backend pattern を establish)**(³³ の iam-baseline に続く依存第 3 層。 EKS / Aurora / MSK / ElastiCache すべてが VPC 依存なので、 並列フェーズ 6 stack のうち最初に書く必要がある。 加えて env 依存 stack 第 1 号として「per-env tfvars + per-env partial backend config」 の作業 pattern を後続 11 stack へ展開できる形で確立する):
+    - **`infra/aws/modules/vpc/`** (上流 `terraform-aws-modules/vpc/aws ~> 5.14` の薄ラッパー):
+      - 命名 `${env}-vpc`、 DNS 全 ON、 database subnets 用 dedicated route table + RDS Subnet Group 自動生成
+      - EKS subnet 識別 tag (`kubernetes.io/role/elb` = public、 `kubernetes.io/role/internal-elb` = private) を AWS Load Balancer Controller の auto discovery 向けに自動付与
+      - **S3 / DynamoDB gateway endpoints** (free): private + database 両 route table に紐付け、 NAT 経由トラフィック削減 (audit S3 / tfstate DynamoDB アクセスが NAT を経由しない)
+    - **`infra/aws/stacks/vpc/`**:
+      - CIDR 計画: dev=`10.0.0.0/16` / staging=`10.1.0.0/16` / prod=`10.2.0.0/16` (env 間 overlap 不可、 将来の VPC peering / Transit Gateway を見越し)
+      - 3 AZ × (public `/24` + private `/20` + database `/24`) を `cidrsubnet()` で動的計算、 AZ 名は `data.aws_availability_zones` で region から動的取得
+      - NAT Gateway 戦略: prod = AZ ごと 1 個 (HA、 3 個)、 dev/staging = 全 AZ で 1 個共有 (cost 削減)
+      - `default_tags` で `Project / ManagedBy / Stack=vpc / Environment=<env>` を自動注入 (env 依存 stack なので Environment tag を付与)
+    - **per-env 構造**: `envs/{dev,staging,prod}.tfvars` (環境変数値) + `envs/{dev,staging,prod}.backend.hcl` (state key の partial backend config)。 init は `terraform init -backend-config=envs/<env>.backend.hcl`、 plan/apply は `-var-file=envs/<env>.tfvars` という後続 11 stack 共通の pattern を establish
+    - **`backend.tf`**: S3 backend block を未コメント、 ただし `key` 行は記述しない (per-env partial config で注入)
+    - **README**: CIDR 表 + per-env apply 手順 + 後続 stack の `terraform_remote_state` 参照規約 + post-v1 候補 5 項目 (interface endpoint / VPC Flow Logs / NACL hardening / Transit Gateway / IPv6) を明記
+    - **`.github/workflows/terraform.yml`**: `validate-vpc` job 追加、 init で `terraform-aws-modules/vpc/aws` を download し validate (env 非依存、 AWS credential 不要)
+    - **terraform fmt + validate ローカル緑**
+    - **trade-off**: ADR-0024 の wrapper 方針に従い、 単一 stack 用途でも `infra/aws/modules/vpc/` を新設した。 後続 stack (eks / aurora / msk 等) も同じ pattern で wrapper を持つことになり、 上流 module の major version 上げを 1 ファイルで吸収できる
 - **A5 follow-up³³ ADR-0024 の `iam-baseline` stack をコード化(account-level IAM の base、 GitHub OIDC + tf deploy role)**(³² の bootstrap に続く依存第 2 層。 env 非依存 (account-level) で、 全 IAM の前提となる password policy + GitHub Actions OIDC provider + terraform deploy role を 1 stack で固める。 `iam-baseline` が完成すれば post-v1 で `terraform-apply.yml` workflow が OIDC 経由で deploy 可能になり、 後続 stack 群を CI から apply する道筋が開く):
     - **`infra/aws/stacks/iam-baseline/`** 新設:
       - `aws_iam_account_password_policy`: 14 文字以上 / 大小英数記号必須 / 90 日 rotation / 24 個再利用禁止 (NIST SP 800-63B 準拠の最低限)
