@@ -71,6 +71,7 @@
 | [0021](docs/adr/0021-pact-broker-production-hosting.md) | Pact Broker 本番ホスティング | Accepted |
 | [0022](docs/adr/0022-frontend-structure-and-libraries.md) | Frontend structure and libraries(F7) | Accepted |
 | [0023](docs/adr/0023-immediate-token-revocation-via-redis.md) | Immediate token revocation via Redis(A5 follow-up¹⁶) | Accepted |
+| [0024](docs/adr/0024-aws-terraform-layout-modules-stacks-envs.md) | AWS infra Terraform layout — modules / stacks / envs separation(A5 follow-up³¹) | Accepted |
 
 #### CI / Test 強化
 
@@ -188,6 +189,16 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up³¹ ADR-0024 を起票 — AWS infra Terraform layout 確定(残作業 60+ PR の前提を 1 ADR で固める)**(production release までの残タスク sweep の結果、 AWS 側 IaC は 1 module (cognito) しか書かれておらず、 EKS / Aurora x3 / MSK / ElastiCache / Glue Schema Registry / S3 Object Lock / IAM / KMS / Secrets Manager すべて未着手と判明。 IaC PR を着手する前提として「state layout / env 分離方式 / backend bootstrap / multi-account / module 戦略 / 命名 + tagging」 の 6 軸を 1 ADR で決定):
+    - **state layout**: per-stack remote state (1 stack × 1 env = 1 tfstate)、 12 stacks × 3 envs = 36 state files。 cross-stack 参照は `terraform_remote_state` データソース。 単一 stack の bad apply 影響は 1 stack × 1 env に限定
+    - **stack 一覧**: `bootstrap` (state バケット + lock) / `iam-baseline` / `kms` / `vpc` / `eks` / `aurora` / `msk` / `elasticache` / `glue-schema-registry` / `s3-audit` / `cognito` (現行モジュールの移行先) / `eks-platform` (External Secrets / Datadog / ArgoCD / Argo Rollouts)
+    - **env 分離**: workspace 不採用、 per-env directory + per-env tfvars + per-env backend partial config (`envs/<env>.tfvars` + `envs/<env>.backend.hcl`)。 workspace silent select error の事故防止
+    - **backend bootstrap**: `bootstrap` stack のみ初回 local state で apply 後 `terraform init -migrate-state` で S3 backend 移行する 1-time per env 手順を runbook 化
+    - **account topology**: v1 は単一 AWS account (env 分離は `<env>-` prefix 命名 + IAM 境界 + VPC 分離 + KMS key 分離)。 multi-account (Organizations + Control Tower) は将来 ADR で
+    - **module 戦略**: `terraform-aws-modules/*` 公式モジュールを `infra/aws/modules/<name>/` で薄くラップ (デフォルト tag / KMS / 命名規則を bind)。 上流が薄い領域 (`glue-schema-registry` / `s3-audit-bucket` / `iam-irsa-role` / `cognito-userpool`) は自前 module
+    - **既存資産**: `infra/cognito/terraform/` は当面そのまま動かし、 別 follow-up で `infra/aws/stacks/cognito/` + `infra/aws/modules/cognito-userpool/` に移行。 `infra/audit-s3/glue/*.sql` は Athena CLI 経由で残置、 `s3-audit` stack が bucket name を template output で供給
+    - **rejected options**: monolithic state / Terraform workspaces / multi-account v1 / Terragrunt / CDK・Pulumi の各却下理由を institutional memory として記録
+    - **影響**: 本 ADR で作業順序が確定し、 「`bootstrap` → `iam-baseline` + `kms` → `vpc` → 並列 (`eks` / `aurora` / `msk` / `elasticache` / `glue-schema-registry` / `s3-audit`) → `eks-platform` → K8s manifests × 13」 の依存パスが絵に描ける。 個々の stack PR は本 ADR 確定後に 1 stack 1 PR で進む
 - **A5 follow-up³⁰ cognito output に `federation_audience_csv` を追加(²⁹ の terraform 直接接続経路を仕上げ)**(²⁹ で IB 側を CSV 許可リストに対応させたが、 cognito 側 output は `app_client_ids` map のままで、 operator が自分で `join(",", values(...))` する必要があった。 ここを 1 step で `terraform output -raw federation_audience_csv | kubectl create secret` まで通すよう仕上げ):
     - **`infra/cognito/terraform/outputs.tf`**: 新 output `federation_audience_csv` (= `join(",", values(<app_client_ids map>))`)。 description で IB Secret 食わせ手順を明記。 既存 `app_client_ids` map output は web app `VITE_OIDC_CLIENT_ID` 用に残し、 役割を分離(map = 個別注入、 csv = 集約検証)
     - **`infra/cognito/README.md`** Step 6: `FEDERATION_AUDIENCE` 行を `<terraform output -raw federation_audience_csv>` 表記に更新 + `kubectl create secret ... --from-literal=FEDERATION_AUDIENCE="$(terraform output -raw ...)"` の 1-step 注入コマンド追記
