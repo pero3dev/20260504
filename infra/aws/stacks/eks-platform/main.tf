@@ -39,6 +39,16 @@ data "terraform_remote_state" "eks_karpenter" {
   }
 }
 
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+
+  config = {
+    bucket = "inventory-platform-tfstate"
+    key    = "aws/stacks/vpc/${var.environment}.tfstate"
+    region = "ap-northeast-1"
+  }
+}
+
 # ----------------------------------------------------------------------------
 # Karpenter — CRD chart (must precede the controller chart)
 # ----------------------------------------------------------------------------

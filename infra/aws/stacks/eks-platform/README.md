@@ -6,9 +6,9 @@ ADR-0024 / eks Phase A + eks-karpenter Phase B-1 の続き。 EKS cluster の **
 
 | 範囲 | 状態 |
 |---|---|
-| **Karpenter Helm chart (CRD + Controller) + default EC2NodeClass + default NodePool** | ⁴³ で完了 (本 PR) |
-| External Secrets Operator + ClusterSecretStore | 後続 phase |
-| AWS Load Balancer Controller (ALB Ingress) | 後続 phase |
+| **Karpenter Helm chart (CRD + Controller) + default EC2NodeClass + default NodePool** | ⁴³ で完了 |
+| **External Secrets Operator + ClusterSecretStore (Secrets Manager + SSM Parameter Store)** | ⁴⁴ で完了 |
+| **AWS Load Balancer Controller (ALB Ingress)** | ⁴⁴ で完了 |
 | Datadog Agent DaemonSet (APM + logs + metrics) | 後続 phase |
 | ArgoCD + Argo Rollouts | 後続 phase |
 | per-service IRSA roles (13 services) | 後続 phase |
@@ -36,6 +36,75 @@ ADR-0024 / eks Phase A + eks-karpenter Phase B-1 の続き。 EKS cluster の **
   - limits: env ごとの cpu / memory 上限 (dev=10/40Gi、 staging=50/200Gi、 prod=1000/4000Gi)
   - disruption: `WhenEmptyOrUnderutilized` + `consolidateAfter = 30s`
   - expireAfter: `168h` (1 週間で node 再生成、 security patch 適用)
+
+### ⁴⁴ で追加: External Secrets Operator (`external-secrets.tf`)
+
+- **`module.external_secrets_irsa`**: ESO Controller 用 IRSA role
+  - `attach_external_secrets_policy = true` (canned policy)
+  - `secrets_manager_arns = ["*"]` + `ssm_parameter_arns = ["*"]` + `kms_key_arns = ["*"]` (cluster scope の read 権限、 実 secret 単位の制限は SecretStore 側で)
+  - `external_secrets_create_permission = false` (Controller は read-only、 secret 書込みは別 IRSA)
+- **`helm_release.external_secrets`**: chart 0.10.7、 namespace = `external-secrets`、 replicaCount = 2 (HA)、 全 component (controller / webhook / certController) を system NG 固定、 IRSA を ServiceAccount annotation で bind
+- **`kubectl_manifest.secret_store_aws_secretsmanager`**: `ClusterSecretStore` `aws-secretsmanager` (provider=SecretsManager + region)。 auth field 省略で Controller の IRSA credential を使用
+- **`kubectl_manifest.secret_store_aws_ssm`**: 補助の `ClusterSecretStore` `aws-ssm` (provider=ParameterStore)。 非 secret 設定 (feature flag、 endpoint URL 等) の cost 効率向上
+
+services 側からの利用 (ExternalSecret manifest 例):
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: redis-auth
+  namespace: inventory-read-model
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secretsmanager
+  target:
+    name: redis-auth
+  data:
+    - secretKey: REDIS_PASSWORD
+      remoteRef:
+        key: <env>/platform/redis/auth-token
+        property: auth_token
+```
+
+### ⁴⁴ で追加: AWS Load Balancer Controller (`aws-lb-controller.tf`)
+
+- **`module.aws_lb_controller_irsa`**: Controller 用 IRSA role
+  - `attach_load_balancer_controller_policy = true` (canned policy、 ELBv2 / EC2 / WAF / Shield / ACM の必要 permission)
+- **`helm_release.aws_lb_controller`**: chart 1.10.0、 namespace = `kube-system`、 replicaCount = 2 (HA)、 system NG 固定
+  - `clusterName` = eks output `cluster_id`
+  - `vpcId` = vpc output `vpc_id`
+  - `region` = `var.region`
+  - `enableCertManager = false` (chart 内蔵 self-signed webhook cert 使用、 cert-manager 別途導入を避ける)
+- subnet 自動 discovery は vpc stack で付与した `kubernetes.io/role/elb` (public ALB) / `kubernetes.io/role/internal-elb` (private ALB) tag を Controller が解決するため、 本 stack 側で tag 操作は不要
+
+services 側からの利用 (Ingress manifest 例):
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: identity-broker
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing      # public ALB
+    alb.ingress.kubernetes.io/target-type: ip              # pod IP 直接
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: <acm-cert-arn>
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+spec:
+  ingressClassName: alb
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service: { name: identity-broker, port: { number: 8080 } }
+```
 
 ## 依存
 

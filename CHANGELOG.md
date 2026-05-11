@@ -189,6 +189,23 @@
     - **`hashicorp/setup-terraform@v3`** で terraform 1.7.5 を install(`terraform_wrapper: false` で素の CLI を使い、 後段 step で stdout を直接見られる)
     - **将来追加候補(本 workflow に bolt-on)**: `tflint`(命名 / 未使用 resource / deprecated 検知)/ `terraform plan -detailed-exitcode` による週次 drift 検知(read-only AWS credential + 0 以外で Slack 通知)/ `checkov` / `tfsec`(SecOps 静的解析)
     - **モジュール追加時の手順**: `validate-<module>` job を `validate-cognito` と同型で複製。 数が増えたら matrix 化(現状 1 モジュールなので直書き)
+- **A5 follow-up⁴⁴ ADR-0024 の `eks-platform` stack に External Secrets Operator + AWS Load Balancer Controller を追加(Phase C-2、 services 起動の前提として最も critical な 2 component)**(eks-platform stack ⁴³ scaffolding に、 services が AWS Secrets Manager から K8s Secret を取得する経路 [ESO] と、 services の Ingress を ALB に変換する経路 [ALB Controller] を 1 PR でまとめて追加。 13 services の K8s manifest 着手前に必須):
+    - **`external-secrets.tf` 新設**:
+      - `module.external_secrets_irsa`: `iam-role-for-service-accounts-eks ~> 5.50` sub-module で canned `external_secrets_policy` を attach。 secrets_manager_arns + ssm_parameter_arns + kms_key_arns を全 cluster scope (`["*"]`) で広めに付与 (実 secret 単位の絞り込みは ClusterSecretStore 側で)、 `create_permission = false` (Controller は read-only)
+      - `helm_release.external_secrets`: chart `0.10.7` (charts.external-secrets.io)、 namespace = `external-secrets`、 replicaCount = 2 (HA + leader election)、 全 component (controller / webhook / certController) を system NG (`node-role.platform/system = true`) に固定、 resource req 100m/128Mi limit 500m/512Mi
+      - `kubectl_manifest.secret_store_aws_secretsmanager`: `ClusterSecretStore` `aws-secretsmanager` (provider=SecretsManager + region)。 auth field 省略 → Controller の IRSA credential を使用
+      - `kubectl_manifest.secret_store_aws_ssm`: 補助の `ClusterSecretStore` `aws-ssm` (provider=ParameterStore)。 非 secret 設定 (feature flag、 endpoint URL) の cost 効率向上
+    - **`aws-lb-controller.tf` 新設**:
+      - `module.aws_lb_controller_irsa`: 同 sub-module で canned `load_balancer_controller_policy` を attach (ELBv2 / EC2 / WAF / Shield / ACM の必要 permission を網羅)
+      - `helm_release.aws_lb_controller`: chart `1.10.0` (aws.github.io/eks-charts、 K8s 1.31 サポート最低 version)、 namespace = `kube-system`、 replicaCount = 2 (HA)、 system NG 固定
+      - `clusterName` = eks output `cluster_id`、 `vpcId` = vpc output `vpc_id`、 `region` = var
+      - `enableCertManager = false` (chart 内蔵 self-signed webhook cert を使用、 cert-manager 別途導入を避ける)
+      - subnet 自動 discovery は vpc stack で付与済の `kubernetes.io/role/elb` (public) / `kubernetes.io/role/internal-elb` (private) tag に依存 → 本 stack 側で tag 操作不要
+    - **`main.tf`**: vpc remote_state を追加 (ALB Controller の vpcId 用、 後続 phase の SG attach でも参照予定)
+    - **`variables.tf`**: `external_secrets_chart_version` (default 0.10.7) + `aws_lb_controller_chart_version` (default 1.10.0) を追加。 upgrade は別 PR で本変数 bump
+    - **`outputs.tf`**: ESO + ALB Controller の IRSA role ARN + chart version を export (監査 + service 側 ExternalSecret / Ingress manifest 作成の参考用)
+    - **README に services 利用例を明記**: ExternalSecret manifest (Redis auth token を K8s Secret に同期) + Ingress manifest (identity-broker を public ALB 経由で expose、 ACM cert + healthcheck path + ALB annotation 一式)
+    - **scope**: ⁴⁴ では ESO + ALB Controller まで。 Datadog / ArgoCD / Argo Rollouts / per-service IRSA × 13 / SG attach (aurora/msk/redis client) は後続 phase で本 stack に追加 (新 stack を増やさない方針継続)
 - **A5 follow-up⁴³ ADR-0024 の `eks-platform` stack scaffolding + Karpenter Helm 完成(EKS の 3 phase 構築の第 3 弾 = Phase C-1、 Karpenter ループを閉じて application pod が schedule できる状態に到達)**(eks Phase A で control plane、 Phase B-1 で Karpenter AWS-side リソースを作成済の状態に対して、 K8s-side platform pieces を deploy する集約 stack の第 1 弾。 本 PR では Karpenter 関連 [Helm CRD chart + Helm Controller chart + default EC2NodeClass + default NodePool] までで cluster が application pod を実 schedule できる「使える」 状態に到達。 ESO / ALB Controller / Datadog / ArgoCD / Argo Rollouts / per-service IRSA / SG attach は後続 phase で本 stack に追加していく):
     - **`infra/aws/stacks/eks-platform/`** 新設:
       - **provider 設定**: aws + helm (~> 2.17) + gavinbunney/kubectl (~> 1.19)。 helm/kubectl 双方とも `aws eks get-token` exec で都度 token 取得 → operator の AWS credential が EKS Access Entries で cluster-admin policy を持っている前提

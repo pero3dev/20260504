@@ -18,6 +18,24 @@ variable "region" {
 # Karpenter chart version
 # ----------------------------------------------------------------------------
 
+variable "external_secrets_chart_version" {
+  description = <<-EOT
+    External Secrets Operator (ESO) Helm chart version。 charts.external-secrets.io から取得。
+    v0.10+ は v1beta1 SecretStore / ClusterSecretStore を提供。 upgrade は別 PR で本変数を bump。
+  EOT
+  type        = string
+  default     = "0.10.7"
+}
+
+variable "aws_lb_controller_chart_version" {
+  description = <<-EOT
+    AWS Load Balancer Controller Helm chart version。 aws.github.io/eks-charts から取得。
+    K8s 1.31 サポートは chart 1.10.x 以降。 upgrade は別 PR で本変数を bump。
+  EOT
+  type        = string
+  default     = "1.10.0"
+}
+
 variable "karpenter_chart_version" {
   description = <<-EOT
     Karpenter Helm chart version。 v1.x 系 (CRD API group = karpenter.k8s.aws / karpenter.sh)

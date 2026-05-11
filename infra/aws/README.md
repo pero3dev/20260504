@@ -31,7 +31,7 @@ infra/aws/
     glue-schema-registry/          # Glue SR + schemas per Kafka topic (env)
     s3-audit/                      # 監査バケット + Object Lock Compliance + CRR (env)
     cognito/                       # User Pool + App Clients + SAML IdP (env、 移行後)
-    eks-platform/                  # Karpenter Helm + NodeClass/NodePool + (後続) ESO / Datadog / ArgoCD / Argo Rollouts / ALB / per-service IRSA (env、 Phase C)
+    eks-platform/                  # Karpenter Helm + NodeClass/NodePool + ESO + ALB Controller + (後続) Datadog / ArgoCD / Argo Rollouts / per-service IRSA (env、 Phase C)
 ```
 
 ## State layout
