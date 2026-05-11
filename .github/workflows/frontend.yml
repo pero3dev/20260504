@@ -44,7 +44,7 @@ jobs:
           version: 9.15.0
 
       - name: Setup Node 20
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           # setup-node@v5 が package.json の packageManager フィールド (pnpm@9.15.0) を検出して
