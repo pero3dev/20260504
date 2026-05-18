@@ -17,7 +17,7 @@
     <properties>
         <!-- 重い E2E テストなので mvn test では実行しない設定にする(verify でのみ走らせる)。 -->
         <skip.unit.tests>true</skip.unit.tests>
-        <awaitility.version>4.2.2</awaitility.version>
+        <awaitility.version>4.3.0</awaitility.version>
 
         <!--
           E2E は CI(Linux + native Docker socket)専用で運用する(CLAUDE.md 参照)。
